@@ -1,0 +1,27 @@
+.idea
+.history
+.vscode
+**/.structurizr/*
+
+# Dependency and build-related directories
+**/node_modules/
+**/dist/
+**/build/
+**/target
+**/types/*
+!**/src/types/moviepass.ts
+**/abis
+
+# Move
+**/Move.lock
+*.lock
+*.coverage_map.mvcov
+*.trace
+**/traces
+
+# Scripts
+.env
+.publish.res.json
+.template_bytecode.json
+
+.DS_store
