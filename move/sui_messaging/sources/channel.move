@@ -11,6 +11,9 @@ use sui_messaging::permissions::{Role, Permission, permission_update_config};
 const ENotMember: u64 = 0;
 
 // === Constants ===
+const MAX_CHANNEL_MEMBERS: u64 = 500;
+const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
+const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 
 // === Enums ===
 
@@ -106,6 +109,7 @@ use fun df::borrow as UID.borrow;
 // use fun df::borrow_mut as UID.borrow_mut;
 // use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
+use sui::config;
 // === Public Functions ===
 
 /// Attach a dynamic config object to the Channel.
@@ -121,13 +125,13 @@ public fun add_config(
 }
 
 /// Borrow the dynamic config object. (Read-only)
-public fun config<Config: store + drop>(self: &Channel): &Config {
+public fun config(self: &Channel): &Config {
     self.id.borrow(ConfigKey<Config>())
 }
 
 /// Detach the dynamic config from the Channel for editing purposes.
 /// The member should then add it back.
-public fun remove_config_for_editing<Config: store + drop>(
+public fun remove_config_for_editing(
     self: &mut Channel,
     member_cap: &MemberCap,
 ): Config {
@@ -173,6 +177,14 @@ fun is_member(self: &Channel, member_cap: &MemberCap): bool {
 /// Aborts with `ENotMember` if not.
 fun assert_is_member(self: &Channel, member_cap: &MemberCap) {
     assert!(self.is_member(member_cap), ENotMember);
+}
+
+fun assert_valid_config(config: &Config) {
+    assert!(
+        config.max_channel_members <= MAX_CHANNEL_MEMBERS
+        && config.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS
+        && config.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS
+    )
 }
 
 // === Test Functions ===
