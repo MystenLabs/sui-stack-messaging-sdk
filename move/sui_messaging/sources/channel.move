@@ -66,6 +66,11 @@ public struct Channel has key {
     ///
     /// Using `TableVec` to avoid the object size limit.
     messages: TableVec<Message>,
+    /// A duplicate of the last entry of the messages TableVec,
+    /// 
+    /// Utilize this for efficient fetching e.g. list of conversations showing
+    /// the latest message the user who sent
+    last_message: Message,
     /// The encrypted envelop key (KEK) for this channel, encrypted via `Seal`.
     ///
     /// This key is required to decrypt the DEK of each message.

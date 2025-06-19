@@ -9,6 +9,7 @@ module sui_messaging::admin;
 // === Errors ===
 
 // === Constants ===
+const VERSION: u64 = 1;
 
 // === Enums ===
 
