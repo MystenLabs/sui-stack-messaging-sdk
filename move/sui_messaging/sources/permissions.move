@@ -1,6 +1,6 @@
 /// RBAC system that allows for creation of custom roles
 /// with granular permissions at runtime(no need for package upgrade).
-/// 
+///
 /// When a user attampts a channel action, the relevant function will perform the following checks:
 /// 1. Look up the sender's `MemberInfo` in the `Channel.members` table.
 /// 2. Get the sender's role name from the `MemberInfo`.
@@ -8,7 +8,6 @@
 /// 4. Check if the `Role.permissions` contains the required `Permission` for that action.
 module sui_messaging::permissions;
 
-// === Imports ===
 use std::string::String;
 use sui::vec_set::VecSet;
 
@@ -18,7 +17,7 @@ use sui::vec_set::VecSet;
 
 // === Enums ===
 
-/// An enum representing all possible granular permissions within 
+/// An enum representing all possible granular permissions within
 /// the scope of a Channel.
 public enum Permission has copy, drop, store {
     // == Member management ==
@@ -41,7 +40,9 @@ public enum Permission has copy, drop, store {
 // === Structs ===
 
 /// A struct representing a custom role with a Set of permissions.
-public struct Role has store, drop {
+/// What if we made this a generic, so that users can use their own Permission enum?
+/// e.g. Role<TPermission>
+public struct Role has drop, store {
     permissions: VecSet<Permission>,
 }
 
@@ -94,6 +95,10 @@ public fun permission_pin_message(): Permission {
 
 public fun permissions(self: &Role): VecSet<Permission> {
     self.permissions
+}
+
+public fun has_permission(self: &Role, permission: Permission): bool {
+    self.permissions.contains(&permission)
 }
 
 // === Admin Functions ===

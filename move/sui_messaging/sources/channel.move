@@ -1,9 +1,12 @@
 module sui_messaging::channel;
 
 use std::string::String;
+use sui::clock::Clock;
 use sui::dynamic_field as df;
-use sui::table::Table;
-use sui::table_vec::TableVec;
+use sui::table::{Self, Table};
+use sui::table_vec::{Self, TableVec};
+use sui::vec_map::VecMap;
+use sui_messaging::admin;
 use sui_messaging::message::Message;
 use sui_messaging::permissions::{Role, Permission, permission_update_config};
 
@@ -16,6 +19,10 @@ const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
 const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 
 // === Enums ===
+public enum Presense has copy, drop, store {
+    Online,
+    Offline,
+}
 
 // === Witnesses ===
 
@@ -57,6 +64,7 @@ public struct Channel has key {
     /// to be able to change permissions.
     ///
     /// We do not need to worry with burning the MemberCap, since we can simply
+    /// remove the MemberCap ID from the members Table and
     /// rotate the envelope_key when a member is removed from the channel.
     members: Table<ID, MemberInfo>,
     /// Maps custom role names(e.g. "Moderator") to `Role` structs containing
@@ -67,14 +75,14 @@ public struct Channel has key {
     /// Using `TableVec` to avoid the object size limit.
     messages: TableVec<Message>,
     /// A duplicate of the last entry of the messages TableVec,
-    /// 
+    ///
     /// Utilize this for efficient fetching e.g. list of conversations showing
     /// the latest message the user who sent
-    last_message: Message,
+    last_message: Option<Message>,
     /// The encrypted envelop key (KEK) for this channel, encrypted via `Seal`.
     ///
     /// This key is required to decrypt the DEK of each message.
-    encrypted_evenlope_key: vector<u8>,
+    encrypted_envelope_key: vector<u8>,
     /// The version number for the envelop key.
     ///
     /// This is incremented each time the key is rotated.
@@ -91,8 +99,9 @@ public struct Channel has key {
 
 /// Information about a channel member, including their role and joint time.
 public struct MemberInfo has drop, store {
-    role: String,
+    role_name: String,
     joined_at_ms: u64,
+    presense: Presense,
 }
 
 public struct Config has drop, store {
@@ -100,6 +109,8 @@ public struct Config has drop, store {
     max_message_text_chars: u64,
     max_message_attachments: u64,
 }
+
+public struct ConfigReturnPromise()
 
 // === Keys ===
 
@@ -114,18 +125,99 @@ use fun df::borrow as UID.borrow;
 // use fun df::borrow_mut as UID.borrow_mut;
 // use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
-use sui::config;
+
 // === Public Functions ===
+public fun new(
+    initial_roles: &mut VecMap<String, Role>,
+    initial_members: &mut VecMap<address, String>, // address, role_name
+    encrypted_envelope_key: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): (CreatorCap, Channel) {
+    let mut channel = Channel {
+        id: object::new(ctx),
+        version: admin::version(),
+        members: table::new<ID, MemberInfo>(ctx),
+        roles: table::new<String, Role>(ctx),
+        messages: table_vec::empty<Message>(ctx),
+        last_message: option::none<Message>(),
+        encrypted_envelope_key,
+        key_version: 1,
+        created_at_ms: clock.timestamp_ms(),
+        updated_at_ms: clock.timestamp_ms(),
+    };
+
+    let creator_cap = CreatorCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
+
+    // Add initial Roles
+    while (!initial_roles.is_empty()) {
+        let (role_name, role) = initial_roles.pop();
+        channel.roles.add(role_name, role);
+    };
+
+    // Add initial members, and transfer the MemberCaps to their addresses
+    while (!initial_members.is_empty()) {
+        let (member_address, role_name) = initial_members.pop();
+        let member_cap = MemberCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
+        channel
+            .members
+            .add(
+                member_cap.id.to_inner(),
+                MemberInfo {
+                    role_name,
+                    joined_at_ms: clock.timestamp_ms(),
+                    presense: Presense::Offline,
+                },
+            );
+        transfer::transfer(member_cap, member_address)
+    };
+
+    (creator_cap, channel)
+}
+
+public fun share(channel: Channel) {
+    transfer::share_object(channel);
+}
+
+#[allow(lint(self_transfer))]
+public fun create_and_share(
+    initial_roles: &mut VecMap<String, Role>, // role_name, role
+    initial_members: &mut VecMap<address, String>, // address, role_name
+    encrypted_envelope_key: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    let (creator_cap, channel) = new(
+        initial_roles,
+        initial_members,
+        encrypted_envelope_key,
+        clock,
+        ctx,
+    );
+    channel.share();
+    transfer::public_transfer(creator_cap, ctx.sender());
+}
 
 /// Attach a dynamic config object to the Channel.
-public fun add_config(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    config: Config,
-) {
+public fun add_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
     self.assert_has_permission(member_cap, permission_update_config());
 
     // Add a new Config
+    self.id.add(ConfigKey<Config>(), config);
+}
+
+public fun add_config_with_promise(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    config: Config,
+    promise: ConfigReturnPromise,
+) {
+    self.assert_has_permission(member_cap, permission_update_config());
+
+    // Burn ConfigReturnPromise
+    let ConfigReturnPromise() = promise;
+
+    // Add the new Config
     self.id.add(ConfigKey<Config>(), config);
 }
 
@@ -139,9 +231,9 @@ public fun config(self: &Channel): &Config {
 public fun remove_config_for_editing(
     self: &mut Channel,
     member_cap: &MemberCap,
-): Config {
+): (Config, ConfigReturnPromise) {
     self.assert_has_permission(member_cap, permission_update_config());
-    self.id.remove(ConfigKey<Config>())
+    (self.id.remove(ConfigKey<Config>()), ConfigReturnPromise())
 }
 
 public fun has_permission(self: &Channel, member_cap: &MemberCap, permission: Permission): bool {
@@ -149,7 +241,7 @@ public fun has_permission(self: &Channel, member_cap: &MemberCap, permission: Pe
     self.assert_is_member(member_cap);
 
     // Get member's role
-    let role_name = self.members.borrow(member_cap.id.to_inner()).role;
+    let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
     let role = self.roles.borrow(role_name);
 
     // Assert permission
@@ -188,7 +280,7 @@ fun assert_valid_config(config: &Config) {
     assert!(
         config.max_channel_members <= MAX_CHANNEL_MEMBERS
         && config.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS
-        && config.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS
+        && config.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS,
     )
 }
 

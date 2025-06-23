@@ -33,6 +33,9 @@ public struct Admin has drop {}
 // === Admin Functions ===
 
 // === Package Functions ===
+public(package) fun version(): u64 {
+    VERSION
+}
 
 // === Private Functions ===
 

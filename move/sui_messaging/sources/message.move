@@ -1,11 +1,6 @@
 module sui_messaging::message;
 
 // === Imports ===
-use sui::display::Display;
-use sui::table::Table;
-use sui::table_vec::TableVec;
-use sui::vec_set::VecSet;
-
 use sui_messaging::attachment::Attachment;
 
 // === Errors ===
@@ -19,7 +14,7 @@ public struct Message has drop, store {
     encrypted_text: vector<u8>,
     wrapped_dek: vector<u8>,
     attachments: vector<Attachment>,
-    timestamp_ms: u64,
+    created_at_ms: u64,
 }
 
 
