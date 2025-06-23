@@ -7,11 +7,13 @@ use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
 use sui::vec_map::VecMap;
 use sui_messaging::admin;
-use sui_messaging::message::Message;
-use sui_messaging::permissions::{Role, Permission, permission_update_config};
+use sui_messaging::message::{Self, Message};
+use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
 // === Errors ===
-const ENotMember: u64 = 0;
+const ENotCreator: u64 = 0;
+const ENotMember: u64 = 1;
+const ERoleDoesNotExist: u64 = 2;
 
 // === Constants ===
 const MAX_CHANNEL_MEMBERS: u64 = 500;
@@ -125,8 +127,8 @@ use fun df::borrow as UID.borrow;
 // use fun df::borrow_mut as UID.borrow_mut;
 // use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
-
 // === Public Functions ===
+
 public fun new(
     initial_roles: &mut VecMap<String, Role>,
     initial_members: &mut VecMap<address, String>, // address, role_name
@@ -150,16 +152,45 @@ public fun new(
     let creator_cap = CreatorCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
 
     // Add initial Roles
-    while (!initial_roles.is_empty()) {
-        let (role_name, role) = initial_roles.pop();
-        channel.roles.add(role_name, role);
-    };
+    channel.set_initial_roles(&creator_cap, initial_roles);
 
     // Add initial members, and transfer the MemberCaps to their addresses
+    channel.set_initial_members(&creator_cap, initial_members, clock, ctx);
+
+    (creator_cap, channel)
+}
+
+public fun share(channel: Channel) {
+    transfer::share_object(channel);
+}
+
+public fun set_initial_roles(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    roles: &mut VecMap<String, Role>,
+) {
+    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    while (!roles.is_empty()) {
+        let (role_name, role) = roles.pop();
+        self.roles.add(role_name, role);
+    }
+}
+
+public fun set_initial_members(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    initial_members: &mut VecMap<address, String>, // address -> role_name
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
     while (!initial_members.is_empty()) {
         let (member_address, role_name) = initial_members.pop();
-        let member_cap = MemberCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
-        channel
+        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
+
+        assert!(self.roles.contains(role_name), ERoleDoesNotExist);
+
+        self
             .members
             .add(
                 member_cap.id.to_inner(),
@@ -171,12 +202,25 @@ public fun new(
             );
         transfer::transfer(member_cap, member_address)
     };
+    // Ensure the creator is also added as a Member
+    if (!initial_members.contains(&ctx.sender())) {
+        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
 
-    (creator_cap, channel)
-}
+        let creator_role_name = b"Creator".to_string();
+        self.roles.add(creator_role_name, permissions::new_role(permissions::all()));
 
-public fun share(channel: Channel) {
-    transfer::share_object(channel);
+        self
+            .members
+            .add(
+                member_cap.id.to_inner(),
+                MemberInfo {
+                    role_name: creator_role_name,
+                    joined_at_ms: clock.timestamp_ms(),
+                    presense: Presense::Offline,
+                },
+            );
+        transfer::transfer(member_cap, ctx.sender());
+    };
 }
 
 #[allow(lint(self_transfer))]
@@ -196,6 +240,109 @@ public fun create_and_share(
     );
     channel.share();
     transfer::public_transfer(creator_cap, ctx.sender());
+}
+
+public fun new_one_to_one(
+    recipient: address,
+    encrypted_envelope_key: vector<u8>,
+    initial_encrypted_text: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): Channel {
+    // Initialize channel object
+    let mut channel = Channel {
+        id: object::new(ctx),
+        version: admin::version(),
+        members: table::new<ID, MemberInfo>(ctx),
+        roles: table::new<String, Role>(ctx),
+        messages: table_vec::empty(ctx),
+        last_message: option::none(),
+        encrypted_envelope_key,
+        key_version: 1,
+        created_at_ms: clock.timestamp_ms(),
+        updated_at_ms: clock.timestamp_ms(),
+    };
+
+    // Create the MemberCaps
+    let member_cap_sender = MemberCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
+    let member_cap_recipient = MemberCap {
+        id: object::new(ctx),
+        channel_id: channel.id.to_inner(),
+    };
+
+    // Create and add Default 1-2-1 Roles to the Channel
+    // Sender has all permissions | Recipient has no permissions
+    let role_sender_key = b"Sender".to_string();
+    let role_sender_val = permissions::new_role(permissions::all());
+
+    let role_recipient_key = b"Recipient".to_string();
+    let role_recipient_val = permissions::new_role(permissions::empty());
+
+    channel.roles.add(role_sender_key, role_sender_val);
+    channel.roles.add(role_recipient_key, role_recipient_val);
+
+    // Add the 2 Members to the Channel
+    channel
+        .members
+        .add(
+            member_cap_sender.id.to_inner(),
+            MemberInfo {
+                role_name: role_sender_key,
+                joined_at_ms: clock.timestamp_ms(),
+                presense: Presense::Online,
+            },
+        );
+
+    channel
+        .members
+        .add(
+            member_cap_sender.id.to_inner(),
+            MemberInfo {
+                role_name: role_recipient_key,
+                joined_at_ms: clock.timestamp_ms(),
+                presense: Presense::Online,
+            },
+        );
+
+    // Send the initial message to the Channel
+    if (!initial_encrypted_text.is_empty()) {
+        channel
+            .messages
+            .push_back(
+                message::new(
+                    ctx.sender(),
+                    initial_encrypted_text,
+                    vector::empty(),
+                    clock,
+                ),
+            );
+
+        channel.last_message =
+            option::some(
+                message::new(
+                    ctx.sender(),
+                    initial_encrypted_text,
+                    vector::empty(),
+                    clock,
+                ),
+            );
+    };
+    transfer::transfer(member_cap_sender, ctx.sender());
+    transfer::transfer(member_cap_recipient, recipient);
+
+    channel
+}
+
+public fun send_message(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    encrypted_text: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    self.assert_is_member(member_cap);
+    // assert has_write_permission???
+    self.messages.push_back(message::new(ctx.sender(), encrypted_text, vector::empty(), clock))
 }
 
 /// Attach a dynamic config object to the Channel.

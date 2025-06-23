@@ -9,7 +9,7 @@
 module sui_messaging::permissions;
 
 use std::string::String;
-use sui::vec_set::VecSet;
+use sui::vec_set::{Self, VecSet};
 
 // === Errors ===
 
@@ -20,6 +20,7 @@ use sui::vec_set::VecSet;
 /// An enum representing all possible granular permissions within
 /// the scope of a Channel.
 public enum Permission has copy, drop, store {
+    All,
     // == Member management ==
     AddMember,
     RemoveMember,
@@ -51,6 +52,21 @@ public struct Role has drop, store {
 // === Method Aliases ===
 
 // === Public Functions ===
+
+public fun new_role(permissions: VecSet<Permission>): Role {
+    Role { permissions }
+}
+
+public fun empty(): VecSet<Permission> {
+    vec_set::empty<Permission>()
+}
+
+public fun all(): VecSet<Permission> {
+    let mut permissions = vec_set::empty<Permission>();
+    permissions.insert(Permission::All);
+    permissions
+}
+
 public fun permission_add_member(): Permission {
     Permission::AddMember
 }
