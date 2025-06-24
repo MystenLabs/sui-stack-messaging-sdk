@@ -8,7 +8,6 @@
 /// 4. Check if the `Role.permissions` contains the required `Permission` for that action.
 module sui_messaging::permissions;
 
-use std::string::String;
 use sui::vec_set::{Self, VecSet};
 
 // === Errors ===
