@@ -19,8 +19,8 @@ use sui::vec_set::{Self, VecSet};
 
 /// An enum representing all possible granular permissions within
 /// the scope of a Channel.
+/// 2^10 = 1024 possible roles
 public enum Permission has copy, drop, store {
-    All,
     // == Member management ==
     AddMember,
     RemoveMember,
@@ -63,7 +63,16 @@ public fun empty(): VecSet<Permission> {
 
 public fun all(): VecSet<Permission> {
     let mut permissions = vec_set::empty<Permission>();
-    permissions.insert(Permission::All);
+    permissions.insert(Permission::AddMember);
+    permissions.insert(Permission::RemoveMember);
+    permissions.insert(Permission::AddRole);
+    permissions.insert(Permission::PromoteMember);
+    permissions.insert(Permission::DemoteMember);
+    permissions.insert(Permission::RotateKey);
+    permissions.insert(Permission::UpdateConfig);
+    permissions.insert(Permission::UpdateMetadata);
+    permissions.insert(Permission::DeleteMessage);
+    permissions.insert(Permission::PinMessage);
     permissions
 }
 

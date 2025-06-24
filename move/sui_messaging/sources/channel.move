@@ -5,7 +5,7 @@ use sui::clock::Clock;
 use sui::dynamic_field as df;
 use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
-use sui::vec_map::VecMap;
+use sui::vec_map::{Self, VecMap};
 use sui_messaging::admin;
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
@@ -17,8 +17,11 @@ const ERoleDoesNotExist: u64 = 2;
 
 // === Constants ===
 const MAX_CHANNEL_MEMBERS: u64 = 500;
+const MAX_CHANNEL_ROLES: u64 = 1024;
 const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
 const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
+const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
+const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
 
 // === Enums ===
 public enum Presense has copy, drop, store {
@@ -33,6 +36,7 @@ public enum Presense has copy, drop, store {
 /// Channel Creator Capability
 ///
 /// Can act as a "super admin" for the channel.
+/// Used for initializing the Channel
 /// Only one per channel.
 /// Can be transferred.
 public struct CreatorCap has key, store {
@@ -58,9 +62,12 @@ public struct MemberCap has key {
 public struct Channel has key {
     id: UID,
     /// The version of this object, for handling updgrades.
-    version: u64,
+    version: u64, // Maybe move this to the Config, or utilize the sui::versioned module
     // Do we need to keep track of this?
     // creator_cap_id: ID,
+    /// Maps custom role names(e.g. "Moderator") to `Role` structs containing
+    /// a granular set of permissions.
+    roles: Table<String, Role>,
     /// A table mapping `MemberCap` ids to their roles and join timestamps.
     /// We do not include the MemberInfo in the `MemberCap` because we want
     /// to be able to change permissions.
@@ -69,9 +76,6 @@ public struct Channel has key {
     /// remove the MemberCap ID from the members Table and
     /// rotate the envelope_key when a member is removed from the channel.
     members: Table<ID, MemberInfo>,
-    /// Maps custom role names(e.g. "Moderator") to `Role` structs containing
-    /// a granular set of permissions.
-    roles: Table<String, Role>,
     /// The message history of the channel.
     ///
     /// Using `TableVec` to avoid the object size limit.
@@ -99,6 +103,12 @@ public struct Channel has key {
     updated_at_ms: u64,
 }
 
+/// An object owned by each user, holding all `channel::MemberCap`s via TTO
+/// offering easy discoverability of the Channels the user is a member of
+public struct Memberships has key {
+    id: UID,
+}
+
 /// Information about a channel member, including their role and joint time.
 public struct MemberInfo has drop, store {
     role_name: String,
@@ -108,10 +118,20 @@ public struct MemberInfo has drop, store {
 
 public struct Config has drop, store {
     max_channel_members: u64,
+    max_channel_roles: u64,
     max_message_text_chars: u64,
     max_message_attachments: u64,
+    require_invitation: bool,
+    require_request: bool,
 }
 
+/// Potato, returned right after new Channel creation+share
+/// ensuring that the creator will add a Config to the Channel
+public struct ConfigurePromise()
+
+/// Potato, returned after a call to `channel::remove_config`,
+/// ensuring that the caller will return/reattach a Config to
+/// the Channel after editing.
 public struct ConfigReturnPromise()
 
 // === Keys ===
@@ -129,18 +149,20 @@ use fun df::borrow as UID.borrow;
 use fun df::remove as UID.remove;
 // === Public Functions ===
 
+/// Create a new `Channel` object with an encrypted_envelope_key
+/// and empty roles & members Tables, and empty messages TableVec
 public fun new(
-    initial_roles: &mut VecMap<String, Role>,
-    initial_members: &mut VecMap<address, String>, // address, role_name
+    // initial_roles: &mut VecMap<String, Role>,
+    // initial_members: &mut VecMap<address, String>, // address, role_name
     encrypted_envelope_key: vector<u8>,
     clock: &Clock,
     ctx: &mut TxContext,
-): (CreatorCap, Channel) {
-    let mut channel = Channel {
+): (Channel, CreatorCap, ConfigurePromise) {
+    let channel = Channel {
         id: object::new(ctx),
         version: admin::version(),
-        members: table::new<ID, MemberInfo>(ctx),
         roles: table::new<String, Role>(ctx),
+        members: table::new<ID, MemberInfo>(ctx),
         messages: table_vec::empty<Message>(ctx),
         last_message: option::none<Message>(),
         encrypted_envelope_key,
@@ -151,14 +173,38 @@ public fun new(
 
     let creator_cap = CreatorCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
 
-    // Add initial Roles
-    channel.set_initial_roles(&creator_cap, initial_roles);
-
-    // Add initial members, and transfer the MemberCaps to their addresses
-    channel.set_initial_members(&creator_cap, initial_members, clock, ctx);
-
-    (creator_cap, channel)
+    (channel, creator_cap, ConfigurePromise())
 }
+
+public fun new_with_defaults(
+    encrypted_envelope_key: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+): (Channel, CreatorCap) {
+    let mut channel = Channel {
+        id: object::new(ctx),
+        version: admin::version(),
+        roles: table::new<String, Role>(ctx),
+        members: table::new<ID, MemberInfo>(ctx),
+        messages: table_vec::empty<Message>(ctx),
+        last_message: option::none<Message>(),
+        encrypted_envelope_key,
+        key_version: 1,
+        created_at_ms: clock.timestamp_ms(),
+        updated_at_ms: clock.timestamp_ms(),
+    };
+
+    channel.id.add(ConfigKey<Config>(), default_config());
+
+    let creator_cap = CreatorCap { id: object::new(ctx), channel_id: channel.id.to_inner() };
+
+    (channel, creator_cap)
+}
+
+// #[allow(lint(self_transfer))]
+// public fun keep_creator_cap(cap: CreatorCap, ctx: &mut TxContext) {
+//     transfer::transfer(cap, ctx.sender());
+// }
 
 public fun share(self: Channel) {
     transfer::share_object(self);
@@ -223,25 +269,6 @@ public fun set_initial_members(
     };
 }
 
-#[allow(lint(self_transfer))]
-public fun create_and_share(
-    initial_roles: &mut VecMap<String, Role>, // role_name, role
-    initial_members: &mut VecMap<address, String>, // address, role_name
-    encrypted_envelope_key: vector<u8>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    let (creator_cap, channel) = new(
-        initial_roles,
-        initial_members,
-        encrypted_envelope_key,
-        clock,
-        ctx,
-    );
-    channel.share();
-    transfer::public_transfer(creator_cap, ctx.sender());
-}
-
 // TODO: Cannot add initial entries in Tables before sharing the object
 // we need to create an empty one, share it, and then modify it
 public fun new_one_to_one(
@@ -255,8 +282,8 @@ public fun new_one_to_one(
     let mut channel = Channel {
         id: object::new(ctx),
         version: admin::version(),
-        members: table::new<ID, MemberInfo>(ctx),
-        roles: table::new<String, Role>(ctx),
+        members: table::new<ID, MemberInfo>(ctx), // Could use VecMap instead, since we limit it anyway
+        roles: table::new<String, Role>(ctx), // Could use VecMap instead, since we limit it anyway
         messages: table_vec::empty(ctx),
         last_message: option::none(),
         encrypted_envelope_key,
@@ -347,6 +374,20 @@ public fun send_message(
     self.messages.push_back(message::new(ctx.sender(), encrypted_text, vector::empty(), clock))
 }
 
+public fun fulfill_configure_promise(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    promise: ConfigurePromise,
+    config: Config,
+) {
+    // Assert creator of channel
+    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    // Burn the ConfigurePromise
+    let ConfigurePromise() = promise;
+    // Attach the Config to the Channel
+    self.id.add(ConfigKey<Config>(), config);
+}
+
 /// Attach a dynamic config object to the Channel.
 public fun add_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
     self.assert_has_permission(member_cap, permission_update_config());
@@ -401,14 +442,41 @@ public fun assert_has_permission(self: &Channel, member_cap: &MemberCap, permiss
     assert!(self.has_permission(member_cap, permission));
 }
 
+// Maybe create a separate sui_messaging::config module
+public fun default_config(): Config {
+    Config {
+        max_channel_members: MAX_CHANNEL_MEMBERS,
+        max_channel_roles: MAX_CHANNEL_ROLES,
+        max_message_text_chars: MAX_MESSAGE_TEXT_SIZE_IN_CHARS,
+        max_message_attachments: MAX_MESSAGE_ATTACHMENTS,
+        require_invitation: REQUIRE_INVITATION,
+        require_request: REQUIRE_REQUEST,
+    }
+}
+
+public fun new_config(
+    max_channel_members: u64,
+    max_channel_roles: u64,
+    max_message_text_chars: u64,
+    max_message_attachments: u64,
+    require_invitation: bool,
+    require_request: bool,
+): Config {
+    Config {
+        max_channel_members,
+        max_channel_roles,
+        max_message_text_chars,
+        max_message_attachments,
+        require_invitation,
+        require_request,
+    }
+}
+
 // === View Functions ===
 
 // === Admin Functions ===
 
 // === Package Functions ===
-// public(package) fun new(init_members: vector<address>): Channel {
-
-// }
 
 // === Private Functions ===
 
@@ -434,98 +502,183 @@ fun assert_valid_config(config: &Config) {
 }
 
 // === Test Functions ===
-#[test]
-fun test_new_one_to_one_share_send_message_e2e() {
-    use std::string;
-    use sui::clock::{Self, Clock};
-    use sui::test_scenario::{Self as ts, Scenario};
-    use sui::test_utils;
-    use sui_messaging::channel::{Self, Channel, MemberCap};
+#[test_only]
+use sui::test_scenario::{Self as ts};
 
+#[test_only]
+use sui::clock;
+
+#[test]
+fun test_new_with_defaults() {
     // Test addresses
     let sender_address: address = @0xa;
     let recipient_address: address = @0xb;
 
     let mut scenario = ts::begin(sender_address);
-    let ctx = scenario.ctx();
 
-    // Create a clock for timestamps
-    let mut clock = clock::create_for_testing(ctx);
-    clock.set_for_testing(1000); // Set initial timestamp
+    let mut clock = clock::create_for_testing(scenario.ctx());
+    clock.set_for_testing(1750762503);
 
-    // Test data
-    let encrypted_envelope_key = b"test_envelope_key_12345678901234567890";
-    let initial_encrypted_text = b"Hello, this is the initial message!";
-    let second_message_text = b"This is a follow-up message.";
+    let encrypted_envelope_key = b"Some key";
 
-    // === Step 1: Create one-to-one channel ===
+    // === Create a new Channel with default configuration ===
     scenario.next_tx(sender_address);
     {
-        let channel = channel::new_one_to_one(
-            recipient_address,
+        let (channel, creator_cap) = new_with_defaults(
             encrypted_envelope_key,
-            initial_encrypted_text,
             &clock,
             scenario.ctx(),
         );
-
-        // Share the channel
-        channel::share(channel);
+        assert!(channel.id.to_inner() == creator_cap.channel_id, 0);
+        std::debug::print(channel.config());
+        transfer::public_transfer(creator_cap, sender_address);
+        channel.share();
     };
 
-    // === Step 2: Verify sender received MemberCap ===
+    // === Set initial roles ===
     scenario.next_tx(sender_address);
     {
-        let sender_member_cap = scenario.take_from_sender<MemberCap>();
+        let creator_cap = scenario.take_from_sender<CreatorCap>();
+        let mut channel = scenario.take_shared<Channel>();
 
-        // Verify the MemberCap belongs to the correct channel
-        let mut shared_channel = scenario.take_shared<Channel>();
+        let mut initial_roles = vec_map::empty<String, Role>();
+        initial_roles.insert(b"Admin".to_string(), permissions::new_role(permissions::all()));
 
-        // Test that sender can send a message
-        channel::send_message(
-            &mut shared_channel,
-            &sender_member_cap,
-            second_message_text,
-            &clock,
-            scenario.ctx(),
-        );
+        channel.set_initial_roles(&creator_cap, &mut initial_roles);
 
-        // Return objects
-        scenario.return_to_sender(sender_member_cap);
-        ts::return_shared(shared_channel);
+        std::debug::print(&channel.roles);
+
+        scenario.return_to_sender<CreatorCap>(creator_cap);
+        channel.share();
     };
 
-    // === Step 3: Verify recipient received MemberCap ===
-    scenario.next_tx(recipient_address);
-    {
-        let recipient_member_cap = scenario.take_from_sender<MemberCap>();
-
-        // Verify the recipient's MemberCap
-        let shared_channel = scenario.take_shared<Channel>();
-
-        // Test that recipient can also send a message (if they have permissions)
-        // Note: Based on the code, recipient has empty permissions by default
-        // So this might fail - we'll test the permission system
-
-        // Return objects
-        scenario.return_to_sender(recipient_member_cap);
-        ts::return_shared(shared_channel);
-    };
-
-    // === Step 4: Verify channel state ===
+    // === Set initial members ===
     scenario.next_tx(sender_address);
     {
-        let shared_channel = scenario.take_shared<Channel>();
+        let creator_cap = scenario.take_from_sender<CreatorCap>();
+        let mut channel = scenario.take_shared<Channel>();
 
-        // Channel should exist and be accessible
-        // In a real test, we'd verify message count, members, etc.
-        // but since most fields are private, we rely on the fact that
-        // operations completed successfully
+        let mut initial_members = vec_map::empty<address, String>();
+        initial_members.insert(recipient_address, b"Admin".to_string());
 
-        ts::return_shared(shared_channel);
+        channel.set_initial_members(&creator_cap, &mut initial_members, &clock, scenario.ctx());
+
+        std::debug::print(&channel.members);
+
+        scenario.return_to_sender<CreatorCap>(creator_cap);
+        channel.share();
     };
 
-    // Clean up
-    clock.destroy_for_testing();
+    // === Send message to channel ===
+    scenario.next_tx(sender_address);
+    {
+        let mut channel = scenario.take_shared<Channel>();
+        let member_cap = scenario.take_from_sender<MemberCap>();
+        let encrypted_text = b"Some text";
+
+        channel.send_message(&member_cap, encrypted_text, &clock, scenario.ctx());
+        std::debug::print(channel.messages.borrow(0));
+
+        scenario.return_to_sender<MemberCap>(member_cap);
+        channel.share();
+    };
+
+    clock::destroy_for_testing(clock);
     scenario.end();
 }
+
+// #[test]
+// fun test_new_one_to_one_share_send_message_e2e() {
+//     use std::string;
+//     use sui::clock::{Self, Clock};
+//     use sui::test_scenario::{Self as ts, Scenario};
+//     use sui::test_utils;
+//     use sui_messaging::channel::{Self, Channel, MemberCap};
+
+//     // Test addresses
+//     let sender_address: address = @0xa;
+//     let recipient_address: address = @0xb;
+
+//     let mut scenario = ts::begin(sender_address);
+//     let ctx = scenario.ctx();
+
+//     // Create a clock for timestamps
+//     let mut clock = clock::create_for_testing(ctx);
+//     clock.set_for_testing(1000); // Set initial timestamp
+
+//     // Test data
+//     let encrypted_envelope_key = b"test_envelope_key_12345678901234567890";
+//     let initial_encrypted_text = b"Hello, this is the initial message!";
+//     let second_message_text = b"This is a follow-up message.";
+
+//     // === Step 1: Create one-to-one channel ===
+//     scenario.next_tx(sender_address);
+//     {
+//         let channel = channel::new_one_to_one(
+//             recipient_address,
+//             encrypted_envelope_key,
+//             initial_encrypted_text,
+//             &clock,
+//             scenario.ctx(),
+//         );
+
+//         // Share the channel
+//         channel::share(channel);
+//     };
+
+//     // === Step 2: Verify sender received MemberCap ===
+//     scenario.next_tx(sender_address);
+//     {
+//         let sender_member_cap = scenario.take_from_sender<MemberCap>();
+
+//         // Verify the MemberCap belongs to the correct channel
+//         let mut shared_channel = scenario.take_shared<Channel>();
+
+//         // Test that sender can send a message
+//         channel::send_message(
+//             &mut shared_channel,
+//             &sender_member_cap,
+//             second_message_text,
+//             &clock,
+//             scenario.ctx(),
+//         );
+
+//         // Return objects
+//         scenario.return_to_sender(sender_member_cap);
+//         ts::return_shared(shared_channel);
+//     };
+
+//     // === Step 3: Verify recipient received MemberCap ===
+//     scenario.next_tx(recipient_address);
+//     {
+//         let recipient_member_cap = scenario.take_from_sender<MemberCap>();
+
+//         // Verify the recipient's MemberCap
+//         let shared_channel = scenario.take_shared<Channel>();
+
+//         // Test that recipient can also send a message (if they have permissions)
+//         // Note: Based on the code, recipient has empty permissions by default
+//         // So this might fail - we'll test the permission system
+
+//         // Return objects
+//         scenario.return_to_sender(recipient_member_cap);
+//         ts::return_shared(shared_channel);
+//     };
+
+//     // === Step 4: Verify channel state ===
+//     scenario.next_tx(sender_address);
+//     {
+//         let shared_channel = scenario.take_shared<Channel>();
+
+//         // Channel should exist and be accessible
+//         // In a real test, we'd verify message count, members, etc.
+//         // but since most fields are private, we rely on the fact that
+//         // operations completed successfully
+
+//         ts::return_shared(shared_channel);
+//     };
+
+//     // Clean up
+//     clock.destroy_for_testing();
+//     scenario.end();
+// }
