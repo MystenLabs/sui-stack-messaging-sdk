@@ -7,6 +7,7 @@ use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
 use sui::vec_map::{Self, VecMap};
 use sui_messaging::admin;
+use sui_messaging::attachment::{Self, Attachment};
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
@@ -291,12 +292,13 @@ public fun send_message(
     self: &mut Channel,
     member_cap: &MemberCap,
     encrypted_text: vector<u8>,
+    attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     self.assert_is_member(member_cap);
     // assert has_write_permission???
-    self.messages.push_back(message::new(ctx.sender(), encrypted_text, vector::empty(), clock))
+    self.messages.push_back(message::new(ctx.sender(), encrypted_text, attachments, clock))
 }
 
 /// Attach a dynamic config object to the Channel.
@@ -308,7 +310,7 @@ public fun add_config(self: &mut Channel, member_cap: &MemberCap, config: Config
     self.id.add(ConfigKey<Config>(), config);
 }
 
-public fun add_config_with_promise(
+public fun return_config(
     self: &mut Channel,
     member_cap: &MemberCap,
     config: Config,
@@ -396,6 +398,17 @@ public fun default_roles(): VecMap<String, Role> {
     roles
 }
 
+// When user Registers with the chat-app, send them one of these
+public fun mint_membership_registry<T>(ctx: &mut TxContext): MembershipRegistry<T> {
+    MembershipRegistry<T> {
+        id: object::new(ctx),
+    }
+}
+
+public fun mint_and_transfer_membershp_regisitry<T>(recipient: address, ctx: &mut TxContext) {
+    transfer::transfer(mint_membership_registry<T>(ctx), recipient);
+}
+
 // === View Functions ===
 
 // === Admin Functions ===
@@ -455,7 +468,6 @@ use sui::test_scenario::{Self as ts};
 
 #[test_only]
 use sui::clock;
-
 #[test]
 fun test_new_with_defaults() {
     // Test addresses
@@ -523,8 +535,20 @@ fun test_new_with_defaults() {
         let mut channel = scenario.take_shared<Channel>();
         let member_cap = scenario.take_from_sender<MemberCap>();
         let encrypted_text = b"Some text";
+        let n: u64 = 2;
+        let mut attachments: vector<Attachment> = vector::empty();
+        (n).do!(|i| {
+            attachments.push_back(
+                attachment::new(
+                    i.to_string(),
+                    vector[1, 2, 3, 4],
+                    vector[5, 6, 7, 8],
+                    vector[9, 10, 11, 12],
+                ),
+            );
+        });
 
-        channel.send_message(&member_cap, encrypted_text, &clock, scenario.ctx());
+        channel.send_message(&member_cap, encrypted_text, attachments, &clock, scenario.ctx());
         std::debug::print(channel.messages.borrow(0));
 
         scenario.return_to_sender<MemberCap>(member_cap);
