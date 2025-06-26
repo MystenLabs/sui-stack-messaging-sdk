@@ -377,6 +377,7 @@ public fun send_message(
 ) {
     self.assert_is_member(member_cap);
     // assert has_write_permission???
+
     self
         .messages
         .push_back(
@@ -389,7 +390,20 @@ public fun send_message(
                 attachments,
                 clock,
             ),
-        )
+        );
+
+    self.last_message =
+        option::some(
+            message::new(
+                ctx.sender(),
+                ciphertext,
+                wrapped_dek,
+                nonce,
+                self.kek_version,
+                attachments,
+                clock,
+            ),
+        );
 }
 
 /// Attach a dynamic config object to the Channel.

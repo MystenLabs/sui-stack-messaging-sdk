@@ -15,6 +15,9 @@ importers:
       '@types/node':
         specifier: ^24.0.4
         version: 24.0.4
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.5.0
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@24.0.4)(typescript@5.8.3)
@@ -134,6 +137,10 @@ packages:
   diff@4.0.2:
     resolution: {integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==}
     engines: {node: '>=0.3.1'}
+
+  dotenv@16.5.0:
+    resolution: {integrity: sha512-m/C+AwOAr9/W1UOIZUo232ejMNnJAJtYQjUbHoNTBNTJSvqzzDh7vnrei3o3r3m9blf6ZoDkvcw0VmozNRFJxg==}
+    engines: {node: '>=12'}
 
   gql.tada@1.8.10:
     resolution: {integrity: sha512-FrvSxgz838FYVPgZHGOSgbpOjhR+yq44rCzww3oOPJYi0OvBJjAgCiP6LEokZIYND2fUTXzQAyLgcvgw1yNP5A==}
@@ -295,6 +302,8 @@ snapshots:
   create-require@1.1.1: {}
 
   diff@4.0.2: {}
+
+  dotenv@16.5.0: {}
 
   gql.tada@1.8.10(graphql@16.11.0)(typescript@5.8.3):
     dependencies:

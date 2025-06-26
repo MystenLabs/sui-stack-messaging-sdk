@@ -1,4 +1,9 @@
-import { SuiClient } from "@mysten/sui/client";
+import "dotenv/config";
+import {
+  SuiClient,
+  SuiObjectData,
+  SuiTransactionBlockResponse,
+} from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { bcs } from "@mysten/sui/bcs";
@@ -7,24 +12,66 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { executeTransaction } from "./utils";
 
 // --- Configuration ---
-// FIXME: Replace this with your actual deployed package ID
-const SUI_MESSAGING_PACKAGE_ID =
-  "0x53c1fcfaffe8ba44ad673e993ddac61d1ed376cb8526fba9b2109edc0914bbbc";
-const SUI_NODE_URL = "http://127.0.0.1:9000"; // Local Sui Node
-const NETWORK = "localnet";
+const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
+const SUI_NODE_URL = process.env.SUI_NODE_URL || "http://127.0.0.1:9000";
+const NETWORK = process.env.NETWORK || "localnet";
+
+// Validate that the required environment variables are set
+if (!SUI_MESSAGING_PACKAGE_ID) {
+  throw new Error(
+    "PACKAGE_ID is not set in your .env file. Please run the `publish.sh` script first."
+  );
+}
+
+if (NETWORK !== "localnet" && NETWORK !== "devnet" && NETWORK !== "testnet") {
+  throw new Error("Wrong Network type");
+}
 
 // --- Type Definitions ---
-// These type strings are derived from the Move code.
 const CREATOR_CAP_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::channel::CreatorCap`;
 const MEMBER_CAP_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::channel::MemberCap`;
 const CHANNEL_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::channel::Channel`;
 const ROLE_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::permissions::Role`;
 const ATTACHMENT_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::attachment::Attachment`;
 
+// --- Interfaces for Type Safety ---
+interface MemberCapFields {
+  id: { id: string };
+  channel_id: string;
+}
+
+interface Message {
+  id: { id: string };
+  name: string;
+  value: {
+    type: string;
+    fields: MessageFields;
+  };
+}
+
+interface MessageFields {
+  ciphertext: number[];
+  sender: string;
+  // other message fields can be added here if needed
+}
+
+interface ChannelFields {
+  id: { id: string };
+  messages: {
+    fields: {
+      contents: {
+        fields: {
+          id: { id: string };
+          size: string;
+        };
+      };
+    };
+  };
+  last_message: { fields: MessageFields } | null;
+}
+
 /**
  * Sets up a Sui client and generates keypairs for the test.
- * It also funds the sender account from the local faucet using the new V2 API.
- * * @updated
  */
 async function setupTestEnvironment() {
   const client = new SuiClient({ url: SUI_NODE_URL });
@@ -32,9 +79,8 @@ async function setupTestEnvironment() {
   const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
 
   try {
-    // Updated to use requestSuiFromFaucetV2 directly
     await requestSuiFromFaucetV2({
-      host: getFaucetHost(NETWORK),
+      host: getFaucetHost(NETWORK as "localnet" | "devnet" | "testnet"),
       recipient: senderAddress,
     });
     console.log(`Faucet funds requested for sender: ${senderAddress}`);
@@ -51,276 +97,322 @@ async function setupTestEnvironment() {
 }
 
 /**
- * Finds the MemberCap for a given channel owned by a specific address.
- * This is necessary because the MemberCap is transferred to the user's account
- * and needs to be located for subsequent transactions.
+ * Creates a new channel with default settings.
+ * @returns The new channel's ID and the creator capability ID.
  */
-async function findMemberCap(
+async function createChannelWithDefaults(
   client: SuiClient,
-  owner: string,
-  channelId: string
-): Promise<string | null> {
+  senderKeypair: Ed25519Keypair,
+  channelName: string
+): Promise<{ channelId: string; creatorCapId: string }> {
+  console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
+  const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+
+  const tx = new Transaction();
+  const wrapped_kek = tx.pure(
+    bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
+  );
+
+  const [channel, creator_cap, promise] = tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
+    arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
+  });
+
+  tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
+    arguments: [channel, creator_cap, promise, wrapped_kek],
+  });
+
+  tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
+    arguments: [channel, creator_cap],
+  });
+
+  tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
+    arguments: [channel],
+  });
+  tx.transferObjects([creator_cap], senderAddress);
+
+  const result = await executeTransaction(client, tx, senderKeypair);
+
+  const sharedObject: any = result.objectChanges?.find(
+    (o) => o.type === "created" && o.objectType === CHANNEL_TYPE
+  );
+  if (!sharedObject)
+    throw new Error("Channel creation did not return a shared object.");
+
+  const creatorCapObject: any = result.objectChanges?.find(
+    (o) => o.type === "created" && o.objectType === CREATOR_CAP_TYPE
+  );
+  if (!creatorCapObject) throw new Error("CreatorCap was not created.");
+
+  console.log(
+    `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
+  );
+
+  return {
+    channelId: sharedObject.objectId,
+    creatorCapId: creatorCapObject.objectId,
+  };
+}
+
+/**
+ * Sends a test message to a channel.
+ */
+async function sendMessage(
+  client: SuiClient,
+  senderKeypair: Ed25519Keypair,
+  channelId: string,
+  memberCapId: string,
+  message: string
+) {
+  console.log(`\n--- Sending message to channel ${channelId} ---`);
+  const channelObject = await client.getObject({
+    id: channelId,
+    options: { showContent: true },
+  });
+  const kek_version = (channelObject.data?.content as any)?.fields.kek_version;
+
+  const tx = new Transaction();
+  const ciphertext = tx.pure(
+    bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
+  );
+  const wrapped_dek = tx.pure(
+    bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
+  );
+  const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
+
+  const attachmentsVec = tx.moveCall({
+    target: `0x1::vector::empty`,
+    typeArguments: [ATTACHMENT_TYPE],
+    arguments: [],
+  });
+
+  tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::send_message`,
+    arguments: [
+      tx.object(channelId),
+      tx.object(memberCapId),
+      ciphertext,
+      wrapped_dek,
+      nonce,
+      attachmentsVec,
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+
+  await executeTransaction(client, tx, senderKeypair);
+  console.log(
+    `Message "${message}" sent successfully to channel ${channelId}.`
+  );
+}
+
+/**
+ * Fetches all messages from a channel's TableVec.
+ */
+async function fetchAllMessages(
+  client: SuiClient,
+  channelFields: ChannelFields
+) {
+  const messageTableId = channelFields.messages.fields.contents.fields.id.id;
+
+  const messages = [];
   let cursor: string | null = null;
   while (true) {
-    const ownedObjects = await client.getOwnedObjects({
-      owner,
+    const response = await client.getDynamicFields({
+      parentId: messageTableId,
+      cursor,
+    });
+
+    const messageIds = response.data.map((field) => field.objectId);
+    if (messageIds.length > 0) {
+      const messageObjects = await client.multiGetObjects({
+        ids: messageIds,
+        options: { showContent: true },
+      });
+      messages.push(...messageObjects.map((obj) => obj.data?.content));
+    }
+
+    if (!response.hasNextPage) break;
+    cursor = response.nextCursor;
+  }
+  return messages.filter(Boolean); // Filter out any null/undefined results
+}
+
+/**
+ * Finds all channel memberships for a user and logs all messages for each channel.
+ */
+async function logAllMessagesForUserChannels(
+  client: SuiClient,
+  userAddress: string
+) {
+  console.log(
+    `\n--- Fetching all channel memberships and messages for user: ${userAddress} ---`
+  );
+
+  const memberCaps = [];
+  let cursor: string | null = null;
+  while (true) {
+    const response = await client.getOwnedObjects({
+      owner: userAddress,
       filter: { StructType: MEMBER_CAP_TYPE },
       options: { showContent: true },
       cursor,
     });
-
-    for (const obj of ownedObjects.data) {
-      if (obj.data?.content?.dataType === "moveObject") {
-        const fields = obj.data.content.fields as any;
-        if (fields.channel_id === channelId) {
-          return obj.data.objectId;
-        }
-      }
-    }
-
-    if (!ownedObjects.hasNextPage) {
-      break;
-    }
-    cursor = ownedObjects.nextCursor ?? null;
+    memberCaps.push(...response.data);
+    if (!response.hasNextPage) break;
+    cursor = response.nextCursor ?? null;
   }
-  return null;
+
+  if (memberCaps.length === 0) {
+    console.log("No channel memberships found for this user.");
+    return;
+  }
+
+  console.log(
+    `Found ${memberCaps.length} channel membership(s). Fetching details...`
+  );
+
+  const channelIds = [
+    ...new Set(
+      memberCaps
+        .map((cap) =>
+          cap.data?.content?.dataType === "moveObject"
+            ? (cap.data.content.fields as unknown as MemberCapFields)
+                ?.channel_id
+            : undefined
+        )
+        .filter((id): id is string => !!id)
+    ),
+  ];
+  if (channelIds.length === 0) {
+    console.log("Could not extract channel IDs from memberships.");
+    return;
+  }
+
+  const channelObjects = await client.multiGetObjects({
+    ids: channelIds,
+    options: { showContent: true },
+  });
+
+  for (const channelObject of channelObjects) {
+    if (channelObject.error) {
+      console.error(
+        `- Error fetching channel: ${JSON.stringify(channelObject.error)}`
+      );
+      continue;
+    }
+
+    const content = channelObject.data?.content;
+    if (content?.dataType !== "moveObject") continue;
+
+    const fields = content.fields as unknown as ChannelFields;
+    const channelId = fields.id.id;
+
+    console.log(`\n- Channel [${channelId}]:`);
+    const messages = await fetchAllMessages(client, fields);
+
+    if (messages.length > 0) {
+      for (const message of messages) {
+        // @ts-expect-error(FIXME: Add proper Types)
+        const { sender, ciphertext } = message.fields.value.fields;
+        const decodedMessage = Buffer.from(ciphertext).toString("utf-8");
+        console.log(`  └─ From ${sender}: "${decodedMessage}"`);
+      }
+    } else {
+      console.log(`  └─ No messages yet.`);
+    }
+  }
 }
 
 /**
- * Main function to run the end-to-end test flow.
+ * Main orchestrator function for the end-to-end test flow.
  */
 async function main() {
   console.log("--- Starting Sui Messaging E2E Test ---");
 
-  const { client, senderKeypair, recipientAddress } =
-    await setupTestEnvironment();
-  const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
-
-  let channelId: string;
-  let creatorCapId: string;
-
-  // === Transaction 1: Create a new Channel with default configuration ===
-  console.log("\n--- Step 1: Creating a new channel with defaults ---");
   try {
-    const txb1 = new Transaction();
-    const wrapped_kek = txb1.pure(
-      bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
+    const { client, senderKeypair } = await setupTestEnvironment();
+    const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+
+    // Step 1: Create two separate channels
+    const { channelId: channelId1 } = await createChannelWithDefaults(
+      client,
+      senderKeypair,
+      "General Chat"
+    );
+    const { channelId: channelId2 } = await createChannelWithDefaults(
+      client,
+      senderKeypair,
+      "Dev Announcements"
     );
 
-    // Call channel::new
-    const [channel, creator_cap, promise] = txb1.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
-      arguments: [txb1.object(SUI_CLOCK_OBJECT_ID)],
-    });
-
-    // Call channel::add_wrapped_kek
-    txb1.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
-      arguments: [channel, creator_cap, promise, wrapped_kek],
-    });
-
-    // Call channel::with_defaults
-    txb1.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
-      arguments: [channel, creator_cap],
-    });
-
-    // Share the channel and transfer the CreatorCap to the sender
-    txb1.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
-      arguments: [channel],
-    });
-    txb1.transferObjects([creator_cap], senderAddress);
-
-    const result = await executeTransaction(client, txb1, senderKeypair);
-
-    const createdObjects = result.objectChanges?.filter(
-      (o) => o.type === "created" || o.type === "mutated"
-    );
-
-    const sharedObject: any = result.objectChanges?.find(
-      (o) => o.type === "created" && o.objectType === CHANNEL_TYPE
-    );
-    channelId = sharedObject!.objectId;
-
-    const creatorCapObject = createdObjects?.find(
-      (o) => o.objectType === CREATOR_CAP_TYPE
-    );
-    creatorCapId = creatorCapObject!.objectId;
-
-    console.log(`Channel created successfully. Shared ID: ${channelId}`);
-    console.log(`CreatorCap transferred to sender. ID: ${creatorCapId}`);
-  } catch (error) {
-    console.error("Step 1 failed!", error);
-    return;
-  }
-
-  // === Transaction 2: Set initial roles ===
-  console.log("\n--- Step 2: Setting initial roles ---");
-  try {
-    const txb2 = new Transaction();
-
-    // We construct the VecMap on-chain as TransactionArguments cannot be nested in `pure`.
-    const rolesVecMap = txb2.moveCall({
-      target: `0x2::vec_map::empty`,
-      typeArguments: ["0x1::string::String", ROLE_TYPE],
-      arguments: [],
-    });
-
-    const allPermissions = txb2.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::permissions::all`,
-      arguments: [],
-    });
-
-    const adminRole = txb2.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::permissions::new_role`,
-      arguments: [allPermissions],
-    });
-
-    txb2.moveCall({
-      target: `0x2::vec_map::insert`,
-      typeArguments: ["0x1::string::String", ROLE_TYPE],
-      arguments: [rolesVecMap, txb2.pure.string("Admin"), adminRole],
-    });
-
-    txb2.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_initial_roles`,
-      arguments: [
-        txb2.object(channelId),
-        txb2.object(creatorCapId),
-        rolesVecMap,
-      ],
-    });
-
-    const txRes = await executeTransaction(client, txb2, senderKeypair);
-
-    console.log('Successfully added "Admin" role to the channel.');
-  } catch (error) {
-    console.error("Step 2 failed!", error);
-    return;
-  }
-
-  // === Transaction 3: Set initial members ===
-  console.log("\n--- Step 3: Setting initial members ---");
-  try {
-    const txb3 = new Transaction();
-
-    const membersVecMap = txb3.moveCall({
-      target: `0x2::vec_map::empty`,
-      typeArguments: ["address", "0x1::string::String"],
-      arguments: [],
-    });
-
-    txb3.moveCall({
-      target: `0x2::vec_map::insert`,
-      typeArguments: ["address", "0x1::string::String"],
-      arguments: [
-        membersVecMap,
-        txb3.pure.address(recipientAddress),
-        txb3.pure.string("Admin"),
-      ],
-    });
-
-    txb3.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_initial_members`,
-      arguments: [
-        txb3.object(channelId),
-        txb3.object(creatorCapId),
-        membersVecMap,
-        txb3.object(SUI_CLOCK_OBJECT_ID),
-      ],
-    });
-
-    const txRes = await executeTransaction(client, txb3, senderKeypair);
-
-    console.log(
-      `Successfully added recipient ${recipientAddress} as an "Admin".`
-    );
-  } catch (error) {
-    console.error("Step 3 failed!", error);
-    return;
-  }
-
-  // === Transaction 4: Send message to channel ===
-  console.log("\n--- Step 4: Sending a message to the channel ---");
-  try {
-    const memberCapId = await findMemberCap(client, senderAddress, channelId);
-    if (!memberCapId) {
-      throw new Error("Could not find MemberCap for the sender.");
-    }
-    console.log(`Found sender's MemberCap ID: ${memberCapId}`);
-
-    const channelObject = await client.getObject({
-      id: channelId,
+    // Step 2: Send messages to both channels
+    // First, get all member caps for the sender
+    const allMemberCapsResponse = await client.getOwnedObjects({
+      owner: senderAddress,
+      filter: { StructType: MEMBER_CAP_TYPE },
       options: { showContent: true },
     });
-    const kek_version = (channelObject.data?.content as any)?.fields
-      .kek_version;
+    const allMemberCaps = allMemberCapsResponse.data;
 
-    const txb4 = new Transaction();
-    const ciphertext = txb4.pure(
-      bcs.vector(bcs.U8).serialize([4, 4, 4, 4]).toBytes()
+    // Find the specific member cap for Channel 1 and send a message
+    const memberCap1 = allMemberCaps.find(
+      (cap) =>
+        cap.data?.content?.dataType === "moveObject" &&
+        (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
+          channelId1
     );
-    const wrapped_dek = txb4.pure(
-      bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
-    );
-    const nonce = txb4.pure(
-      bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes()
-    );
-
-    // Create a vector for attachments
-    const attachmentsVec = txb4.moveCall({
-      target: `0x1::vector::empty`,
-      typeArguments: [ATTACHMENT_TYPE],
-      arguments: [],
-    });
-
-    // Add 2 attachments, as in the Move test
-    for (let i = 0; i < 2; i++) {
-      const attachment = txb4.moveCall({
-        target: `${SUI_MESSAGING_PACKAGE_ID}::attachment::new`,
-        arguments: [
-          txb4.pure.string(i.toString()),
-          txb4.pure(bcs.vector(bcs.U8).serialize([1, 2, 3, 4]).toBytes()),
-          txb4.pure(bcs.vector(bcs.U8).serialize([5, 6, 7, 8]).toBytes()),
-          txb4.pure.u64(kek_version),
-          txb4.pure(bcs.vector(bcs.U8).serialize([9, 10, 11, 12]).toBytes()),
-          txb4.pure(bcs.vector(bcs.U8).serialize([13, 14, 15, 16]).toBytes()),
-          txb4.pure(bcs.vector(bcs.U8).serialize([17, 18, 19, 20]).toBytes()),
-        ],
-      });
-
-      txb4.moveCall({
-        target: `0x1::vector::push_back`,
-        typeArguments: [ATTACHMENT_TYPE],
-        arguments: [attachmentsVec, attachment],
-      });
+    if (memberCap1) {
+      await sendMessage(
+        client,
+        senderKeypair,
+        channelId1,
+        memberCap1.data!.objectId,
+        "Welcome to the General channel!"
+      );
+      await sendMessage(
+        client,
+        senderKeypair,
+        channelId1,
+        memberCap1.data!.objectId,
+        "How is everyone doing today?"
+      );
+    } else {
+      console.error(`Could not find MemberCap for Channel 1 (${channelId1})`);
     }
 
-    txb4.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::send_message`,
-      arguments: [
-        txb4.object(channelId),
-        txb4.object(memberCapId),
-        ciphertext,
-        wrapped_dek,
-        nonce,
-        attachmentsVec,
-        txb4.object(SUI_CLOCK_OBJECT_ID),
-      ],
-    });
+    // Find the specific member cap for Channel 2 and send a message
+    const memberCap2 = allMemberCaps.find(
+      (cap) =>
+        cap.data?.content?.dataType === "moveObject" &&
+        (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
+          channelId2
+    );
+    if (memberCap2) {
+      await sendMessage(
+        client,
+        senderKeypair,
+        channelId2,
+        memberCap2.data!.objectId,
+        "Release v1.2 is scheduled for next Tuesday."
+      );
+    } else {
+      console.error(`Could not find MemberCap for Channel 2 (${channelId2})`);
+    }
 
-    await executeTransaction(client, txb4, senderKeypair);
-    console.log("Message sent successfully.");
+    // Step 3: List all messages from all channels the user is a member of
+    await logAllMessagesForUserChannels(client, senderAddress);
+
+    console.log("\n--- Sui Messaging E2E Test Completed Successfully ---");
   } catch (error) {
-    console.error("Step 4 failed!", error);
-    return;
+    console.error(
+      "\n--- Test script encountered an unhandled error: ---",
+      error
+    );
+    process.exit(1);
   }
-
-  console.log("\n--- Sui Messaging E2E Test Completed Successfully ---");
 }
 
-main().catch((error) => {
-  console.error("Test script encountered an unhandled error:", error);
-  process.exit(1);
-});
+main();

@@ -8,7 +8,7 @@ use std::string::String;
 
 // === Structs ===
 
-public struct Attachment has drop, store {
+public struct Attachment has copy, drop, store {
     blob_ref: String,
     wrapped_dek: vector<u8>,
     nonce: vector<u8>,
