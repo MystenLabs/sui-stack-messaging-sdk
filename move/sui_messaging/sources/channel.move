@@ -88,6 +88,7 @@ public struct Channel has key {
     /// remove the MemberCap ID from the members Table and
     /// rotate the KEK when a member is removed from the channel.
     members: Table<ID, MemberInfo>,
+    // members_count: u64,
     /// The message history of the channel.
     ///
     /// Using `TableVec` to avoid the object size limit.

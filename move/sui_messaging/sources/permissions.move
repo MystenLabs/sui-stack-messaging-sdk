@@ -33,6 +33,8 @@ public enum Permission has copy, drop, store {
     UpdateMetadata,
     UpdateConfig,
     // == Message management ==
+    // AddMessage, // ?? so we can do like a timeout by revoking this
+    // EditMessage,
     DeleteMessage,
     PinMessage,
 }
