@@ -289,24 +289,18 @@ public fun with_initial_members(
     ctx: &mut TxContext,
 ) {
     assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
-    while (!initial_members.is_empty()) {
-        let (member_address, role_name) = initial_members.pop();
-        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
+    self.add_members_internal(initial_members, clock, ctx);
+}
 
-        assert!(self.roles.contains(role_name), ERoleDoesNotExist);
-
-        self
-            .members
-            .add(
-                member_cap.id.to_inner(),
-                MemberInfo {
-                    role_name,
-                    joined_at_ms: clock.timestamp_ms(),
-                    presense: Presense::Offline,
-                },
-            );
-        transfer::transfer(member_cap, member_address)
-    };
+public fun add_members(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    members: &mut VecMap<address, String>, // address -> role_name
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    self.assert_is_member(member_cap);
+    self.add_members_internal(members, clock, ctx);
 }
 
 // Candidate for sui_messaging::api
@@ -558,6 +552,32 @@ fun assert_valid_config(config: &Config) {
         && config.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS
         && config.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS,
     )
+}
+
+fun add_members_internal(
+    self: &mut Channel,
+    members: &mut VecMap<address, String>, // address -> role_name
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    while (!members.is_empty()) {
+        let (member_address, role_name) = members.pop();
+        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
+
+        assert!(self.roles.contains(role_name), ERoleDoesNotExist);
+
+        self
+            .members
+            .add(
+                member_cap.id.to_inner(),
+                MemberInfo {
+                    role_name,
+                    joined_at_ms: clock.timestamp_ms(),
+                    presense: Presense::Offline,
+                },
+            );
+        transfer::transfer(member_cap, member_address)
+    };
 }
 
 fun add_creator_to_members(
