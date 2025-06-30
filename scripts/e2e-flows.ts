@@ -10,6 +10,7 @@ import { bcs } from "@mysten/sui/bcs";
 import { getFaucetHost, requestSuiFromFaucetV2 } from "@mysten/sui/faucet";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { executeTransaction } from "./utils";
+import { channel } from "diagnostics_channel";
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
@@ -73,27 +74,54 @@ interface ChannelFields {
 /**
  * Sets up a Sui client and generates keypairs for the test.
  */
-async function setupTestEnvironment() {
+async function setupTestEnvironment(
+  channels_count: number,
+  senders_count: number,
+  lurkers_count: number
+): Promise<{
+  client: SuiClient;
+  channels: {
+    senders: Ed25519Keypair[];
+    lurkers: Ed25519Keypair[];
+  }[];
+}> {
   const client = new SuiClient({ url: SUI_NODE_URL });
-  const senderKeypair = new Ed25519Keypair();
-  const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
 
-  try {
-    await requestSuiFromFaucetV2({
-      host: getFaucetHost(NETWORK as "localnet" | "devnet" | "testnet"),
-      recipient: senderAddress,
-    });
-    console.log(`Faucet funds requested for sender: ${senderAddress}`);
-  } catch (error) {
-    console.warn(
-      `Could not request faucet funds (rate limiting may apply): ${error}`
-    );
+  let channels = [];
+
+  for (let i = 0; i < channels_count; i++) {
+    let senderKeypairs: Ed25519Keypair[] = [];
+    for (let i = 0; i < senders_count; i++) {
+      let senderKeypair = new Ed25519Keypair();
+      let senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+      senderKeypairs.push(senderKeypair);
+      try {
+        await requestSuiFromFaucetV2({
+          host: getFaucetHost(NETWORK as "localnet" | "devnet" | "testnet"),
+          recipient: senderAddress,
+        });
+        console.log(`Faucet funds requested for sender: ${senderAddress}`);
+        if (NETWORK === "localnet") {
+          // wait 1 sec
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.warn(
+          `Could not request faucet funds (rate limiting may apply): ${error}`
+        );
+      }
+    }
+
+    let lurkerKeypairs: Ed25519Keypair[] = [];
+    for (let i = 0; i < senders_count; i++) {
+      let lurkerKeypair = new Ed25519Keypair();
+      lurkerKeypairs.push(lurkerKeypair);
+    }
+
+    channels.push({ senders: senderKeypairs, lurkers: lurkerKeypairs });
   }
 
-  const recipientKeypair = new Ed25519Keypair();
-  const recipientAddress = recipientKeypair.getPublicKey().toSuiAddress();
-
-  return { client, senderKeypair, recipientAddress };
+  return { client, channels };
 }
 
 /**
@@ -155,6 +183,38 @@ async function createChannelWithDefaults(
     channelId: sharedObject.objectId,
     creatorCapId: creatorCapObject.objectId,
   };
+}
+
+async function addMembers(
+  memberCapId: string,
+  channelId: string,
+  addresses: string[]
+) {
+  console.log(`\n--- Adding members to Channel: "${channelId}" `);
+
+  const tx = new Transaction();
+
+  const membersKeysArg = addresses.map((addr) => tx.pure.address(addr));
+  const memberValsArg = addresses.map((addr) => tx.pure.string("Restricted"));
+
+  const membersMap = tx.moveCall({
+    target: `0x1::vec_map::from_keys_values`,
+    typeArguments: ["address", "0x1::string::String"],
+    arguments: [
+      tx.makeMoveVec({ type: "address", elements: membersKeysArg }),
+      tx.makeMoveVec({ type: "0x1::string::String", elements: memberValsArg }),
+    ],
+  });
+
+  tx.moveCall({
+    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_members`,
+    arguments: [
+      tx.object(channelId),
+      tx.object(memberCapId),
+      membersMap,
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
 }
 
 /**
@@ -326,85 +386,112 @@ async function logAllMessagesForUserChannels(
   }
 }
 
+async function one_to_one_flow() {
+  const { client, channels } = await setupTestEnvironment(1, 1, 1);
+  const senderKeypair = channels[0].senders[0];
+  const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+
+  // Step 1: Create two separate channels
+  const { channelId: channelId1 } = await createChannelWithDefaults(
+    client,
+    senderKeypair,
+    "General Chat"
+  );
+  const { channelId: channelId2 } = await createChannelWithDefaults(
+    client,
+    senderKeypair,
+    "Dev Announcements"
+  );
+
+  // Step 2: Send messages to both channels
+  // First, get all member caps for the sender
+  const allMemberCapsResponse = await client.getOwnedObjects({
+    owner: senderAddress,
+    filter: { StructType: MEMBER_CAP_TYPE },
+    options: { showContent: true },
+  });
+  const allMemberCaps = allMemberCapsResponse.data;
+
+  // Find the specific member cap for Channel 1 and send a message
+  const memberCap1 = allMemberCaps.find(
+    (cap) =>
+      cap.data?.content?.dataType === "moveObject" &&
+      (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
+        channelId1
+  );
+  if (memberCap1) {
+    await sendMessage(
+      client,
+      senderKeypair,
+      channelId1,
+      memberCap1.data!.objectId,
+      "Welcome to the General channel!"
+    );
+    await sendMessage(
+      client,
+      senderKeypair,
+      channelId1,
+      memberCap1.data!.objectId,
+      "How is everyone doing today?"
+    );
+  } else {
+    console.error(`Could not find MemberCap for Channel 1 (${channelId1})`);
+  }
+
+  // Find the specific member cap for Channel 2 and send a message
+  const memberCap2 = allMemberCaps.find(
+    (cap) =>
+      cap.data?.content?.dataType === "moveObject" &&
+      (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
+        channelId2
+  );
+  if (memberCap2) {
+    await sendMessage(
+      client,
+      senderKeypair,
+      channelId2,
+      memberCap2.data!.objectId,
+      "Release v1.2 is scheduled for next Tuesday."
+    );
+  } else {
+    console.error(`Could not find MemberCap for Channel 2 (${channelId2})`);
+  }
+
+  // Step 3: List all messages from all channels the user is a member of
+  await logAllMessagesForUserChannels(client, senderAddress);
+}
+
+async function multi_channels(
+  channels_count: number,
+  active_members_per_channel: number,
+  lurkers_per_channel: number
+) {
+  const { client, channels } = await setupTestEnvironment(
+    channels_count,
+    active_members_per_channel,
+    lurkers_per_channel
+  );
+
+  for (const channel of channels) {
+    const { channelId: channelId1 } = await createChannelWithDefaults(
+      client,
+      channel.senders[0],
+      `General Chat`
+    );
+  }
+}
+
 /**
  * Main orchestrator function for the end-to-end test flow.
  */
 async function main() {
   console.log("--- Starting Sui Messaging E2E Test ---");
 
+  // await one_to_one_flow();
+
+  await multi_channels(10, 2, 8);
+
   try {
-    const { client, senderKeypair } = await setupTestEnvironment();
-    const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
-
-    // Step 1: Create two separate channels
-    const { channelId: channelId1 } = await createChannelWithDefaults(
-      client,
-      senderKeypair,
-      "General Chat"
-    );
-    const { channelId: channelId2 } = await createChannelWithDefaults(
-      client,
-      senderKeypair,
-      "Dev Announcements"
-    );
-
-    // Step 2: Send messages to both channels
-    // First, get all member caps for the sender
-    const allMemberCapsResponse = await client.getOwnedObjects({
-      owner: senderAddress,
-      filter: { StructType: MEMBER_CAP_TYPE },
-      options: { showContent: true },
-    });
-    const allMemberCaps = allMemberCapsResponse.data;
-
-    // Find the specific member cap for Channel 1 and send a message
-    const memberCap1 = allMemberCaps.find(
-      (cap) =>
-        cap.data?.content?.dataType === "moveObject" &&
-        (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
-          channelId1
-    );
-    if (memberCap1) {
-      await sendMessage(
-        client,
-        senderKeypair,
-        channelId1,
-        memberCap1.data!.objectId,
-        "Welcome to the General channel!"
-      );
-      await sendMessage(
-        client,
-        senderKeypair,
-        channelId1,
-        memberCap1.data!.objectId,
-        "How is everyone doing today?"
-      );
-    } else {
-      console.error(`Could not find MemberCap for Channel 1 (${channelId1})`);
-    }
-
-    // Find the specific member cap for Channel 2 and send a message
-    const memberCap2 = allMemberCaps.find(
-      (cap) =>
-        cap.data?.content?.dataType === "moveObject" &&
-        (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
-          channelId2
-    );
-    if (memberCap2) {
-      await sendMessage(
-        client,
-        senderKeypair,
-        channelId2,
-        memberCap2.data!.objectId,
-        "Release v1.2 is scheduled for next Tuesday."
-      );
-    } else {
-      console.error(`Could not find MemberCap for Channel 2 (${channelId2})`);
-    }
-
-    // Step 3: List all messages from all channels the user is a member of
-    await logAllMessagesForUserChannels(client, senderAddress);
-
     console.log("\n--- Sui Messaging E2E Test Completed Successfully ---");
   } catch (error) {
     console.error(
