@@ -3,6 +3,7 @@ module sui_messaging::channel;
 use std::string::String;
 use sui::clock::Clock;
 use sui::dynamic_field as df;
+use sui::event::emit;
 use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
 use sui::vec_map::{Self, VecMap};
@@ -175,6 +176,10 @@ public struct ConfigReturnPromise {
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
 
 // === Events ===
+public struct MessageSent has copy, drop {
+    sender: address,
+    timestamp_ms: u64,
+}
 
 // === Method Aliases ===
 use fun df::add as UID.add;
@@ -398,6 +403,9 @@ public fun send_message(
                 clock,
             ),
         );
+
+    // emit event
+    emit(MessageSent { sender: ctx.sender(), timestamp_ms: clock.timestamp_ms() });
 }
 
 /// Attach a dynamic config object to the Channel.
