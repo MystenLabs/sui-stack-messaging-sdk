@@ -11,6 +11,12 @@ import { getFaucetHost, requestSuiFromFaucetV2 } from "@mysten/sui/faucet";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { executeTransaction } from "./utils";
 import { channel } from "diagnostics_channel";
+import {
+  createChannelWithDefaults,
+  fetchLatestChannelMemberships,
+  fetchLatestMessagesByChannelId,
+  sendMessage,
+} from "./contract_api";
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
@@ -122,150 +128,6 @@ async function setupTestEnvironment(
   }
 
   return { client, channels };
-}
-
-/**
- * Creates a new channel with default settings.
- * @returns The new channel's ID and the creator capability ID.
- */
-async function createChannelWithDefaults(
-  client: SuiClient,
-  senderKeypair: Ed25519Keypair,
-  channelName: string
-): Promise<{ channelId: string; creatorCapId: string }> {
-  console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
-  const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
-
-  const tx = new Transaction();
-  const wrapped_kek = tx.pure(
-    bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
-  );
-
-  const [channel, creator_cap, promise] = tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
-    arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
-    arguments: [channel, creator_cap, promise, wrapped_kek],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
-    arguments: [channel, creator_cap],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
-    arguments: [channel],
-  });
-  tx.transferObjects([creator_cap], senderAddress);
-
-  const result = await executeTransaction(client, tx, senderKeypair);
-
-  const sharedObject: any = result.objectChanges?.find(
-    (o) => o.type === "created" && o.objectType === CHANNEL_TYPE
-  );
-  if (!sharedObject)
-    throw new Error("Channel creation did not return a shared object.");
-
-  const creatorCapObject: any = result.objectChanges?.find(
-    (o) => o.type === "created" && o.objectType === CREATOR_CAP_TYPE
-  );
-  if (!creatorCapObject) throw new Error("CreatorCap was not created.");
-
-  console.log(
-    `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
-  );
-
-  return {
-    channelId: sharedObject.objectId,
-    creatorCapId: creatorCapObject.objectId,
-  };
-}
-
-async function addMembers(
-  memberCapId: string,
-  channelId: string,
-  addresses: string[]
-) {
-  console.log(`\n--- Adding members to Channel: "${channelId}" `);
-
-  const tx = new Transaction();
-
-  const membersKeysArg = addresses.map((addr) => tx.pure.address(addr));
-  const memberValsArg = addresses.map((addr) => tx.pure.string("Restricted"));
-
-  const membersMap = tx.moveCall({
-    target: `0x1::vec_map::from_keys_values`,
-    typeArguments: ["address", "0x1::string::String"],
-    arguments: [
-      tx.makeMoveVec({ type: "address", elements: membersKeysArg }),
-      tx.makeMoveVec({ type: "0x1::string::String", elements: memberValsArg }),
-    ],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_members`,
-    arguments: [
-      tx.object(channelId),
-      tx.object(memberCapId),
-      membersMap,
-      tx.object(SUI_CLOCK_OBJECT_ID),
-    ],
-  });
-}
-
-/**
- * Sends a test message to a channel.
- */
-async function sendMessage(
-  client: SuiClient,
-  senderKeypair: Ed25519Keypair,
-  channelId: string,
-  memberCapId: string,
-  message: string
-) {
-  console.log(`\n--- Sending message to channel ${channelId} ---`);
-  const channelObject = await client.getObject({
-    id: channelId,
-    options: { showContent: true },
-  });
-  const kek_version = (channelObject.data?.content as any)?.fields.kek_version;
-
-  const tx = new Transaction();
-  const ciphertext = tx.pure(
-    bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
-  );
-  const wrapped_dek = tx.pure(
-    bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
-  );
-  const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
-
-  const attachmentsVec = tx.moveCall({
-    target: `0x1::vector::empty`,
-    typeArguments: [ATTACHMENT_TYPE],
-    arguments: [],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::send_message`,
-    arguments: [
-      tx.object(channelId),
-      tx.object(memberCapId),
-      ciphertext,
-      wrapped_dek,
-      nonce,
-      attachmentsVec,
-      tx.object(SUI_CLOCK_OBJECT_ID),
-    ],
-  });
-
-  await executeTransaction(client, tx, senderKeypair);
-  console.log(
-    `Message "${message}" sent successfully to channel ${channelId}.`
-  );
 }
 
 /**
@@ -387,78 +249,87 @@ async function logAllMessagesForUserChannels(
 }
 
 async function one_to_one_flow() {
-  const { client, channels } = await setupTestEnvironment(1, 1, 1);
+  const { client, channels } = await setupTestEnvironment(1, 2, 0);
   const senderKeypair = channels[0].senders[0];
   const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+  const recipientKeypair = channels[0].senders[1];
+  const recipientAddress = recipientKeypair.getPublicKey().toSuiAddress();
 
-  // Step 1: Create two separate channels
-  const { channelId: channelId1 } = await createChannelWithDefaults(
+  // Step 1: Create 1-2-1 channel
+  const { channelId } = await createChannelWithDefaults(
     client,
     senderKeypair,
-    "General Chat"
-  );
-  const { channelId: channelId2 } = await createChannelWithDefaults(
-    client,
-    senderKeypair,
-    "Dev Announcements"
+    "General Chat",
+    [recipientAddress]
   );
 
-  // Step 2: Send messages to both channels
-  // First, get all member caps for the sender
-  const allMemberCapsResponse = await client.getOwnedObjects({
-    owner: senderAddress,
-    filter: { StructType: MEMBER_CAP_TYPE },
-    options: { showContent: true },
+  // Step 2: Send messages
+  // 2.1: Fetch latest channels for sender
+  const latestChannels = await fetchLatestChannelMemberships(
+    client,
+    senderAddress
+  );
+  // 2.2: Find the channel ID for the created channel
+  const channel = latestChannels.find((c) => c.channelId === channelId);
+  if (!channel) {
+    console.error(
+      `Channel with ID ${channelId} not found in latest channels for sender ${senderAddress}.`
+    );
+    return;
+  }
+  // 2.3: Send a message
+  const memberCapId = channel.memberCapId;
+  const message = `Hello from ${senderAddress} to ${recipientAddress}!`;
+  await sendMessage(client, senderKeypair, channelId, memberCapId, message);
+
+  // Step 3: fetch messages for recipient
+  // 3.1: Fetch latest channels for recipient
+  const recipientChannels = await fetchLatestChannelMemberships(
+    client,
+    recipientAddress
+  );
+  // 3.2: Find the channel ID for the created channel
+  const recipientChannel = recipientChannels.find(
+    (c) => c.channelId === channelId
+  );
+  if (!recipientChannel) {
+    console.error(
+      `Channel with ID ${channelId} not found in latest channels for recipient ${recipientAddress}.`
+    );
+    return;
+  }
+  // 3.3: Fetch all messages for the recipient's channel
+  const messages = await fetchLatestMessagesByChannelId(
+    client,
+    recipientChannel.channelId
+  );
+
+  // 3.4: Assert the sent message is fetched
+  if (messages.length === 0) {
+    console.error(
+      `No messages found in channel ${channelId} for recipient ${recipientAddress}.`
+    );
+    return;
+  }
+  const sentMessage = messages.find((msg) => {
+    const { sender, ciphertext } = msg;
+    const decodedMessage = Buffer.from(ciphertext).toString("utf-8");
+    return sender === senderAddress && decodedMessage === message;
   });
-  const allMemberCaps = allMemberCapsResponse.data;
 
-  // Find the specific member cap for Channel 1 and send a message
-  const memberCap1 = allMemberCaps.find(
-    (cap) =>
-      cap.data?.content?.dataType === "moveObject" &&
-      (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
-        channelId1
-  );
-  if (memberCap1) {
-    await sendMessage(
-      client,
-      senderKeypair,
-      channelId1,
-      memberCap1.data!.objectId,
-      "Welcome to the General channel!"
+  // 3.5: Log the received message
+  if (!sentMessage) {
+    console.error(
+      `Sent message "${message}" not found in channel ${channelId} for recipient ${recipientAddress}.`
     );
-    await sendMessage(
-      client,
-      senderKeypair,
-      channelId1,
-      memberCap1.data!.objectId,
-      "How is everyone doing today?"
-    );
-  } else {
-    console.error(`Could not find MemberCap for Channel 1 (${channelId1})`);
+    return;
   }
+  const { sender, ciphertext } = sentMessage;
+  const decodedMessage = Buffer.from(ciphertext).toString("utf-8");
 
-  // Find the specific member cap for Channel 2 and send a message
-  const memberCap2 = allMemberCaps.find(
-    (cap) =>
-      cap.data?.content?.dataType === "moveObject" &&
-      (cap.data.content.fields as unknown as MemberCapFields)?.channel_id ===
-        channelId2
+  console.log(
+    `Message "${decodedMessage}" successfully received from ${senderAddress} to ${recipientAddress} in channel ${channelId}.`
   );
-  if (memberCap2) {
-    await sendMessage(
-      client,
-      senderKeypair,
-      channelId2,
-      memberCap2.data!.objectId,
-      "Release v1.2 is scheduled for next Tuesday."
-    );
-  } else {
-    console.error(`Could not find MemberCap for Channel 2 (${channelId2})`);
-  }
-
-  // Step 3: List all messages from all channels the user is a member of
-  await logAllMessagesForUserChannels(client, senderAddress);
 }
 
 async function multi_channels(
@@ -472,13 +343,70 @@ async function multi_channels(
     lurkers_per_channel
   );
 
+  // Create channels and add some initial members
+  let channelIds: string[] = [];
+  let creatorCapIds: string[] = [];
   for (const channel of channels) {
-    const { channelId: channelId1 } = await createChannelWithDefaults(
+    // use first active member as the creator
+    const { channelId, creatorCapId } = await createChannelWithDefaults(
       client,
       channel.senders[0],
-      `General Chat`
+      `General Chat`,
+      channel.senders
+        .slice(1)
+        .concat(channel.lurkers)
+        .map((keypair) => keypair.getPublicKey().toSuiAddress())
     );
+
+    channelIds.push(channelId);
+    creatorCapIds.push(creatorCapId);
   }
+
+  // Simulate active members sending messages to a channel they are a part of
+  // Do each channel in parallel, but each active member in sequence
+  await Promise.all(
+    channelIds.map(async (channelId, index) => {
+      const activeMembers = channels[index].senders;
+      const lurkers = channels[index].lurkers;
+
+      for (const member of activeMembers) {
+        const memberCapResponse = await client.getOwnedObjects({
+          owner: member.getPublicKey().toSuiAddress(),
+          filter: { StructType: MEMBER_CAP_TYPE },
+          options: { showContent: true },
+        });
+        const memberCap = memberCapResponse.data.find(
+          (cap) =>
+            cap.data?.content?.dataType === "moveObject" &&
+            (cap.data.content.fields as unknown as MemberCapFields)
+              .channel_id === channelId
+        );
+
+        if (memberCap) {
+          await sendMessage(
+            client,
+            member,
+            channelId,
+            memberCap.data!.objectId,
+            `Hello from ${member.getPublicKey().toSuiAddress()}!`
+          );
+        } else {
+          console.error(
+            `MemberCap not found for ${member
+              .getPublicKey()
+              .toSuiAddress()} in channel ${channelId}`
+          );
+        }
+      }
+
+      // Lurkers will not send messages, but we can log their presence
+      console.log(
+        `Lurkers in channel ${channelId}: ${lurkers
+          .map((l) => l.getPublicKey().toSuiAddress())
+          .join(", ")}`
+      );
+    })
+  );
 }
 
 /**
@@ -487,9 +415,9 @@ async function multi_channels(
 async function main() {
   console.log("--- Starting Sui Messaging E2E Test ---");
 
-  // await one_to_one_flow();
+  await one_to_one_flow();
 
-  await multi_channels(10, 2, 8);
+  // await multi_channels(10, 2, 8);
 
   try {
     console.log("\n--- Sui Messaging E2E Test Completed Successfully ---");
