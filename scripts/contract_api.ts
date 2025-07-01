@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { bcs } from "@mysten/sui/bcs";
-import { SuiClient } from "@mysten/sui/client";
+import { SuiClient, SuiObjectResponse } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import {
   Transaction,
@@ -9,6 +9,8 @@ import {
 } from "@mysten/sui/transactions";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { executeTransaction } from "./utils";
+import { SuiGrpcClient } from "@mysten/sui-grpc";
+import { Experimental_SuiClientTypes } from "@mysten/sui/experimental";
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
@@ -203,6 +205,43 @@ export async function fetchLatestChannelMemberships(
 
   return latestMemberCaps.map((cap, index) => ({
     memberCapId: cap.data!.objectId,
+    channelId: channelIds[index],
+  }));
+}
+
+export async function fetchLatestChannelMemberships_grpc(
+  grpcClient: SuiGrpcClient,
+  userAddress: string,
+  limit: number = 10
+): Promise<{ memberCapId: string; channelId: string }[]> {
+  const response = await grpcClient.core.getOwnedObjects({
+    address: userAddress,
+    type: MEMBER_CAP_TYPE,
+    limit,
+  });
+
+  const latestMemberCaps = response.objects;
+
+  if (latestMemberCaps.length === 0) {
+    console.log("No channel memberships found for this user.");
+    return [];
+  }
+
+  console.log(
+    `Found ${latestMemberCaps.length} channel membership(s). Fetching details...`
+  );
+
+  const channelIds = latestMemberCaps.map(
+    (cap: Experimental_SuiClientTypes.ObjectResponse) => {
+      cap.content.then((res) => {
+        console.log(Buffer.from(res).toString("hex"));
+      });
+      return "";
+    }
+  );
+
+  return latestMemberCaps.map((cap, index) => ({
+    memberCapId: cap.id,
     channelId: channelIds[index],
   }));
 }
