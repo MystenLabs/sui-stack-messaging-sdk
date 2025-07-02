@@ -9,6 +9,7 @@ use sui::table_vec::{Self, TableVec};
 use sui::vec_map::{Self, VecMap};
 use sui_messaging::admin;
 use sui_messaging::attachment::{Self, Attachment};
+use sui_messaging::config::{Self, Config};
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
@@ -19,12 +20,6 @@ const ERoleDoesNotExist: u64 = 2;
 const EWrongChannel: u64 = 3;
 
 // === Constants ===
-const MAX_CHANNEL_MEMBERS: u64 = 500;
-const MAX_CHANNEL_ROLES: u64 = 1024;
-const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
-const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
-const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
-const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
 const CREATOR_ROLE_NAME: vector<u8> = b"Creator";
 const RESTRICTED_ROLE_NAME: vector<u8> = b"Restricted";
 
@@ -143,15 +138,6 @@ public struct MemberInfo has drop, store {
     presense: Presense,
 }
 
-public struct Config has drop, store {
-    max_channel_members: u64,
-    max_channel_roles: u64,
-    max_message_text_chars: u64,
-    max_message_attachments: u64,
-    require_invitation: bool,
-    require_request: bool,
-}
-
 // === Potatos ===
 
 /// Returned after a call to `channel::new`,
@@ -241,7 +227,7 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, AddWra
 public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
     // Add default config
-    self.id.add(ConfigKey<Config>(), default_config());
+    self.id.add(ConfigKey<Config>(), config::default());
 
     // Add default Roles: Creator, Restricted
     let mut default_roles = default_roles();
@@ -481,36 +467,6 @@ public fun assert_has_permission(self: &Channel, member_cap: &MemberCap, permiss
     assert!(self.has_permission(member_cap, permission));
 }
 
-// Maybe create a separate sui_messaging::config module
-public fun default_config(): Config {
-    Config {
-        max_channel_members: MAX_CHANNEL_MEMBERS,
-        max_channel_roles: MAX_CHANNEL_ROLES,
-        max_message_text_chars: MAX_MESSAGE_TEXT_SIZE_IN_CHARS,
-        max_message_attachments: MAX_MESSAGE_ATTACHMENTS,
-        require_invitation: REQUIRE_INVITATION,
-        require_request: REQUIRE_REQUEST,
-    }
-}
-
-public fun new_config(
-    max_channel_members: u64,
-    max_channel_roles: u64,
-    max_message_text_chars: u64,
-    max_message_attachments: u64,
-    require_invitation: bool,
-    require_request: bool,
-): Config {
-    Config {
-        max_channel_members,
-        max_channel_roles,
-        max_message_text_chars,
-        max_message_attachments,
-        require_invitation,
-        require_request,
-    }
-}
-
 public fun default_roles(): VecMap<String, Role> {
     // Add default Roles: Creator, Restricted
     let mut roles = vec_map::empty<String, Role>();
@@ -556,9 +512,9 @@ fun assert_is_member(self: &Channel, member_cap: &MemberCap) {
 
 fun assert_valid_config(config: &Config) {
     assert!(
-        config.max_channel_members <= MAX_CHANNEL_MEMBERS
-        && config.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS
-        && config.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS,
+        config.max_channel_members <= config::max_channel_members() 
+        && config.max_message_text_chars <= config::max_message_text_chars()
+        && config.max_message_attachments <= config::max_message_text_atachments(),
     )
 }
 
