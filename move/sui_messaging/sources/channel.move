@@ -10,14 +10,11 @@ use sui::vec_map::{Self, VecMap};
 use sui_messaging::admin;
 use sui_messaging::attachment::{Self, Attachment};
 use sui_messaging::config::{Self, Config};
+use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
 // === Errors ===
-const ENotCreator: u64 = 0;
-const ENotMember: u64 = 1;
-const ERoleDoesNotExist: u64 = 2;
-const EWrongChannel: u64 = 3;
 
 // === Constants ===
 const CREATOR_ROLE_NAME: vector<u8> = b"Creator";
@@ -115,22 +112,6 @@ public struct Channel has key {
     updated_at_ms: u64,
 }
 
-/// An object owned by each user, holding all `channel::MemberCap`s via TTO
-/// offering easy discoverability of the Channels the user is a member of
-///
-/// You can, for example, mint and transfer this to a user, when they register
-/// with the chat-app.
-/// Using the TTO pattern, to have all MemberCaps under this, would avoid
-/// polluting the user's Wallet.
-/// However, it might affect performance: We have to fetch this MembershipRegistry,
-/// and then fetch the MemberCaps under this MemberRegistry, in order to list
-/// the user's "conversations".
-///
-/// phantom T for differentiating among chat-apps ??
-public struct MembershipRegistry<phantom T> has key {
-    id: UID,
-}
-
 /// Information about a channel member, including their role and joint time.
 public struct MemberInfo has drop, store {
     role_name: String,
@@ -222,10 +203,8 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, AddWra
 
 /// Take a Channel,
 /// add default Config and default Roles,
-/// Can't do proper builder pattern with method chaining :/
-/// would need to pass Channel by value, destroy it, and return a new one
 public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
     // Add default config
     self.id.add(ConfigKey<Config>(), config::default());
 
@@ -250,8 +229,8 @@ public fun add_wrapped_kek(
     // Unpack promise
     let AddWrappedKEKPromise { channel_id, creator_cap_id } = promise;
     // Assert correct channel-promise
-    assert!(self.id.to_inner() == channel_id, EWrongChannel);
-    assert!(creator_cap.id.to_inner() == creator_cap_id, ENotCreator);
+    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
+    assert!(creator_cap.id.to_inner() == creator_cap_id, errors::e_channel_not_creator());
     self.wrapped_kek = wrapped_kek;
 }
 
@@ -265,7 +244,7 @@ public fun with_initial_roles(
     creator_cap: &CreatorCap,
     roles: &mut VecMap<String, Role>,
 ) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
     while (!roles.is_empty()) {
         let (role_name, role) = roles.pop();
         self.roles.add(role_name, role);
@@ -279,10 +258,11 @@ public fun with_initial_members(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
     self.add_members_internal(initial_members, clock, ctx);
 }
 
+// TODO: use default/restricted role name, if not provided
 public fun add_members(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -293,62 +273,6 @@ public fun add_members(
     self.assert_is_member(member_cap);
     self.add_members_internal(members, clock, ctx);
 }
-
-// Candidate for sui_messaging::api
-// public fun new_one_to_one(
-//     recipient: address,
-//     encrypted_envelope_key: vector<u8>,
-//     initial_encrypted_text: vector<u8>,
-//     clock: &Clock,
-//     ctx: &mut TxContext,
-// ): (Channel, CreatorCap) {
-//     // Initialize channel object
-//     let (mut channel, creator_cap) = new(encrypted_envelope_key, clock, ctx);
-
-//     // Create the MemberCaps
-//     let member_cap_recipient = MemberCap {
-//         id: object::new(ctx),
-//         channel_id: channel.id.to_inner(),
-//     };
-
-//     channel
-//         .members
-//         .add(
-//             member_cap_recipient.id.to_inner(),
-//             MemberInfo {
-//                 role_name: RESTRICTED_ROLE_NAME.to_string(),
-//                 joined_at_ms: clock.timestamp_ms(),
-//                 presense: Presense::Online,
-//             },
-//         );
-
-//     // Send the initial message to the Channel
-//     if (!initial_encrypted_text.is_empty()) {
-//         channel
-//             .messages
-//             .push_back(
-//                 message::new(
-//                     ctx.sender(),
-//                     initial_encrypted_text,
-//                     vector::empty(),
-//                     clock,
-//                 ),
-//             );
-
-//         channel.last_message =
-//             option::some(
-//                 message::new(
-//                     ctx.sender(),
-//                     initial_encrypted_text,
-//                     vector::empty(),
-//                     clock,
-//                 ),
-//             );
-//     };
-//     transfer::transfer(member_cap_recipient, recipient);
-
-//     (channel, creator_cap)
-// }
 
 public fun send_message(
     self: &mut Channel,
@@ -415,8 +339,8 @@ public fun return_config(
     // Burn ConfigReturnPromise
     let ConfigReturnPromise { channel_id, member_cap_id } = promise;
 
-    assert!(self.id.to_inner() == channel_id, EWrongChannel);
-    assert!(member_cap.id.to_inner() == member_cap_id, ENotMember);
+    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
+    assert!(member_cap.id.to_inner() == member_cap_id, errors::e_channel_not_member());
 
     // Add the new Config
     self.id.add(ConfigKey<Config>(), config);
@@ -441,14 +365,6 @@ public fun remove_config_for_editing(
             member_cap_id: member_cap.id.to_inner(),
         },
     )
-}
-
-/// Edit Config Helper
-/// Looks like a candidate for `api.move` module
-/// We could also expose separate functions for each config value
-public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
-    let (_editable_config, promise) = self.remove_config_for_editing(member_cap);
-    self.return_config(member_cap, config, promise);
 }
 
 public fun has_permission(self: &Channel, member_cap: &MemberCap, permission: Permission): bool {
@@ -478,43 +394,44 @@ public fun default_roles(): VecMap<String, Role> {
     roles
 }
 
-// When user Registers with the chat-app, send them one of these
-public fun mint_membership_registry<T>(ctx: &mut TxContext): MembershipRegistry<T> {
-    MembershipRegistry<T> {
-        id: object::new(ctx),
-    }
-}
-
-public fun mint_and_transfer_membershp_regisitry<T>(recipient: address, ctx: &mut TxContext) {
-    transfer::transfer(mint_membership_registry<T>(ctx), recipient);
-}
-
 // === View Functions ===
 
 // === Admin Functions ===
 
 // === Package Functions ===
 
-// === Private Functions ===
+// Getters
+public(package) fun version(self: &Channel): u64 {
+    self.version
+}
+
+public(package) fun namespace(self: &Channel): vector<u8> {
+    self.id.to_bytes()
+}
 
 /// Check if a `MemberCap` id is a member of this Channel.
-fun is_member(self: &Channel, member_cap: &MemberCap): bool {
+public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     self.id.to_inner() == member_cap.channel_id &&
     self.members.contains(member_cap.id.to_inner())
 }
 
+public(package) fun restricted_role_name(): String { RESTRICTED_ROLE_NAME.to_string() }
+
+// === Private Functions ===
+
 /// Assert that an address is a member of this Channel.
 ///
-/// Aborts with `ENotMember` if not.
+/// Aborts with `errors::e_channel_not_member()` if not.
 fun assert_is_member(self: &Channel, member_cap: &MemberCap) {
-    assert!(self.is_member(member_cap), ENotMember);
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
 }
 
 fun assert_valid_config(config: &Config) {
     assert!(
-        config.max_channel_members <= config::max_channel_members() 
-        && config.max_message_text_chars <= config::max_message_text_chars()
-        && config.max_message_attachments <= config::max_message_text_atachments(),
+        config.max_channel_members() <= config::max_channel_members() 
+        && config.max_channel_roles() <= config::max_channel_roles()
+        && config.max_message_text_chars() <= config::max_message_text_chars()
+        && config.max_message_attachments() <= config::max_message_text_atachments(),
     )
 }
 
@@ -528,7 +445,7 @@ fun add_members_internal(
         let (member_address, role_name) = members.pop();
         let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
 
-        assert!(self.roles.contains(role_name), ERoleDoesNotExist);
+        assert!(self.roles.contains(role_name), errors::e_channel_role_does_not_exist());
 
         self
             .members
@@ -550,7 +467,7 @@ fun add_creator_to_members(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, ENotCreator);
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
     // Ensure the creator is also added as a Member
     let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
 

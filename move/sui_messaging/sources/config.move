@@ -3,8 +3,8 @@ module sui_messaging::config;
 // === Errors ===
 
 // === Constants ===
-const MAX_CHANNEL_MEMBERS: u64 = 500;
-const MAX_CHANNEL_ROLES: u64 = 1024;
+const MAX_CHANNEL_MEMBERS: u64 = 10;
+const MAX_CHANNEL_ROLES: u64 = 3;
 const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
 const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
