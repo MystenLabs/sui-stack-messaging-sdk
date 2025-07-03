@@ -12,20 +12,11 @@ use sui_messaging::attachment::{Self, Attachment};
 use sui_messaging::config::{Self, Config};
 use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
-use sui_messaging::permissions::{
-    Self,
-    Role,
-    Permission,
-    permission_update_config,
-    permission_add_member,
-    permission_remove_member
-};
+use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
 // === Errors ===
 
 // === Constants ===
-const CREATOR_ROLE_NAME: vector<u8> = b"Creator";
-const RESTRICTED_ROLE_NAME: vector<u8> = b"Restricted";
 
 // === Enums ===
 public enum Presense has copy, drop, store {
@@ -216,7 +207,7 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     self.id.add(ConfigKey<Config>(), config::default());
 
     // Add default Roles: Creator, Restricted
-    let mut default_roles = default_roles();
+    let mut default_roles = permissions::default_roles();
 
     while (!default_roles.is_empty()) {
         let (name, role) = default_roles.pop();
@@ -269,78 +260,10 @@ public fun with_initial_members(
     self.add_members_internal(initial_members, clock, ctx);
 }
 
-// TODO: use default/restricted role name, if not provided
-public fun add_members(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    members: &mut VecMap<address, String>, // address -> role_name
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    self.assert_is_member(member_cap);
-    self.assert_has_permission(member_cap, permission_add_member());
-    self.add_members_internal(members, clock, ctx);
-}
-
-public fun remove_members(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    members_to_remove: vector<ID>, // MemberCap IDs
-    clock: &Clock,
-) {
-    self.assert_is_member(member_cap);
-    self.assert_has_permission(member_cap, permission_remove_member());
-    self.remove_members_internal(members_to_remove, clock);
-}
-
-public fun send_message(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
-    nonce: vector<u8>,
-    attachments: vector<Attachment>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    self.assert_is_member(member_cap);
-    // assert has_write_permission???
-
-    self
-        .messages
-        .push_back(
-            message::new(
-                ctx.sender(),
-                ciphertext,
-                wrapped_dek,
-                nonce,
-                self.kek_version,
-                attachments,
-                clock,
-            ),
-        );
-
-    self.last_message =
-        option::some(
-            message::new(
-                ctx.sender(),
-                ciphertext,
-                wrapped_dek,
-                nonce,
-                self.kek_version,
-                attachments,
-                clock,
-            ),
-        );
-
-    // emit event
-    emit(MessageSent { sender: ctx.sender(), timestamp_ms: clock.timestamp_ms() });
-}
-
 /// Attach a dynamic config object to the Channel.
-public fun add_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
-    self.assert_has_permission(member_cap, permission_update_config());
-    assert_valid_config(&config);
+public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, config: Config) {
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+    config::assert_is_valid_config(&config);
 
     // Add a new Config
     self.id.add(ConfigKey<Config>(), config);
@@ -352,8 +275,11 @@ public fun return_config(
     config: Config,
     promise: ConfigReturnPromise,
 ) {
-    self.assert_has_permission(member_cap, permission_update_config());
-    assert_valid_config(&config);
+    assert!(
+        self.has_permission(member_cap, permission_update_config()),
+        errors::e_channel_no_permission(),
+    );
+    config::assert_is_valid_config(&config);
 
     // Burn ConfigReturnPromise
     let ConfigReturnPromise { channel_id, member_cap_id } = promise;
@@ -376,7 +302,7 @@ public fun remove_config_for_editing(
     self: &mut Channel,
     member_cap: &MemberCap,
 ): (Config, ConfigReturnPromise) {
-    self.assert_has_permission(member_cap, permission_update_config());
+    assert!(self.has_permission(member_cap, permission_update_config()));
     (
         self.id.remove(ConfigKey<Config>()),
         ConfigReturnPromise {
@@ -384,34 +310,6 @@ public fun remove_config_for_editing(
             member_cap_id: member_cap.id.to_inner(),
         },
     )
-}
-
-public fun has_permission(self: &Channel, member_cap: &MemberCap, permission: Permission): bool {
-    // Assert is member
-    self.assert_is_member(member_cap);
-
-    // Get member's role
-    let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
-    let role = self.roles.borrow(role_name);
-
-    // Assert permission
-    role.permissions().contains(&permission)
-}
-
-public fun assert_has_permission(self: &Channel, member_cap: &MemberCap, permission: Permission) {
-    assert!(self.has_permission(member_cap, permission));
-}
-
-// TODO: move this to permissions module
-public fun default_roles(): VecMap<String, Role> {
-    // Add default Roles: Creator, Restricted
-    let mut roles = vec_map::empty<String, Role>();
-
-    let creator_role_name = CREATOR_ROLE_NAME.to_string();
-    let restricted_role_name = RESTRICTED_ROLE_NAME.to_string();
-    roles.insert(creator_role_name, permissions::new_role(permissions::all()));
-    roles.insert(restricted_role_name, permissions::new_role(permissions::empty()));
-    roles
 }
 
 // === View Functions ===
@@ -425,6 +323,7 @@ public(package) fun version(self: &Channel): u64 {
     self.version
 }
 
+// utilized by seal_policies
 public(package) fun namespace(self: &Channel): vector<u8> {
     self.id.to_bytes()
 }
@@ -435,27 +334,8 @@ public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     self.members.contains(member_cap.id.to_inner())
 }
 
-public(package) fun restricted_role_name(): String { RESTRICTED_ROLE_NAME.to_string() }
-
-// === Private Functions ===
-
-/// Assert that an address is a member of this Channel.
-///
-/// Aborts with `errors::e_channel_not_member()` if not.
-fun assert_is_member(self: &Channel, member_cap: &MemberCap) {
-    assert!(self.is_member(member_cap), errors::e_channel_not_member());
-}
-
-fun assert_valid_config(config: &Config) {
-    assert!(
-        config.max_channel_members() <= config::max_channel_members() 
-        && config.max_channel_roles() <= config::max_channel_roles()
-        && config.max_message_text_chars() <= config::max_message_text_chars()
-        && config.max_message_attachments() <= config::max_message_text_atachments(),
-    )
-}
-
-fun add_members_internal(
+// Setters
+public(package) fun add_members_internal(
     self: &mut Channel,
     members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
@@ -481,7 +361,7 @@ fun add_members_internal(
     };
 }
 
-fun remove_members_internal(
+public(package) fun remove_members_internal(
     self: &mut Channel,
     members_to_remove: vector<ID>, // MemberCap IDs
     clock: &Clock,
@@ -492,6 +372,74 @@ fun remove_members_internal(
     self.updated_at_ms = clock.timestamp_ms();
 }
 
+public(package) fun add_message_internal(
+    self: &mut Channel,
+    ciphertext: vector<u8>,
+    wrapped_dek: vector<u8>,
+    nonce: vector<u8>,
+    attachments: vector<Attachment>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    self
+        .messages
+        .push_back(
+            message::new(
+                ctx.sender(),
+                ciphertext,
+                wrapped_dek,
+                nonce,
+                self.kek_version,
+                attachments,
+                clock,
+            ),
+        );
+}
+
+public(package) fun set_last_message_internal(
+    self: &mut Channel,
+    ciphertext: vector<u8>,
+    wrapped_dek: vector<u8>,
+    nonce: vector<u8>,
+    attachments: vector<Attachment>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    self.last_message =
+        option::some(
+            message::new(
+                ctx.sender(),
+                ciphertext,
+                wrapped_dek,
+                nonce,
+                self.kek_version,
+                attachments,
+                clock,
+            ),
+        );
+}
+
+public(package) fun emit_message_sent(clock: &Clock, ctx: &mut TxContext) {
+    emit(MessageSent { sender: ctx.sender(), timestamp_ms: clock.timestamp_ms() });
+}
+
+public(package) fun has_permission(
+    self: &Channel,
+    member_cap: &MemberCap,
+    permission: Permission,
+): bool {
+    // Assert is member
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+
+    // Get member's role
+    let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
+    let role = self.roles.borrow(role_name);
+
+    // Assert permission
+    role.permissions().contains(&permission)
+}
+
+// === Private Functions ===
 fun add_creator_to_members(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -507,7 +455,7 @@ fun add_creator_to_members(
         .add(
             member_cap.id.to_inner(),
             MemberInfo {
-                role_name: CREATOR_ROLE_NAME.to_string(),
+                role_name: permissions::creator_role_name(),
                 joined_at_ms: clock.timestamp_ms(),
                 presense: Presense::Offline,
             },

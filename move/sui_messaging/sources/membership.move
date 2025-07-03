@@ -1,5 +1,7 @@
 module sui_messaging::membership;
 
+// TODO: implement logic for adding/removing MemberCaps
+
 /// An object owned by each user, holding all `channel::MemberCap`s via TTO
 /// offering easy discoverability of the Channels the user is a member of
 ///

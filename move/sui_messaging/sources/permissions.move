@@ -8,11 +8,15 @@
 /// 4. Check if the `Role.permissions` contains the required `Permission` for that action.
 module sui_messaging::permissions;
 
+use std::string::String;
+use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
 
 // === Errors ===
 
 // === Constants ===
+const CREATOR_ROLE_NAME: vector<u8> = b"Creator";
+const RESTRICTED_ROLE_NAME: vector<u8> = b"Restricted";
 
 // === Enums ===
 
@@ -41,6 +45,7 @@ public enum Permission has copy, drop, store {
 
 // === Structs ===
 
+// TODO: split this into separate module
 /// A struct representing a custom role with a Set of permissions.
 /// What if we made this a generic, so that users can use their own Permission enum?
 /// e.g. Role<TPermission>
@@ -56,6 +61,14 @@ public struct Role has drop, store {
 
 public fun new_role(permissions: VecSet<Permission>): Role {
     Role { permissions }
+}
+
+public fun default_roles(): VecMap<String, Role> {
+    let mut roles = vec_map::empty();
+
+    roles.insert(creator_role_name(), new_role(all()));
+    roles.insert(restricted_role_name(), new_role(empty()));
+    roles
 }
 
 public fun empty(): VecSet<Permission> {
@@ -130,6 +143,9 @@ public fun has_permission(self: &Role, permission: Permission): bool {
 // === Admin Functions ===
 
 // === Package Functions ===
+public(package) fun restricted_role_name(): String { RESTRICTED_ROLE_NAME.to_string() }
+
+public(package) fun creator_role_name(): String { CREATOR_ROLE_NAME.to_string() }
 
 // === Private Functions ===
 

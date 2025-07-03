@@ -1,5 +1,7 @@
 module sui_messaging::config;
 
+use sui_messaging::errors;
+
 // === Errors ===
 
 // === Constants ===
@@ -11,7 +13,6 @@ const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a mem
 const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
 
 // === Structs ===
-
 public struct Config has drop, store {
     max_channel_members: u64,
     max_channel_roles: u64,
@@ -32,7 +33,6 @@ public use fun config_require_invitation as Config.require_invitation;
 public use fun config_require_request as Config.require_request;
 
 // === Public Functions ===
-
 public fun default(): Config {
     Config {
         max_channel_members: MAX_CHANNEL_MEMBERS,
@@ -62,6 +62,13 @@ public fun new(
     }
 }
 
+public fun is_valid_config(config: &Config): bool {
+    config.max_channel_members() <= MAX_CHANNEL_MEMBERS 
+        && config.max_channel_roles() <= MAX_CHANNEL_ROLES
+        && config.max_message_text_chars() <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS
+        && config.max_message_attachments() <= MAX_MESSAGE_ATTACHMENTS
+}
+
 // === View Functions ===
 public fun config_max_channel_members(self: &Config): u64 { self.max_channel_members }
 
@@ -75,8 +82,6 @@ public fun config_require_invitation(self: &Config): bool { self.require_invitat
 
 public fun config_require_request(self: &Config): bool { self.require_request }
 
-// === Admin Functions ===
-
 // === Package Functions ===
 public(package) fun max_channel_members(): u64 { MAX_CHANNEL_MEMBERS }
 
@@ -89,6 +94,19 @@ public(package) fun max_message_text_atachments(): u64 { MAX_MESSAGE_ATTACHMENTS
 public(package) fun require_invitation(): bool { REQUIRE_INVITATION }
 
 public(package) fun require_request(): bool { REQUIRE_REQUEST }
+
+public(package) fun assert_is_valid_config(self: &Config) {
+    assert!(self.max_channel_members <= MAX_CHANNEL_MEMBERS, errors::e_config_too_many_members());
+    assert!(self.max_channel_roles <= MAX_CHANNEL_ROLES, errors::e_config_too_many_roles());
+    assert!(
+        self.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS,
+        errors::e_config_too_many_message_text_chars(),
+    );
+    assert!(
+        self.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS,
+        errors::e_config_too_many_message_attachments(),
+    );
+}
 
 // === Private Functions ===
 

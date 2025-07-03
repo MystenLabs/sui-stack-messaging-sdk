@@ -7,8 +7,59 @@
 /// the structs and internally call the getters and setters
 module sui_messaging::api;
 
-use sui_messaging::channel::{Channel, MemberCap};
+use std::string::String;
+use sui::clock::Clock;
+use sui::vec_map::VecMap;
+use sui_messaging::attachment::Attachment;
+use sui_messaging::channel::{Self, Channel, MemberCap};
 use sui_messaging::config::Config;
+use sui_messaging::errors;
+use sui_messaging::permissions;
+
+public fun send_message(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    ciphertext: vector<u8>,
+    wrapped_dek: vector<u8>,
+    nonce: vector<u8>,
+    attachments: vector<Attachment>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    // assert has_write_permission???
+
+    self.add_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
+
+    self.set_last_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
+
+    // emit event
+    channel::emit_message_sent(clock, ctx);
+}
+
+// TODO: use default/restricted role name, if not provided
+public fun add_members(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    members: &mut VecMap<address, String>, // address -> role_name
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_permission(member_cap, permissions::permission_add_member()));
+    self.add_members_internal(members, clock, ctx);
+}
+
+public fun remove_members(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    members_to_remove: vector<ID>, // MemberCap IDs
+    clock: &Clock,
+) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_permission(member_cap, permissions::permission_remove_member()));
+    self.remove_members_internal(members_to_remove, clock);
+}
 
 /// Edit Config Helper
 /// Looks like a candidate for `api.move` module
