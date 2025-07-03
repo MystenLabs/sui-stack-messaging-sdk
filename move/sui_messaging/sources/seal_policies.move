@@ -1,6 +1,7 @@
 module sui_messaging::seal_policies;
 
 use sui_messaging::channel::{Self, Channel, MemberCap};
+use sui_messaging::errors;
 
 // === Imports ===
 
@@ -49,7 +50,7 @@ entry fun seal_approve(
     member_cap: &MemberCap,
     _ctx: &TxContext,
 ) {
-    assert!(approve_internal(member_cap, id, channel), channel::e_not_member());
+    assert!(approve_internal(member_cap, id, channel), errors::e_seal_policies_no_access());
 }
 
 /// Returns true if `prefix` is a prefix of `word`.
