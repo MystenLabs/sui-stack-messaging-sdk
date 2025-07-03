@@ -2,7 +2,7 @@
 /// Alternatively, we could have a "module_name_api.move" per module, e.g. "channel_core.move" &
 /// "channel_api.move"
 /// in the "module_name_core.move" we would have only the struct + enums + events, and only
-/// public(package) getters and setters
+/// public(package) getters and setters, and of course public "new/mint/share" functions
 /// then in the "module_name_api.move" we would have the public/entry functions that interact with
 /// the structs and internally call the getters and setters
 module sui_messaging::api;

@@ -1,6 +1,6 @@
 module sui_messaging::seal_policies;
 
-use sui_messaging::channel::{Self, Channel, MemberCap};
+use sui_messaging::channel::{Channel, MemberCap};
 use sui_messaging::errors;
 
 // === Imports ===
