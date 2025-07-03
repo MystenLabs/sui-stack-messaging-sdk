@@ -12,7 +12,14 @@ use sui_messaging::attachment::{Self, Attachment};
 use sui_messaging::config::{Self, Config};
 use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
-use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
+use sui_messaging::permissions::{
+    Self,
+    Role,
+    Permission,
+    permission_update_config,
+    permission_add_member,
+    permission_remove_member
+};
 
 // === Errors ===
 
@@ -271,7 +278,19 @@ public fun add_members(
     ctx: &mut TxContext,
 ) {
     self.assert_is_member(member_cap);
+    self.assert_has_permission(member_cap, permission_add_member());
     self.add_members_internal(members, clock, ctx);
+}
+
+public fun remove_members(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    members_to_remove: vector<ID>, // MemberCap IDs
+    clock: &Clock,
+) {
+    self.assert_is_member(member_cap);
+    self.assert_has_permission(member_cap, permission_remove_member());
+    self.remove_members_internal(members_to_remove, clock);
 }
 
 public fun send_message(
@@ -383,6 +402,7 @@ public fun assert_has_permission(self: &Channel, member_cap: &MemberCap, permiss
     assert!(self.has_permission(member_cap, permission));
 }
 
+// TODO: move this to permissions module
 public fun default_roles(): VecMap<String, Role> {
     // Add default Roles: Creator, Restricted
     let mut roles = vec_map::empty<String, Role>();
@@ -459,6 +479,17 @@ fun add_members_internal(
             );
         transfer::transfer(member_cap, member_address)
     };
+}
+
+fun remove_members_internal(
+    self: &mut Channel,
+    members_to_remove: vector<ID>, // MemberCap IDs
+    clock: &Clock,
+) {
+    members_to_remove.do!(|member_cap_id| {
+        self.members.remove(member_cap_id);
+    });
+    self.updated_at_ms = clock.timestamp_ms();
 }
 
 fun add_creator_to_members(

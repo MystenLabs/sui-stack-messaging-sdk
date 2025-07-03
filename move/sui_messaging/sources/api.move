@@ -1,17 +1,13 @@
 /// Public facing api
-/// Alternatively, we could have a "module_name_api.move" per module, e.g. "channel.move" &
+/// Alternatively, we could have a "module_name_api.move" per module, e.g. "channel_core.move" &
 /// "channel_api.move"
-/// in the "module_name.move" we would have only the struct + enums + events, and only
+/// in the "module_name_core.move" we would have only the struct + enums + events, and only
 /// public(package) getters and setters
-/// then in the "module_name_api.move" we would have the public functions that interact with the
-/// structs
-/// and internally call the getters and setters
+/// then in the "module_name_api.move" we would have the public/entry functions that interact with
+/// the structs and internally call the getters and setters
 module sui_messaging::api;
 
-use std::string::String;
-use sui::clock::Clock;
-use sui::vec_map;
-use sui_messaging::channel::{Self, Channel, MemberCap, CreatorCap, AddWrappedKEKPromise};
+use sui_messaging::channel::{Channel, MemberCap};
 use sui_messaging::config::Config;
 
 /// Edit Config Helper
