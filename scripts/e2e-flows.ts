@@ -20,7 +20,7 @@ import {
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
-const SUI_NODE_URL = process.env.SUI_NODE_URL || "http://127.0.0.1:9000";
+const FULLNODE_URL = process.env.FULLNODE_URL || "http://127.0.0.1:9000";
 const NETWORK = process.env.NETWORK || "localnet";
 
 // Validate that the required environment variables are set
@@ -91,7 +91,7 @@ async function setupTestEnvironment(
     lurkers: Ed25519Keypair[];
   }[];
 }> {
-  const client = new SuiClient({ url: SUI_NODE_URL });
+  const client = new SuiClient({ url: FULLNODE_URL });
 
   let channels = [];
 
