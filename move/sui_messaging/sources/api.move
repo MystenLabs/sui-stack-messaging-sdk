@@ -9,9 +9,9 @@ module sui_messaging::api;
 
 use std::string::String;
 use sui::clock::Clock;
-use sui::vec_map::{Self, VecMap};
+use sui::vec_map::VecMap;
 use sui_messaging::attachment::Attachment;
-use sui_messaging::channel::{Self, Channel, CreatorCap, MemberCap};
+use sui_messaging::channel::{Self, Channel, MemberCap};
 use sui_messaging::config::Config;
 use sui_messaging::errors;
 use sui_messaging::permissions;
@@ -103,7 +103,10 @@ public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Confi
 use sui::test_scenario::{Self as ts};
 
 #[test_only]
-use sui_messaging::{attachment, permissions::{Role}};
+use sui::vec_map;
+
+#[test_only]
+use sui_messaging::{channel::CreatorCap, attachment, permissions::{Role}};
 
 #[test_only]
 use fun send_message as Channel.send_message;

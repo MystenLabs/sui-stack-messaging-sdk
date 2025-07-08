@@ -25,7 +25,7 @@ ENVS_JSON=$(sui client envs --json)
 FULLNODE_URL=$(echo $ENVS_JSON | jq -r --arg alias $NETWORK_ALIAS '.[0][] | select(.alias == $alias).rpc')
 ADDRESSES=$(sui client addresses --json)
 
-echo "Checking if sui-message-admin address is available"
+echo "Checking if sui-messaging-admin address is available"
 HAS_ADMIN=$(echo "$ADDRESSES" | jq -r '.addresses | map(contains(["sui-messaging-admin"])) | any')
 if [ "$HAS_ADMIN" = "false" ]; then
 	echo "Did not find 'sui-messaging-admin' in the ADDRESSES. Creating one and requesting tokens."
@@ -63,7 +63,7 @@ echo "Writing publish result to .publish.res.json"
 echo ${PUBLISH_RES} >.publish.res.json
 
 # Check if the command succeeded (exit status 0) and for success in text
-if [[ "$PUBLISH_RES" =~ "error" && "$PUBLISH_RES" != *"Success"* ]]; then
+if [[ "$PUBLISH_RES" =~ "error" && "$PUBLISH_RES" != *"success"* ]]; then
 	# If yes, print the error message and exit the script
 	echo "Error during move contract publishing. Details : $PUBLISH_RES"
 	exit 1

@@ -155,7 +155,7 @@ export async function sendMessage(
   });
 
   tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::send_message`,
+    target: `${SUI_MESSAGING_PACKAGE_ID}::api::send_message`,
     arguments: [
       tx.object(channelId),
       tx.object(memberCapId),
