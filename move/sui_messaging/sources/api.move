@@ -106,7 +106,7 @@ use sui::test_scenario::{Self as ts};
 use sui::vec_map;
 
 #[test_only]
-use sui_messaging::{channel::CreatorCap, attachment, permissions::{Role}};
+use sui_messaging::{attachment, permissions::{Role}};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -125,8 +125,6 @@ fun test_new_with_defaults() {
     let mut clock = clock::create_for_testing(scenario.ctx());
     clock.set_for_testing(1750762503);
 
-    let wrapped_kek = b"Some key";
-
     // === Create a new Channel with default configuration ===
     scenario.next_tx(sender_address);
     {
@@ -137,6 +135,8 @@ fun test_new_with_defaults() {
         );
         assert!(channel::is_creator(&channel, &creator_cap), errors::e_channel_not_creator());
 
+        let wrapped_kek = channel.namespace();
+
         // add wrapped KEK for envelop encryption (we handwave it here, should be done with seal)
         channel.add_wrapped_kek(&creator_cap, promise, wrapped_kek);
 
@@ -146,15 +146,7 @@ fun test_new_with_defaults() {
         std::debug::print(channel.config());
         std::debug::print(channel.roles());
 
-        transfer::public_transfer(creator_cap, sender_address);
-        channel.share();
-    };
-
-    // === Set initial roles ===
-    scenario.next_tx(sender_address);
-    {
-        let creator_cap = scenario.take_from_sender<CreatorCap>();
-        let mut channel = scenario.take_shared<Channel>();
+        // === Set initial roles ===
 
         let mut initial_roles = vec_map::empty<String, Role>();
         initial_roles.insert(b"Admin".to_string(), permissions::new_role(permissions::all()));
@@ -163,16 +155,7 @@ fun test_new_with_defaults() {
 
         std::debug::print(channel.roles());
 
-        scenario.return_to_sender<CreatorCap>(creator_cap);
-        channel.share();
-    };
-
-    // === Set initial members ===
-    scenario.next_tx(sender_address);
-    {
-        let creator_cap = scenario.take_from_sender<CreatorCap>();
-        let mut channel = scenario.take_shared<Channel>();
-
+        // === Set initial members ===
         let mut initial_members = vec_map::empty<address, String>();
         initial_members.insert(recipient_address, b"Admin".to_string());
 
@@ -180,11 +163,25 @@ fun test_new_with_defaults() {
 
         std::debug::print(channel.members());
 
-        scenario.return_to_sender<CreatorCap>(creator_cap);
+        // === Set initial message ===
+
+        let ciphertext = b"Some text";
+        let wrapped_dek = vector[0, 1, 0, 1];
+        let nonce = vector[9, 0, 9, 0];
+        channel.with_initial_message(
+            &creator_cap,
+            ciphertext,
+            wrapped_dek,
+            nonce,
+            &clock,
+            scenario.ctx(),
+        );
+
+        transfer::public_transfer(creator_cap, sender_address);
         channel.share();
     };
 
-    // === Send message to channel ===
+    // === Send message ===
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();

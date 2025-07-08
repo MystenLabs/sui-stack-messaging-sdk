@@ -269,6 +269,23 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
     self.id.add(ConfigKey<Config>(), config);
 }
 
+/// Add an initial message to the Channel when creating it
+public fun with_initial_message(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    ciphertext: vector<u8>,
+    wrapped_dek: vector<u8>,
+    nonce: vector<u8>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
+
+    self.add_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
+    self.set_last_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
+    emit_message_sent(clock, ctx);
+}
+
 public fun return_config(
     self: &mut Channel,
     member_cap: &MemberCap,
