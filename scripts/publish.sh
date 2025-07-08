@@ -2,8 +2,15 @@
 
 set -e
 
-# dir of smart contract
-MOVE_PACKAGE_DIR="../move/sui_messaging"
+# Set MOVE_PACKAGE_DIR based on active Sui environment
+default_move_package_dir="../move/sui_messaging"
+dummy_move_package_dir="../move/dummy_name"
+NETWORK_ALIAS=$(sui client active-env)
+if [[ "$NETWORK_ALIAS" == "devnet" || "$NETWORK_ALIAS" == "testnet" ]]; then
+  MOVE_PACKAGE_DIR="$dummy_move_package_dir"
+else
+  MOVE_PACKAGE_DIR="$default_move_package_dir"
+fi
 PUBLISH_GAS_BUDGET=1000000000
 
 # check this is being ran from the right path
@@ -42,7 +49,7 @@ if [ -z "$AVAILABLE_GAS" ]; then
 	echo "Not enough GAS to deploy contract, requesting from faucet"
 	sui client faucet
 	# If NETWORK_ALIAS is localnet wait 2 sec
-	if [ "$NETWORK_ALIAS" == "localnet" ] || [ "$NETWORK_ALIAS" == "local" ]; then
+	if [ "$NETWORK_ALIAS" == "localnet" ] || [ "$NETWORK_ALIAS" == "local" || [ "$NETWORK_ALIAS" == "devnet"]; then
 		sleep 2
 	else
 		echo "Please try again after some time."
@@ -88,6 +95,7 @@ echo "PACKAGE_ADDRESS=$PACKAGE_ID"
 echo "ADMIN_ADDRESS=$ADMIN"
 
 cat >.env <<-API_ENV
+	NETWORK=$NETWORK_ALIAS
 	FULLNODE_URL=$FULLNODE_URL
 	PACKAGE_ID=$PACKAGE_ID
 	PUBLISHER=$PUBLISHER

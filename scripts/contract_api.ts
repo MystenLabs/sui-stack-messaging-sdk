@@ -14,7 +14,7 @@ import { Experimental_SuiClientTypes } from "@mysten/sui/experimental";
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
-const SUI_NODE_URL = process.env.SUI_NODE_URL || "http://127.0.0.1:9000";
+const FULLNODE_URL = process.env.FULLNODE_URL || "http://127.0.0.1:9000";
 const NETWORK = process.env.NETWORK || "localnet";
 
 // --- Move Type Definitions ---
