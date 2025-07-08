@@ -334,6 +334,11 @@ public fun kek_version(self: &Channel): u64 {
     self.kek_version
 }
 
+// utilized by seal_policies
+public fun namespace(self: &Channel): vector<u8> {
+    self.id.to_bytes()
+}
+
 // === Admin Functions ===
 
 // === Package Functions ===
@@ -353,11 +358,6 @@ public(package) fun members(self: &Channel): &Table<ID, MemberInfo> {
 
 public(package) fun messages(self: &Channel): &TableVec<Message> {
     &self.messages
-}
-
-// utilized by seal_policies
-public(package) fun namespace(self: &Channel): vector<u8> {
-    self.id.to_bytes()
 }
 
 /// Check if a `MemberCap` id is a member of this Channel.
