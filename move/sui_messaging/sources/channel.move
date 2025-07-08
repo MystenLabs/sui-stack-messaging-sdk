@@ -262,7 +262,7 @@ public fun with_initial_members(
 
 /// Attach a dynamic config object to the Channel.
 public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, config: Config) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     config::assert_is_valid_config(&config);
 
     // Add a new Config
@@ -465,7 +465,7 @@ fun add_creator_to_members(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     // Ensure the creator is also added as a Member
     let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
 
