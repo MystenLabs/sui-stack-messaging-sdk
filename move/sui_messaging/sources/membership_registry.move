@@ -19,12 +19,12 @@ public struct MembershipRegistry<phantom T> has key {
 }
 
 // When user Registers with the chat-app, send them one of these
-public fun mint_membership_registry<T>(ctx: &mut TxContext): MembershipRegistry<T> {
+public fun mint<T>(ctx: &mut TxContext): MembershipRegistry<T> {
     MembershipRegistry<T> {
         id: object::new(ctx),
     }
 }
 
-public fun mint_and_transfer_membershp_regisitry<T>(recipient: address, ctx: &mut TxContext) {
-    transfer::transfer(mint_membership_registry<T>(ctx), recipient);
+public fun mint_and_transfer<T>(recipient: address, ctx: &mut TxContext) {
+    transfer::transfer(mint<T>(ctx), recipient);
 }
