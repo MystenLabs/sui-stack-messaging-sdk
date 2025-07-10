@@ -11,6 +11,9 @@ import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui/utils";
 import { executeTransaction } from "./utils";
 import { SuiGrpcClient } from "@mysten/sui-grpc";
 import { Experimental_SuiClientTypes } from "@mysten/sui/experimental";
+import { channel } from "./types/sui_messaging";
+import { defaultMoveCoder } from "@typemove/sui";
+import { _0x2 } from "@typemove/sui/builtin";
 
 // --- Configuration ---
 const SUI_MESSAGING_PACKAGE_ID = process.env.PACKAGE_ID;
@@ -23,6 +26,8 @@ const MEMBER_CAP_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::channel::MemberCap`;
 const CHANNEL_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::channel::Channel`;
 const ROLE_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::permissions::Role`;
 const ATTACHMENT_TYPE = `${SUI_MESSAGING_PACKAGE_ID}::attachment::Attachment`;
+
+type UID = _0x2.object$.UID;
 
 // --- Type Definitions ---
 export type Attachment = {
@@ -69,61 +74,72 @@ export async function createChannelWithDefaults(
   senderKeypair: Ed25519Keypair,
   channelName: string,
   initialMemberAddresses?: string[]
-): Promise<{ channelId: string; creatorCapId: string }> {
+): Promise<{ channelId: UID; creatorCapId: UID }> {
   console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
   const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
 
   let tx = new Transaction();
-  const wrapped_kek = tx.pure(
+
+  // Use @typemove generated code for channel creation
+  const channelResult = channel.builder.new$(tx, [SUI_CLOCK_OBJECT_ID]);
+  // channelResult is a TransactionArgument & [TransactionArgument], so use as needed
+
+  const wrappedKekArg = tx.pure(
     bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
   );
-
-  const [channel, creator_cap, promise] = tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
-    arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
-    arguments: [channel, creator_cap, promise, wrapped_kek],
-  });
-
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
-    arguments: [channel, creator_cap],
-  });
+  channel.builder.addWrappedKek(tx, [
+    channelResult,
+    channelResult,
+    channelResult,
+    wrappedKekArg,
+  ]);
+  channel.builder.withDefaults(tx, [channelResult, channelResult]);
 
   // add initial members
   if (!!initialMemberAddresses && initialMemberAddresses.length > 0) {
-    tx = addInitialMembers(tx, channel, creator_cap, initialMemberAddresses);
+    tx = addInitialMembersTypemove(
+      tx,
+      channelResult,
+      channelResult,
+      initialMemberAddresses
+    );
   }
 
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
-    arguments: [channel],
-  });
-  tx.transferObjects([creator_cap], senderAddress);
+  channel.builder.share(tx, [channelResult]);
+  tx.transferObjects([channelResult], senderAddress); // transfer channelResult
 
   const result = await executeTransaction(client, tx, senderKeypair);
 
-  const sharedObject: any = result.objectChanges?.find(
+  const sharedObjectRes = result.objectChanges?.find(
     (o) => o.type === "created" && o.objectType === CHANNEL_TYPE
   );
-  if (!sharedObject)
+  if (!sharedObjectRes)
     throw new Error("Channel creation did not return a shared object.");
 
-  const creatorCapObject: any = result.objectChanges?.find(
+  const channelObj = await defaultMoveCoder().decodeType(
+    sharedObjectRes,
+    channel.Channel.type()
+  );
+  if (!channelObj) throw new Error("Channel was not parsed properly");
+
+  const creatorCapObjRes = result.objectChanges?.find(
     (o) => o.type === "created" && o.objectType === CREATOR_CAP_TYPE
   );
-  if (!creatorCapObject) throw new Error("CreatorCap was not created.");
+  if (!creatorCapObjRes) throw new Error("CreatorCap was not created.");
+
+  const creatorCapObj = await defaultMoveCoder().decodeType(
+    creatorCapObjRes,
+    channel.CreatorCap.type()
+  );
+  if (!creatorCapObj) throw new Error("CreatorCap was not parsed properly");
 
   console.log(
-    `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
+    `Channel "${channelName}" created successfully. Shared ID: ${channelObj?.id}`
   );
 
   return {
-    channelId: sharedObject.objectId,
-    creatorCapId: creatorCapObject.objectId,
+    channelId: channelObj.id,
+    creatorCapId: creatorCapObj.id,
   };
 }
 
@@ -350,12 +366,13 @@ export async function fetchLatestMessagesByChannelId(
 }
 
 // --- Internal Methods ---
-function addInitialMembers(
+function addInitialMembersTypemove(
   tx: Transaction,
-  channel: TransactionObjectArgument,
-  creatorCap: TransactionObjectArgument,
+  channelObj: any,
+  creatorCap: any,
   addresses: string[]
 ): Transaction {
+  // Construct VecMap using the same logic as before
   const membersKeysArg = addresses.map((addr) => tx.pure.address(addr));
   const memberValsArg = addresses.map((addr) => tx.pure.string("Restricted"));
 
@@ -368,15 +385,12 @@ function addInitialMembers(
     ],
   });
 
-  tx.moveCall({
-    target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_initial_members`,
-    arguments: [
-      channel, // tx.object(channelId),
-      creatorCap, // tx.object(creatorCapId),
-      membersMap,
-      tx.object(SUI_CLOCK_OBJECT_ID),
-    ],
-  });
+  channel.builder.withInitialMembers(tx, [
+    channelObj,
+    creatorCap,
+    membersMap,
+    SUI_CLOCK_OBJECT_ID,
+  ]);
 
   return tx;
 }
