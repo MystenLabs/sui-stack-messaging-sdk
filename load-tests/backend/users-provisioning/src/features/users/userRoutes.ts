@@ -6,8 +6,7 @@ import type { UserVariant } from "../../core/types.js";
 import db from "../../db.js";
 
 // Define types for our dependencies
-type Bindings = {};
-type Variables = {
+type UserVariables = {
   userService: SuiUserService;
   userRepository: UserRepository;
 };
@@ -18,12 +17,12 @@ const userRepository = new UserRepository(db);
 
 // Create a new router instance with typed variables
 const users = new Hono<{
-  Variables: Variables;
+  Variables: UserVariables;
 }>();
 
 // Use the factory pattern for route handlers
 const factory = createFactory<{
-  Variables: Variables;
+  Variables: UserVariables;
 }>();
 
 // Create error handling middleware
@@ -45,14 +44,19 @@ users.use("*", async (c, next) => {
 // Define routes using method chaining for better type inference
 users
   .use("/generate/*", withErrorHandling)
-  .post("/generate/:type", async (c) => {
-    const userType = c.req.param("type");
-    if (userType !== "active" && userType !== "passive") {
-      return c.json({ error: "Invalid user type" }, 400);
+  .post("/generate/:variant", async (c) => {
+    const userVariant = c.req.param("variant");
+    if (userVariant !== "active" && userVariant !== "passive") {
+      return c.json(
+        {
+          error: "Invalid user variant. Available values: 'active', 'passive' ",
+        },
+        400
+      );
     }
 
     const generatedUser = c.var.userService.generateUser(
-      userType as UserVariant
+      userVariant as UserVariant
     );
     c.var.userRepository.createUser({
       ...generatedUser,
@@ -61,7 +65,7 @@ users
 
     return c.json({
       message: `${
-        userType.charAt(0).toUpperCase() + userType.slice(1)
+        userVariant.charAt(0).toUpperCase() + userVariant.slice(1)
       } user generated.`,
       user: {
         sui_address: generatedUser.sui_address,
