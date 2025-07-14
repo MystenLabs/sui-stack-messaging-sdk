@@ -1,15 +1,30 @@
-import { serve } from '@hono/node-server'
-import { Hono } from 'hono'
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { config } from "./appConfig.js";
+import userRoutes from "./features/users/userRoutes.js";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+// Health check endpoint
+app.get("/", (c) => {
+  return c.json({
+    status: "healthy",
+    service: "User Provisioning Service",
+    version: "1.0.0",
+  });
+});
 
-serve({
-  fetch: app.fetch,
-  port: 3000
-}, (info) => {
-  console.log(`Server is running on http://localhost:${info.port}`)
-})
+// Mount feature routes
+app.route("/users", userRoutes);
+
+serve(
+  {
+    fetch: app.fetch,
+    port: config.port,
+  },
+  (info) => {
+    console.log(
+      `✅ User Provisioning Service is running on http://localhost:${info.port}`
+    );
+  }
+);

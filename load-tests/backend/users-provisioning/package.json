@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.16.0",
+    "@mysten/sui": "^1.36.0",
     "better-sqlite3-multiple-ciphers": "^12.2.0",
     "dotenv": "^17.2.0",
     "hono": "^4.8.5"
