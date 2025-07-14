@@ -1,3 +1,5 @@
+import { mkdir } from "fs/promises";
+import path from "path";
 import "dotenv/config";
 import { DbKeyManager } from "./dbKeyManager.js";
 
@@ -12,6 +14,11 @@ class AppConfig {
   public readonly dbEncryptionKey: string;
   public readonly dbFile: string;
   public readonly port: number;
+  public readonly userGeneration = {
+    maxBatchSize: 100,
+    minBatchSize: 1,
+    defaultBatchSize: 1,
+  };
 
   private constructor() {
     // 1. Use your DbKeyManager to handle the encryption key.
@@ -19,15 +26,32 @@ class AppConfig {
     DbKeyManager.initializeKey();
     this.dbEncryptionKey = DbKeyManager.getKey();
 
-    // 2. Load and validate other configurations from.env
+    // 2. Load and validate other configurations from .env
     this.dbFile = this.getEnvVariable("DB_FILE", "./data/users.db");
+
+    // Ensure database directory exists
+    this.ensureDbDirectoryExists();
 
     const portStr = this.getEnvVariable("PORT", "4321");
     this.port = parseInt(portStr, 10);
 
+    // 3. Load user generation limits
+    this.userGeneration.maxBatchSize = parseInt(
+      this.getEnvVariable("MAX_BATCH_SIZE", "100"),
+      10
+    );
+    this.userGeneration.minBatchSize = parseInt(
+      this.getEnvVariable("MIN_BATCH_SIZE", "1"),
+      10
+    );
+    this.userGeneration.defaultBatchSize = parseInt(
+      this.getEnvVariable("DEFAULT_BATCH_SIZE", "1"),
+      10
+    );
+
     if (isNaN(this.port)) {
       throw new Error(
-        `Invalid PORT specified in.env file. Must be a number. Got: ${portStr}`
+        `Invalid PORT specified in .env file. Must be a number. Got: ${portStr}`
       );
     }
   }
@@ -54,6 +78,17 @@ class AppConfig {
       AppConfig.instance = new AppConfig();
     }
     return AppConfig.instance;
+  }
+
+  /**
+   * Ensures the database directory exists, creating it if necessary
+   */
+  private ensureDbDirectoryExists(): void {
+    const dbDir = path.dirname(this.dbFile);
+    mkdir(dbDir, { recursive: true }).catch((err) => {
+      console.error(`Failed to create database directory: ${err.message}`);
+      process.exit(1);
+    });
   }
 }
 
