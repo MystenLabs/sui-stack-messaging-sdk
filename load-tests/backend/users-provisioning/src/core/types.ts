@@ -7,7 +7,7 @@ export type UserVariant = "active" | "passive";
 export interface User {
   sui_address: string;
   secret_key: string;
-  user_type: UserVariant;
+  user_variant: UserVariant;
   is_funded: boolean;
 }
 

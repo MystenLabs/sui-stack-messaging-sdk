@@ -42,9 +42,104 @@ users.use("*", async (c, next) => {
   await next();
 });
 
+// OpenAPI documentation for routes
+const openApiDoc = {
+  "/users": {
+    get: {
+      summary: "List users",
+      parameters: [
+        {
+          name: "variant",
+          in: "query",
+          description: "Filter by user variant (active/passive)",
+          schema: { type: "string", enum: ["active", "passive"] },
+        },
+        {
+          name: "is_funded",
+          in: "query",
+          description: "Filter by funding status",
+          schema: { type: "boolean" },
+        },
+        {
+          name: "limit",
+          in: "query",
+          description:
+            "Maximum number of users to return (default: 50, max: 100)",
+          schema: { type: "integer", minimum: 1, maximum: 100 },
+        },
+        {
+          name: "offset",
+          in: "query",
+          description: "Number of users to skip (for pagination)",
+          schema: { type: "integer", minimum: 0 },
+        },
+      ],
+      responses: {
+        200: {
+          description: "List of users",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        sui_address: { type: "string" },
+                        user_variant: {
+                          type: "string",
+                          enum: ["active", "passive"],
+                        },
+                        is_funded: { type: "boolean" },
+                      },
+                    },
+                  },
+                  total: { type: "integer" },
+                  limit: { type: "integer" },
+                  offset: { type: "integer" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 // Define routes using method chaining for better type inference
 users
-  .use("/generate/*", withErrorHandling)
+  .use("/*", withErrorHandling)
+  // GET /users - List users with filtering and pagination
+  .get("/", async (c) => {
+    const variant = c.req.query("variant") as "active" | "passive" | undefined;
+    const isFundedStr = c.req.query("is_funded");
+    const limit = parseInt(c.req.query("limit") || "50", 10);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
+
+    // Validate variant if provided
+    if (variant && variant !== "active" && variant !== "passive") {
+      return c.json(
+        { error: "Invalid variant. Must be 'active' or 'passive'" },
+        400
+      );
+    }
+
+    // Parse is_funded if provided
+    const isFunded = isFundedStr ? isFundedStr === "true" : undefined;
+
+    const result = c.var.userRepository.getUsers({
+      variant,
+      isFunded,
+      limit,
+      offset,
+    });
+
+    return c.json(result);
+  })
+  // POST /users/generate/:variant - Generate new users
   .post("/generate/:variant", async (c) => {
     const userVariant = c.req.param("variant");
     if (userVariant !== "active" && userVariant !== "passive") {
@@ -72,24 +167,24 @@ users
       );
     }
 
-    const users = [];
-    for (let i = 0; i < count; i++) {
-      const generatedUser = c.var.userService.generateUser(
-        userVariant as UserVariant
-      );
-      c.var.userRepository.createUser({
-        ...generatedUser,
-        is_funded: false,
-      });
-      users.push({
-        sui_address: generatedUser.sui_address,
-        user_type: generatedUser.user_type,
-      });
-    }
+    // Generate all users first
+    const generatedUsers = Array.from({ length: count }, () => ({
+      ...c.var.userService.generateUser(userVariant as UserVariant),
+      is_funded: false,
+    }));
+
+    // Insert all users in a single transaction
+    const insertedCount = c.var.userRepository.createUsers(generatedUsers);
+
+    // Prepare response without sensitive data
+    const usersResponse = generatedUsers.map((user) => ({
+      sui_address: user.sui_address,
+      user_variant: user.user_variant,
+    }));
 
     return c.json({
-      message: `${count} ${userVariant} user(s) generated.`,
-      users,
+      message: `${insertedCount} ${userVariant} user(s) generated.`,
+      users: usersResponse,
     });
   });
 

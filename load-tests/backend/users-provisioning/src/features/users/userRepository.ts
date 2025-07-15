@@ -6,11 +6,31 @@ import type { User } from "../../core/types.js";
  */
 export class UserRepository {
   private readonly insertStatement: ReturnType<Database["prepare"]>;
+  private readonly selectStatement: ReturnType<Database["prepare"]>;
+  private readonly countStatement: ReturnType<Database["prepare"]>;
+  private readonly DEFAULT_LIMIT = 50;
+  private readonly MAX_LIMIT = 100;
 
   constructor(private readonly db: Database) {
     // Prepare the insert statement once during initialization
     this.insertStatement = this.db.prepare(
-      `INSERT INTO users (sui_address, secret_key, user_type, is_funded) VALUES (@sui_address, @secret_key, @user_type, @is_funded)`
+      `INSERT INTO users (sui_address, secret_key, user_variant, is_funded) VALUES (@sui_address, @secret_key, @user_variant, @is_funded)`
+    );
+
+    this.selectStatement = this.db.prepare(
+      `SELECT sui_address, user_variant, is_funded 
+       FROM users
+       WHERE (@user_variant IS NULL OR user_variant = @user_variant)
+       AND (@is_funded IS NULL OR is_funded = @is_funded)
+       ORDER BY id DESC
+       LIMIT @limit OFFSET @offset`
+    );
+
+    this.countStatement = this.db.prepare(
+      `SELECT COUNT(*) as count
+       FROM users
+       WHERE (@user_variant IS NULL OR user_variant = @user_variant)
+       AND (@is_funded IS NULL OR is_funded = @is_funded)`
     );
   }
 
@@ -21,7 +41,7 @@ export class UserRepository {
     this.insertStatement.run({
       sui_address: user.sui_address,
       secret_key: user.secret_key,
-      user_type: user.user_type,
+      user_variant: user.user_variant,
       is_funded: user.is_funded ? 1 : 0,
     });
   }
@@ -37,7 +57,7 @@ export class UserRepository {
         this.insertStatement.run({
           sui_address: user.sui_address,
           secret_key: user.secret_key,
-          user_type: user.user_type,
+          user_variant: user.user_variant,
           is_funded: user.is_funded ? 1 : 0,
         });
       }
@@ -46,4 +66,47 @@ export class UserRepository {
 
     return transaction(users);
   }
+
+  /**
+   * Fetch users with pagination and filtering
+   */
+  getUsers(
+    params: UserQueryParams = {}
+  ): PaginatedResponse<Omit<User, "secret_key">> {
+    const limit = Math.min(params.limit || this.DEFAULT_LIMIT, this.MAX_LIMIT);
+    const offset = params.offset || 0;
+
+    const queryParams = {
+      user_variant: params.variant || null,
+      is_funded: params.isFunded === undefined ? null : params.isFunded ? 1 : 0,
+      limit,
+      offset,
+    };
+
+    const total = this.countStatement.get(queryParams) as { count: number };
+    const items = this.selectStatement.all(queryParams) as Array<
+      Omit<User, "secret_key">
+    >;
+
+    return {
+      items,
+      total: total.count,
+      limit,
+      offset,
+    };
+  }
+}
+
+export interface UserQueryParams {
+  variant?: "active" | "passive";
+  isFunded?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
 }

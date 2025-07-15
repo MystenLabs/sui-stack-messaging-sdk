@@ -16,7 +16,7 @@ export class SuiUserService {
     return {
       sui_address,
       secret_key,
-      user_type: userType,
+      user_variant: userType,
     };
   }
 }
