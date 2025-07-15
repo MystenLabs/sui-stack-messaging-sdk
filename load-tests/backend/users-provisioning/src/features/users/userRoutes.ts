@@ -219,7 +219,7 @@ users
 
     const fundingConfig = {
       amountPerUser,
-      maxUsersPerBatch: 25,
+      maxUsersPerBatch: config.maxFundingBatchSize,
     };
 
     // Get unfunded active users (no need for secret keys)

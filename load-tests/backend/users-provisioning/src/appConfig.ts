@@ -32,6 +32,7 @@ class AppConfig {
     minBatchSize: 1,
     defaultBatchSize: 1,
   };
+  public readonly maxFundingBatchSize: number = 50;
 
   private constructor() {
     // 1. Use your DbKeyManager to handle the encryption key.
@@ -62,7 +63,13 @@ class AppConfig {
       10
     );
 
-    // 4. Load sui network from .env
+    // 4. Set maxFundingBatchSize
+    this.maxFundingBatchSize = parseInt(
+      this.getEnvVariable("MAX_FUNDING_BATCH_SIZE", "50"),
+      10
+    );
+
+    // 5. Load sui network from .env
     const network = this.getEnvVariable("NETWORK", "testnet");
     if (!this.suiNetworks.includes(network)) {
       throw new Error(
