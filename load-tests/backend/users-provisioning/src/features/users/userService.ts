@@ -44,12 +44,14 @@ export class SuiUserService {
    * @param users The users to fund
    * @param fundingAccount The account to fund from
    * @param config Funding configuration
+   * @param force Force fund even if user is already funded
    * @returns Result of the funding operation
    */
   async fundUsers(
     users: Omit<User, "secret_key">[],
     fundingAccount: FundingAccount,
-    config: FundingConfig
+    config: FundingConfig,
+    force: boolean = false
   ): Promise<FundingResult> {
     const result: FundingResult = {
       successCount: 0,
@@ -58,10 +60,14 @@ export class SuiUserService {
       errors: [],
     };
 
-    // Filter only unfunded active users
-    const usersToFund = users.filter(
-      (user) => !user.is_funded && user.user_variant === "active"
-    );
+    // Only fund active users.
+    // Fund them if force, or if they aren't funded.
+    const usersToFund = users.filter((user) => {
+      const isActive = user.user_variant === "active";
+      if (!isActive) return false;
+
+      return force || !user.is_funded;
+    });
 
     if (usersToFund.length === 0) {
       return result;
