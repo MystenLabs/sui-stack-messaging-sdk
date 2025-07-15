@@ -10,7 +10,7 @@ export class UserRepository {
   private readonly countStatement: ReturnType<Database["prepare"]>;
   private readonly updateFundedStatement: ReturnType<Database["prepare"]>;
   private readonly DEFAULT_LIMIT = 50;
-  private readonly MAX_LIMIT = 100;
+  private readonly MAX_LIMIT = 1000;
 
   constructor(private readonly db: Database) {
     // Prepare statements once during initialization
@@ -79,6 +79,7 @@ export class UserRepository {
     params: UserQueryParams = {}
   ): PaginatedResponse<Omit<User, "secret_key">> {
     const limit = Math.min(params.limit || this.DEFAULT_LIMIT, this.MAX_LIMIT);
+    console.log("*** limit: ", limit);
     const offset = params.offset || 0;
 
     const queryParams = {

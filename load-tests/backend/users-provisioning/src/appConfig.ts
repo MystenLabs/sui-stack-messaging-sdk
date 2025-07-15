@@ -19,8 +19,11 @@ class AppConfig {
   ];
 
   public readonly suiNetwork: "localnet" | "devnet" | "testnet" | "mainnet" =
-    "testnet";
-  public readonly suiFullNode: string = `https://fullnode.${this.suiNetwork}.sui.io`;
+    "localnet";
+  public readonly suiFullNode: string =
+    this.suiNetwork === "localnet"
+      ? "http://127.0.0.1:9000"
+      : `https://fullnode.${this.suiNetwork}.sui.io`;
   public readonly dbEncryptionKey: string;
   public readonly dbFile: string;
   public readonly port: number;

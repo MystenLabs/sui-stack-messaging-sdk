@@ -74,10 +74,13 @@ export class SuiUserService {
     }
 
     const senderKeypair = Ed25519Keypair.fromSecretKey(
-      fromBase64(fundingAccount.secret_key)
+      fundingAccount.secret_key
     );
 
     // Process users in batches
+    console.log("*** usersToFund:", usersToFund.length);
+    console.log("*** config.maxUsersPerBatch:", config.maxUsersPerBatch);
+
     for (let i = 0; i < usersToFund.length; i += config.maxUsersPerBatch) {
       const batch = usersToFund.slice(i, i + config.maxUsersPerBatch);
       try {
@@ -90,13 +93,19 @@ export class SuiUserService {
         const response = await this.suiClient.signAndExecuteTransaction({
           transaction: tx,
           signer: senderKeypair,
-          requestType: "WaitForEffectsCert",
+          options: {
+            showEffects: true,
+            showObjectChanges: true,
+          },
         });
+
+        await this.suiClient.waitForTransaction({ digest: response.digest });
 
         if (response.effects?.status.status === "success") {
           result.successCount += batch.length;
           result.totalFunded += BigInt(batch.length) * config.amountPerUser;
         } else {
+          console.error("Transaction failed:", response);
           result.failedCount += batch.length;
           result.errors?.push(
             `Batch ${i / config.maxUsersPerBatch + 1} failed: ${
@@ -105,6 +114,7 @@ export class SuiUserService {
           );
         }
       } catch (error: any) {
+        console.error("Transaction failed:", error);
         result.failedCount += batch.length;
         result.errors?.push(
           `Batch ${i / config.maxUsersPerBatch + 1} failed: ${error.message}`
@@ -116,7 +126,7 @@ export class SuiUserService {
   }
 
   /**
-   * Creates a transaction block for funding multiple users
+   * Creates a transaction block for funding multiple users efficiently.
    */
   private createFundingTransaction(
     addresses: string[],
@@ -124,20 +134,24 @@ export class SuiUserService {
   ): Transaction {
     const tx = new Transaction();
 
-    // For each address, create a split_and_transfer call
-    for (const address of addresses) {
-      // Convert address to proper format (without 0x prefix)
-      const recipient = tx.pure(
-        bcs.string().serialize(address.replace("0x", "")).toBytes()
-      );
-      const amount = tx.pure(bcs.U64.serialize(amountPerUser).toBytes());
+    // Set a reasonable gas budget.
+    // const gasPerTransfer = 5_000_000;
+    // tx.setGasBudget(gasPerTransfer * addresses.length + 10_000_000);
 
-      tx.moveCall({
-        target: "0x2::pay::split_and_transfer",
-        typeArguments: ["0x2::sui::SUI"],
-        arguments: [tx.gas, amount, recipient],
-      });
-    }
+    // 1. Create an array of u64 amounts, one for each recipient.
+    const amounts = addresses.map(() => tx.pure.u64(amountPerUser));
+
+    // 2. Split the gas coin into multiple new coins in a single command.
+    //    This returns an array of the newly created coin objects.
+    const coins = tx.splitCoins(tx.gas, amounts);
+
+    // 3. Loop through the recipients and transfer one coin to each.
+    addresses.forEach((recipient, index) => {
+      tx.transferObjects(
+        [coins[index]], // The coin to send (as an array)
+        tx.pure.address(recipient) // The recipient's address
+      );
+    });
 
     return tx;
   }

@@ -219,14 +219,14 @@ users
 
     const fundingConfig = {
       amountPerUser,
-      maxUsersPerBatch: config.userGeneration.maxBatchSize,
+      maxUsersPerBatch: 25,
     };
 
     // Get unfunded active users (no need for secret keys)
     const users = c.var.userRepository.getUsers({
       variant: "active",
-      isFunded: false,
-      limit: 1000, // We'll process in batches anyway
+      // isFunded: false,
+      limit: 200, //
     });
 
     if (users.items.length === 0) {
@@ -244,7 +244,8 @@ users
       const result = await c.var.userService.fundUsers(
         users.items,
         fundingAccount,
-        fundingConfig
+        fundingConfig,
+        true
       );
 
       // Update funded status for successful transfers
