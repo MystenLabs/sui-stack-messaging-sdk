@@ -8,11 +8,12 @@ export class UserRepository {
   private readonly insertStatement: ReturnType<Database["prepare"]>;
   private readonly selectStatement: ReturnType<Database["prepare"]>;
   private readonly countStatement: ReturnType<Database["prepare"]>;
+  private readonly updateFundedStatement: ReturnType<Database["prepare"]>;
   private readonly DEFAULT_LIMIT = 50;
   private readonly MAX_LIMIT = 100;
 
   constructor(private readonly db: Database) {
-    // Prepare the insert statement once during initialization
+    // Prepare statements once during initialization
     this.insertStatement = this.db.prepare(
       `INSERT INTO users (sui_address, secret_key, user_variant, is_funded) VALUES (@sui_address, @secret_key, @user_variant, @is_funded)`
     );
@@ -31,6 +32,10 @@ export class UserRepository {
        FROM users
        WHERE (@user_variant IS NULL OR user_variant = @user_variant)
        AND (@is_funded IS NULL OR is_funded = @is_funded)`
+    );
+
+    this.updateFundedStatement = this.db.prepare(
+      `UPDATE users SET is_funded = 1 WHERE sui_address IN (select value from json_each(?))`
     );
   }
 
@@ -94,6 +99,16 @@ export class UserRepository {
       limit,
       offset,
     };
+  }
+
+  /**
+   * Mark multiple users as funded
+   * @param addresses Array of sui addresses to mark as funded
+   * @returns Number of users updated
+   */
+  markAsFunded(addresses: string[]): number {
+    const result = this.updateFundedStatement.run(JSON.stringify(addresses));
+    return result.changes;
   }
 }
 

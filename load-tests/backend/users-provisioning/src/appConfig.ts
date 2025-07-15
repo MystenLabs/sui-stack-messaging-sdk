@@ -11,6 +11,16 @@ import { DbKeyManager } from "./dbKeyManager.js";
 class AppConfig {
   private static instance: AppConfig;
 
+  private readonly suiNetworks: string[] = [
+    "localnet",
+    "devnet",
+    "testnet",
+    "mainnet",
+  ];
+
+  public readonly suiNetwork: "localnet" | "devnet" | "testnet" | "mainnet" =
+    "testnet";
+  public readonly suiFullNode: string = `https://fullnode.${this.suiNetwork}.sui.io`;
   public readonly dbEncryptionKey: string;
   public readonly dbFile: string;
   public readonly port: number;
@@ -48,6 +58,14 @@ class AppConfig {
       this.getEnvVariable("DEFAULT_BATCH_SIZE", "1"),
       10
     );
+
+    // 4. Load sui network from .env
+    const network = this.getEnvVariable("NETWORK", "testnet");
+    if (!this.suiNetworks.includes(network)) {
+      throw new Error(
+        `Invalid NETWORK specified in .env file. Valid values: ${this.suiNetworks.toString()}`
+      );
+    }
 
     if (isNaN(this.port)) {
       throw new Error(

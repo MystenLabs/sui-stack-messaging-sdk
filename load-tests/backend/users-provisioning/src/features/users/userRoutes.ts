@@ -186,6 +186,91 @@ users
       message: `${insertedCount} ${userVariant} user(s) generated.`,
       users: usersResponse,
     });
+  })
+  // POST /users/fund - Fund unfunded active users
+  .post("/fund", async (c) => {
+    const { sui_address, secret_key, amount_per_user } = await c.req.json();
+
+    if (!sui_address || !secret_key || !amount_per_user) {
+      return c.json(
+        {
+          error:
+            "Missing required fields: sui_address, secret_key, amount_per_user",
+        },
+        400
+      );
+    }
+
+    // Validate amount
+    const amountPerUser = BigInt(amount_per_user);
+    if (amountPerUser <= 0) {
+      return c.json(
+        {
+          error: "amount_per_user must be greater than 0",
+        },
+        400
+      );
+    }
+
+    const fundingAccount = {
+      sui_address,
+      secret_key,
+    };
+
+    const fundingConfig = {
+      amountPerUser,
+      maxUsersPerBatch: config.userGeneration.maxBatchSize,
+    };
+
+    // Get unfunded active users (no need for secret keys)
+    const users = c.var.userRepository.getUsers({
+      variant: "active",
+      isFunded: false,
+      limit: 1000, // We'll process in batches anyway
+    });
+
+    if (users.items.length === 0) {
+      return c.json({
+        message: "No unfunded active users found",
+        fundingResult: {
+          successCount: 0,
+          failedCount: 0,
+          totalFunded: "0",
+        },
+      });
+    }
+
+    try {
+      const result = await c.var.userService.fundUsers(
+        users.items,
+        fundingAccount,
+        fundingConfig
+      );
+
+      // Update funded status for successful transfers
+      if (result.successCount > 0) {
+        const fundedAddresses = users.items
+          .slice(0, result.successCount)
+          .map((u) => u.sui_address);
+
+        c.var.userRepository.markAsFunded(fundedAddresses);
+      }
+
+      return c.json({
+        message: `Funding complete. ${result.successCount} users funded, ${result.failedCount} failed.`,
+        fundingResult: {
+          ...result,
+          totalFunded: result.totalFunded.toString(),
+        },
+      });
+    } catch (error: any) {
+      return c.json(
+        {
+          error: `Funding failed: ${error.message}`,
+        },
+        500
+      );
+    }
   });
 
 export default users;
