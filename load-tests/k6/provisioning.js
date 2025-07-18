@@ -23,6 +23,8 @@ export function setupTestEnvironment() {
         // fundUsers(activeUsersToFund);
     }
     
+    // TODO: the backend saves sui_address, secret_key
+    // We need to construct Ed25519Keypair here.
     // 3. Fetch all provisioned users
     const allActiveUsers = fetchUsers('active', true);
     const allPassiveUsers = fetchUsers('passive', false);
@@ -31,12 +33,7 @@ export function setupTestEnvironment() {
     console.log(`Creating ${config.channelCount} channels...`);
     const channels = [];
     for (let i = 0; i < config.channelCount; i++) {
-        // This is pseudo-code; the real implementation would call the createChannel helper
-        // const creator = allActiveUsers[i % allActiveUsers.length];
-        // const res = createChannelSui(creator, [], [/* initial channel name */]);
-        // const channelId = res.effects.created[0].reference.objectId;
-        // channels.push({ id: channelId, members: [creator.address] });
-        // ... add other active/passive members
+        // TODO: call create channel
     }
     console.log("Setup complete!");
 

@@ -1,10 +1,10 @@
-// load-testing/scenarios.js
 import { sleep } from 'k6';
-import { fetchChannelMemberships, fetchChannelMessages, sendMessage } from './sui-helpers.js';
-import { crypto } from "k6/crypto";
+import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+
+import { config } from './config.js';
 
 export function activeUserWorkflow(data) {
-    // A VU is one of the active users passed from setup
+    // TODO: make sure all users get assigned a VU
     const user = data.activeUsers[__VU - 1]; 
     
     // 1. Discover channels this user is a member of
@@ -18,21 +18,24 @@ export function activeUserWorkflow(data) {
     const channelId = memberships[0].data.content.fields.channel_id; // Pick first channel
     const memberCapId = memberships[0].data.objectId;
 
-    // Simulate E2EE workload
-    const key = crypto.randomBytes(32); // Simulate DEK
-    const plaintext = `Hello from active user ${__VU} at ${new Date().toISOString()}`;
-    const ciphertext = crypto.subtle.encrypt('aes-gcm', key, plaintext, new Uint8Array(12));
+    for (let i=0; i<config.activeUsers.messagesPerSession; i++) {
+       
+        
+        // Think time
+        sleep(randomIntBetween(config.activeUsers.thinkTimeSecMin, config.activeUsers.thinkTimeSecMax));
 
-    // sendMessage(user, channelId, memberCapId, ciphertext); // Simplified call
+        // TODO: Send message
+    }
     
-    sleep(10); // Think time
+    
 }
 
 export function passiveUserWorkflow(data) {
-    const user = data.passiveUsers[__VU - 1 - config.activeUsers.total];
+    // TODO: make sure all users get assigned a VU
+    const user = data.passiveUsers[__VU - 1 - config.activeUsers.total]; 
     
     // 1. Discover channels
-    const memberships = fetchChannelMemberships(user.address);
+    // TODO: const memberships = fetchChannelMemberships(user.address);
     if (memberships.length === 0) {
         return;
     }
@@ -40,7 +43,7 @@ export function passiveUserWorkflow(data) {
 
     // 2. Poll for messages
     while (true) { // This will run for the test duration
-        fetchChannelMessages(channelId);
-        sleep(5); // Polling interval
+        // fetchChannelMessages(channelId, memberCapId);
+        sleep(config.passiveUsers.pollingInterval); // Polling interval
     }
 }
