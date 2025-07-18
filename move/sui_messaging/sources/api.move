@@ -24,12 +24,16 @@ public fun send_message(
     ciphertext: vector<u8>,
     wrapped_dek: vector<u8>,
     nonce: vector<u8>,
-    attachments: vector<Attachment>,
+    // TODO: re-enable this after k6-tests
+    // attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     // assert has_write_permission???
+
+    // TODO: remove this after k6-tests
+    let attachments = vector::empty();
 
     self.add_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
 
@@ -209,7 +213,7 @@ fun test_new_with_defaults() {
             ciphertext,
             wrapped_dek,
             nonce,
-            attachments,
+            // attachments,
             &clock,
             scenario.ctx(),
         );
