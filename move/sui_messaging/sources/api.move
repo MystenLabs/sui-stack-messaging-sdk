@@ -9,12 +9,14 @@ module sui_messaging::api;
 
 use std::string::String;
 use sui::clock::Clock;
-use sui::vec_map::VecMap;
+use sui::vec_map::{Self, VecMap};
 use sui_messaging::attachment::Attachment;
 use sui_messaging::channel::{Self, Channel, MemberCap};
 use sui_messaging::config::Config;
 use sui_messaging::errors;
 use sui_messaging::permissions;
+
+// TODO: should these be entry instead of public fun?
 
 public fun send_message(
     self: &mut Channel,
@@ -69,41 +71,36 @@ public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Confi
     self.return_config(member_cap, config, promise);
 }
 
-// TODO: Doesn't look like we can do this on move-side, since we
-// need to generate an encrypted(with seal) channel Key, and subsequently
-// we need to generate an encrypted Data Encryption Key for the initial message.
-// public fun new_one_to_one(
-//     recipient: address,
-//     initial_encrypted_text: vector<u8>,
-//     clock: &Clock,
-//     ctx: &mut TxContext,
-// ): (Channel, AddWrappedKEKPromise) {
-//     // Initialize channel object
-//     let (mut channel, creator_cap, promise) = channel::new(
-//         clock,
-//         ctx,
-//     );
+// Helper for the k6 load tests, otherwise we have to
+// expose the transaction apis from the sui-go-sdk,
+// and write a js-go bridge, which will get us out of scope.
+entry fun create_default_channel(
+    initial_member_addresses: vector<address>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    let (mut channel, creator_cap) = channel::new(clock, ctx);
+    // In the proper e2e flow, we should generate a key in the client, encrypt it with seal
+    // and then add it to the channel
+    let wrapped_kek = channel.namespace();
+    channel.add_wrapped_kek(&creator_cap, wrapped_kek);
+    channel.with_defaults(&creator_cap);
 
-//     channel.with_defaults(&creator_cap);
-//     transfer::public_transfer(creator_cap, ctx.sender());
-//     let mut initial_members = vec_map::empty<address, String>();
-//     initial_members.insert(recipient, channel::restricted_role_name());
-//     channel.with_initial_members(&creator_cap, &mut initial_members, clock, ctx);
+    if (!initial_member_addresses.is_empty()) {
+        let mut initial_members = vec_map::from_keys_values(
+            initial_member_addresses,
+            initial_member_addresses.map!(|_addr| { b"Restricted".to_string() }),
+        );
+        channel.with_initial_members(&creator_cap, &mut initial_members, clock, ctx);
+    };
 
-//     // Send the initial message to the Channel
-//     if (!initial_encrypted_text.is_empty()) {
-//         channel.send_message(member_cap, ciphertext, wrapped_dek, nonce, attachments, clock, ctx)
-//     };
-
-//     (channel, promise)
-// }
+    channel.share();
+    transfer::public_transfer(creator_cap, ctx.sender());
+}
 
 // === Test Functions ===
 #[test_only]
 use sui::test_scenario::{Self as ts};
-
-#[test_only]
-use sui::vec_map;
 
 #[test_only]
 use sui_messaging::{attachment, permissions::{Role}};
@@ -129,16 +126,18 @@ fun test_new_with_defaults() {
     scenario.next_tx(sender_address);
     {
         // create new channel
-        let (mut channel, creator_cap, promise) = channel::new(
+        let (mut channel, creator_cap) = channel::new(
             &clock,
             scenario.ctx(),
         );
         assert!(channel::is_creator(&channel, &creator_cap), errors::e_channel_not_creator());
 
         let wrapped_kek = channel.namespace();
+        channel.add_wrapped_kek(&creator_cap, wrapped_kek);
 
+        // TODO: re-evaluate
         // add wrapped KEK for envelop encryption (we handwave it here, should be done with seal)
-        channel.add_wrapped_kek(&creator_cap, promise, wrapped_kek);
+        // channel.add_wrapped_kek(&creator_cap, promise, wrapped_kek);
 
         // add defaults
         channel.with_defaults(&creator_cap);

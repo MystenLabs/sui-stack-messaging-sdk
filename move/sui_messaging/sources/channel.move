@@ -119,13 +119,14 @@ public struct MemberInfo has drop, store {
 
 // === Potatos ===
 
-/// Returned after a call to `channel::new`,
-/// ensuring that the creator of the Channel
-/// adds a KEK (Key Encryption Key)
-public struct AddWrappedKEKPromise {
-    channel_id: ID,
-    creator_cap_id: ID,
-}
+// TODO: re-evaluate this, it makes using the contract tricky
+// /// Returned after a call to `channel::new`,
+// /// ensuring that the creator of the Channel
+// /// adds a KEK (Key Encryption Key)
+// public struct AddWrappedKEKPromise {
+//     channel_id: ID,
+//     creator_cap_id: ID,
+// }
 
 /// Returned after a call to `channel::remove_config_for_editing`,
 /// ensuring that the caller will return/reattach a Config to
@@ -163,9 +164,9 @@ use fun df::remove as UID.remove;
 ///       -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, AddWrappedKEKPromise) {
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     let channel_uid = object::new(ctx);
-    let channel_id = channel_uid.to_inner();
+    // let channel_id = channel_uid.to_inner();
     let mut channel = Channel {
         id: channel_uid,
         version: admin::version(),
@@ -182,7 +183,7 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, AddWra
 
     // Mint CreatorCap
     let creator_cap_uid = object::new(ctx);
-    let creator_cap_id = creator_cap_uid.to_inner();
+    // let creator_cap_id = creator_cap_uid.to_inner();
     let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
     // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
     channel.add_creator_to_members(&creator_cap, clock, ctx);
@@ -190,10 +191,10 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, AddWra
     (
         channel,
         creator_cap,
-        AddWrappedKEKPromise {
-            channel_id: channel_id,
-            creator_cap_id: creator_cap_id,
-        },
+        // AddWrappedKEKPromise {
+        //     channel_id: channel_id,
+        //     creator_cap_id: creator_cap_id,
+        // },
     )
 }
 
@@ -215,20 +216,27 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     };
 }
 
-/// Mandatory function to call after `channel::new`
-/// We do this in 2 steps, because we want to use
-/// the channel's ID for the seal-encrypted KEK.
-public fun add_wrapped_kek(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    promise: AddWrappedKEKPromise,
-    wrapped_kek: vector<u8>,
-) {
-    // Unpack promise
-    let AddWrappedKEKPromise { channel_id, creator_cap_id } = promise;
+// TODO: re-evaluate this
+// /// Mandatory function to call after `channel::new`
+// /// We do this in 2 steps, because we want to use
+// /// the channel's ID for the seal-encrypted KEK.
+// public fun add_wrapped_kek(
+//     self: &mut Channel,
+//     creator_cap: &CreatorCap,
+//     promise: AddWrappedKEKPromise,
+//     wrapped_kek: vector<u8>,
+// ) {
+//     // Unpack promise
+//     let AddWrappedKEKPromise { channel_id, creator_cap_id } = promise;
+//     // Assert correct channel-promise
+//     assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
+//     assert!(creator_cap.id.to_inner() == creator_cap_id, errors::e_channel_not_creator());
+//     self.wrapped_kek = wrapped_kek;
+// }
+
+public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
     // Assert correct channel-promise
-    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
-    assert!(creator_cap.id.to_inner() == creator_cap_id, errors::e_channel_not_creator());
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     self.wrapped_kek = wrapped_kek;
 }
 
