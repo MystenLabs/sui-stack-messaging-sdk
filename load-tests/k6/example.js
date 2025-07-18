@@ -44,12 +44,12 @@ export default function() {
     console.log("***", resp);
 
     const objectChanges = resp.object_changes;
-    const createdObjects = objectChanges.filter((objChng) => objChng.type === "created" && objChng.owner.address_owner !== undefined);
-    const sharedObjects = objectChanges.filter((objChng) => objChng.type === "created" && objChng.owner.shared !== undefined);
+    const createdObjects = objectChanges.filter((objChng) => objChng.type === "created" && objChng.owner.AddressOwner!== undefined);
+    const sharedObjects = objectChanges.filter((objChng) => objChng.type === "created" && objChng.owner.Shared !== undefined);
 
     const channel = sharedObjects.find(shr => shr.object_type.includes("channel::Channel"));
     const memberCaps = createdObjects.filter(crt => crt.object_type.includes("channel::MemberCap"));
-    const creatorMemberCap = memberCaps.find(cap => cap.owner.address_owner === senderAddress);
+    const creatorMemberCap = memberCaps.find(cap => cap.owner.AddressOwner=== senderAddress);
 
     const channelId = channel.object_id;
 
