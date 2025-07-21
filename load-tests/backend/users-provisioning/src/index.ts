@@ -6,6 +6,14 @@ import contractRoutes from "./features/contract/contractRoutes.js";
 
 const app = new Hono();
 
+// Timing middleware to measure backend processing time
+app.use("*", async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  c.header("X-Internal-Duration", duration.toString());
+});
+
 // Health check endpoint
 app.get("/", (c) => {
   return c.json({

@@ -3,12 +3,21 @@ import http from 'k6/http';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 import { config } from './config.js';
+import { metrics } from './metrics.js';
 
 const PROVISIONING_API_URL = 'http://localhost:4321';
+
+function recordMetric(response, metric, errorMetric) {
+    const internalDuration = response.headers['X-Internal-Duration'] ? parseFloat(response.headers['X-Internal-Duration']) : 0;
+    const adjustedDuration = response.timings.duration - internalDuration;
+    metric.add(adjustedDuration);
+    errorMetric.add(response.status !== 200);
+}
 
 function fetchChannelMemberships(userAddress) {
     const url = `${PROVISIONING_API_URL}/contract/channel/memberships/${userAddress}`;
     const res = http.get(url);
+    recordMetric(res, metrics.fetchChannelMemberships_latency, metrics.errorRate_fetchMemberships);
     if (res.status !== 200) {
         console.error(`Failed to fetch memberships for ${userAddress}:`, res.body);
         return [];
@@ -25,12 +34,14 @@ function sendMessage(secretKey, channelId, memberCapId, message) {
         message: message,
     });
     const params = { headers: { 'Content-Type': 'application/json' } };
-    http.post(url, payload, params);
+    const res = http.post(url, payload, params);
+    recordMetric(res, metrics.sendMessage_latency, metrics.errorRate_sendMessage);
 }
 
 function fetchChannelMessages(channelId) {
     const url = `${PROVISIONING_API_URL}/contract/channel/${channelId}/messages`;
     const res = http.get(url);
+    recordMetric(res, metrics.fetchChannelMessages_latency, metrics.errorRate_fetchMessages);
     if (res.status !== 200) {
         console.error(`Failed to fetch messages for channel ${channelId}:`, res.body);
         return [];

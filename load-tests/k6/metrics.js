@@ -19,4 +19,7 @@ export const metrics = {
     errorRate_sendMessage: new Rate('errorRate_sendMessage'),
     errorRate_fetchMemberships: new Rate('errorRate_fetchMemberships'),
     errorRate_fetchMessages: new Rate('errorRate_fetchMessages'),
+
+    // New metrics
+    fetchChannelMembershipsLatency: new Trend('fetchChannelMemberships_latency', true),
 };
