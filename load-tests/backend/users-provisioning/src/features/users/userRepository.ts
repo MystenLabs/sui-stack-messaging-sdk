@@ -102,6 +102,37 @@ export class UserRepository {
     };
   }
 
+  getUsersWithSecrets(params: UserQueryParams = {}): PaginatedResponse<User> {
+    const limit = Math.min(params.limit || this.DEFAULT_LIMIT, this.MAX_LIMIT);
+    const offset = params.offset || 0;
+
+    const queryParams = {
+      user_variant: params.variant || null,
+      is_funded: params.isFunded === undefined ? null : params.isFunded ? 1 : 0,
+      limit,
+      offset,
+    };
+
+    const selectWithSecrets = this.db.prepare(
+      `SELECT sui_address, secret_key, user_variant, is_funded
+       FROM users
+       WHERE (@user_variant IS NULL OR user_variant = @user_variant)
+       AND (@is_funded IS NULL OR is_funded = @is_funded)
+       ORDER BY id DESC
+       LIMIT @limit OFFSET @offset`
+    );
+
+    const total = this.countStatement.get(queryParams) as { count: number };
+    const items = selectWithSecrets.all(queryParams) as Array<User>;
+
+    return {
+      items,
+      total: total.count,
+      limit,
+      offset,
+    };
+  }
+
   /**
    * Mark multiple users as funded
    * @param addresses Array of sui addresses to mark as funded

@@ -1,0 +1,146 @@
+import { Hono } from "hono";
+import { createFactory } from "hono/factory";
+import { SuiContractService } from "./suiContractService.js";
+import db from "../../db.js";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { decodeSuiPrivateKey } from "@mysten/sui/cryptography";
+
+// Define types for our dependencies
+type ContractVariables = {
+  suiContractService: SuiContractService;
+};
+
+// Initialize services
+const suiContractService = new SuiContractService();
+
+// Create a new router instance with typed variables
+const contract = new Hono<{
+  Variables: ContractVariables;
+}>();
+
+// Use the factory pattern for route handlers
+const factory = createFactory<{
+  Variables: ContractVariables;
+}>();
+
+// Create error handling middleware
+const withErrorHandling = factory.createMiddleware(async (c, next) => {
+  try {
+    await next();
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// Handle user generation with proper type checking
+contract.use("*", async (c, next) => {
+  c.set("suiContractService", suiContractService);
+  await next();
+});
+
+contract.use("/*", withErrorHandling);
+
+contract.post("/channel", async (c) => {
+  const { secret_key, channel_name, initial_members } = await c.req.json();
+
+  if (!secret_key || !channel_name) {
+    return c.json(
+      {
+        error: "Missing required fields: secret_key, channel_name",
+      },
+      400
+    );
+  }
+
+  const { secretKey } = decodeSuiPrivateKey(secret_key);
+  const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+
+  const result = await c.var.suiContractService.createChannelWithDefaults(
+    keypair,
+    channel_name,
+    initial_members
+  );
+
+  return c.json({
+    message: `Channel created successfully.`,
+    channel: result,
+  });
+});
+
+contract.post("/channel/message", async (c) => {
+  const { secret_key, channel_id, member_cap_id, message } = await c.req.json();
+
+  if (!secret_key || !channel_id || !member_cap_id || !message) {
+    return c.json(
+      {
+        error:
+          "Missing required fields: secret_key, channel_id, member_cap_id, message",
+      },
+      400
+    );
+  }
+
+  const { secretKey } = decodeSuiPrivateKey(secret_key);
+  const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+
+  await c.var.suiContractService.sendMessage(
+    keypair,
+    channel_id,
+    member_cap_id,
+    message
+  );
+
+  return c.json({
+    message: `Message sent successfully to channel ${channel_id}.`,
+  });
+});
+
+contract.get("/channel/memberships/:user_address", async (c) => {
+  const userAddress = c.req.param("user_address");
+  const limit = parseInt(c.req.query("limit") || "10", 10);
+
+  if (!userAddress) {
+    return c.json(
+      {
+        error: "Missing required field: user_address",
+      },
+      400
+    );
+  }
+
+  const result = await c.var.suiContractService.fetchLatestChannelMemberships(
+    userAddress,
+    limit
+  );
+
+  return c.json({
+    message: `Found ${result.length} memberships for user ${userAddress}.`,
+    memberships: result,
+  });
+});
+
+contract.get("/channel/:channel_id/messages", async (c) => {
+  const channelId = c.req.param("channel_id");
+  const limit = parseInt(c.req.query("limit") || "10", 10);
+
+  if (!channelId) {
+    return c.json(
+      {
+        error: "Missing required field: channel_id",
+      },
+      400
+    );
+  }
+
+  const result = await c.var.suiContractService.fetchLatestMessagesByChannelId(
+    channelId,
+    limit
+  );
+
+  return c.json({
+    message: `Found ${result.length} messages for channel ${channelId}.`,
+    messages: result,
+  });
+});
+
+export default contract;

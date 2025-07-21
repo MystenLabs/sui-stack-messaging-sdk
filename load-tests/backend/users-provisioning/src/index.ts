@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { config } from "./appConfig.js";
 import userRoutes from "./features/users/userRoutes.js";
+import contractRoutes from "./features/contract/contractRoutes.js";
 
 const app = new Hono();
 
@@ -16,6 +17,7 @@ app.get("/", (c) => {
 
 // Mount feature routes
 app.route("/users", userRoutes);
+app.route("/contract", contractRoutes);
 
 serve(
   {

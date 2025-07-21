@@ -30,12 +30,9 @@ class AppConfig {
     defaultBatchSize: 1,
   };
   public readonly maxFundingBatchSize: number = 50;
-
-  public get suiFullNode(): string {
-    return this.suiNetwork === "localnet"
-      ? "http://127.0.0.1:9000"
-      : `https://fullnode.${this.suiNetwork}.sui.io`;
-  }
+  public readonly suiFullNode: string;
+  public readonly suiFaucet: string;
+  public readonly suiContractPackageId: string;
 
   private constructor() {
     // 1. Use your DbKeyManager to handle the encryption key.
@@ -85,6 +82,14 @@ class AppConfig {
         `Invalid PORT specified in .env file. Must be a number. Got: ${portStr}`
       );
     }
+
+    this.suiFullNode =
+      this.suiNetwork === "localnet"
+        ? "http://127.0.0.1:9000"
+        : `https://fullnode.${this.suiNetwork}.sui.io`;
+
+    this.suiFaucet = "http://127.0.0.1:9123";
+    this.suiContractPackageId = process.env.PACKAGE_ID || "";
   }
 
   /**

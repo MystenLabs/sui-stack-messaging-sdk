@@ -139,6 +139,33 @@ users
 
     return c.json(result);
   })
+  // GET /users/with-secrets - List users with secrets (FOR LOAD TESTING ONLY)
+  .get("/with-secrets", async (c) => {
+    // WARNING: This endpoint exposes secret keys and should only be used for load testing.
+    // Do not use in a production environment.
+    const variant = c.req.query("variant") as "active" | "passive" | undefined;
+    const isFundedStr = c.req.query("is_funded");
+    const limit = parseInt(c.req.query("limit") || "50", 10);
+    const offset = parseInt(c.req.query("offset") || "0", 10);
+
+    if (variant && variant !== "active" && variant !== "passive") {
+      return c.json(
+        { error: "Invalid variant. Must be 'active' or 'passive'" },
+        400
+      );
+    }
+
+    const isFunded = isFundedStr ? isFundedStr === "true" : undefined;
+
+    const result = c.var.userRepository.getUsersWithSecrets({
+      variant,
+      isFunded,
+      limit,
+      offset,
+    });
+
+    return c.json(result);
+  })
   // POST /users/generate/:variant - Generate new users
   .post("/generate/:variant", async (c) => {
     const userVariant = c.req.param("variant");
