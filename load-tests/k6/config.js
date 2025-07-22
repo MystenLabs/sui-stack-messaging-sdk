@@ -23,7 +23,7 @@ export const config = {
     // Test Load Configuration
     channelCount: parseInt(getEnv('CHANNEL_COUNT', '100')),
     activeUsers: {
-        total: parseInt(getEnv('ACTIVE_USERS_TOTAL', '50')),
+        total: parseInt(getEnv('ACTIVE_USERS_TOTAL', '100')),
         perChannel: parseInt(getEnv('ACTIVE_USERS_PER_CHANNEL', '2')),
         thinkTimeSecMin: parseInt(getEnv('ACTIVE_USERS_THINK_TIME_SEC_MIN', '2')),
         thinkTimeSecMax: parseInt(getEnv('ACTIVE_USERS_THINK_TIME_SEC_MAX', '5')),
@@ -31,12 +31,12 @@ export const config = {
     },
     passiveUsers: {
         total: parseInt(getEnv('PASSIVE_USERS_TOTAL', '1000')),
-        perChannel: parseInt(getEnv('PASSIVE_USERS_PER_CHANNEL', '2')),
+        perChannel: parseInt(getEnv('PASSIVE_USERS_PER_CHANNEL', '8')),
         pollingInterval: parseInt(getEnv('PASSIVE_USERS_POLLING_INTERVAL', '3')),
     },
 
     // Test Duration & VUs
-    duration: getEnv('DURATION', '30s'),
+    duration: getEnv('DURATION', '5m'),
     testThresholds: {
         // 95% of requests must finish within 4 seconds.
         'http_req_duration': ['p(95)<4000'], 

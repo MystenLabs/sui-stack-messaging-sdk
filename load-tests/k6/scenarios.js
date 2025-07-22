@@ -5,12 +5,9 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 import { config } from './config.js';
 import { metrics, recordMetric } from './metrics.js';
 
-const PROVISIONING_API_URL = 'http://localhost:4321';
-
-
 
 function fetchChannelMemberships(userAddress) {
-    const url = `${PROVISIONING_API_URL}/contract/channel/memberships/${userAddress}`;
+    const url = `${config.provisioningApiUrl}/contract/channel/memberships/${userAddress}`;
     const res = http.get(url);
     recordMetric(res, metrics.fetchChannelMemberships_latency, metrics.errorRate_fetchMemberships);
     if (res.status !== 200) {
@@ -21,7 +18,7 @@ function fetchChannelMemberships(userAddress) {
 }
 
 function fetchChannelMembershipsWithMetadata(userAddress) {
-    const url = `${PROVISIONING_API_URL}/contract/channel/memberships/${userAddress}/with-metadata`;
+    const url = `${config.provisioningApiUrl}/contract/channel/memberships/${userAddress}/with-metadata`;
     const res = http.get(url);
     recordMetric(res, metrics.fetchChannelMembershipsWithMetadata_latency, metrics.errorRate_fetchMembershipsWithMetadata);
     if (res.status !== 200) {
@@ -32,7 +29,7 @@ function fetchChannelMembershipsWithMetadata(userAddress) {
 }
 
 function sendMessage(secretKey, channelId, memberCapId, message) {
-    const url = `${PROVISIONING_API_URL}/contract/channel/message`;
+    const url = `${config.provisioningApiUrl}/contract/channel/message`;
     const payload = JSON.stringify({
         secret_key: secretKey,
         channel_id: channelId,
@@ -43,11 +40,13 @@ function sendMessage(secretKey, channelId, memberCapId, message) {
     const res = http.post(url, payload, params);
     recordMetric(res, metrics.sendMessage_latency, metrics.errorRate_sendMessage);
     // Gas cost metrics
-    metrics.sendMessage_gas.add(res.headers['X-Gas-Cost'] ? parseFloat(res.headers['X-Gas-Cost']) : 0);
+    if (res.headers['X-Gas-Cost'] && res.headers['X-Gas-Cost'] !== '0') {
+        metrics.sendMessage_gas.add(parseFloat(res.headers['X-Gas-Cost']));
+    }
 }
 
 function fetchChannelMessages(channelId) {
-    const url = `${PROVISIONING_API_URL}/contract/channel/${channelId}/messages`;
+    const url = `${config.provisioningApiUrl}/contract/channel/${channelId}/messages`;
     const res = http.get(url);
     recordMetric(res, metrics.fetchChannelMessages_latency, metrics.errorRate_fetchMessages);
     if (res.status !== 200) {
@@ -58,7 +57,7 @@ function fetchChannelMessages(channelId) {
 }
 
 function fetchChannelMessagesByTableId(tableId) {
-    const url = `${PROVISIONING_API_URL}/contract/messages/table/${tableId}`;
+    const url = `${config.provisioningApiUrl}/contract/messages/table/${tableId}`;
     const res = http.get(url);
     recordMetric(res, metrics.fetchChannelMessagesByTableId_latency, metrics.errorRate_fetchMessagesByTableId);
     if (res.status !== 200) {

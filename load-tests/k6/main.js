@@ -18,7 +18,7 @@ export const options = {
             executor: 'constant-vus',
             vus: config.passiveUsers.total,
             duration: config.duration,
-            startTime: '10s',
+            startTime: '20s',
             exec: 'passive_user_scenario', // Tag for routing
         },
     },
