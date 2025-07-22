@@ -24,16 +24,12 @@ public fun send_message(
     ciphertext: vector<u8>,
     wrapped_dek: vector<u8>,
     nonce: vector<u8>,
-    // TODO: re-enable this after k6-tests
-    // attachments: vector<Attachment>,
+    attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     // assert has_write_permission???
-
-    // TODO: remove this after k6-tests
-    let attachments = vector::empty();
 
     self.add_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
 
@@ -139,10 +135,6 @@ fun test_new_with_defaults() {
         let wrapped_kek = channel.namespace();
         channel.add_wrapped_kek(&creator_cap, wrapped_kek);
 
-        // TODO: re-evaluate
-        // add wrapped KEK for envelop encryption (we handwave it here, should be done with seal)
-        // channel.add_wrapped_kek(&creator_cap, promise, wrapped_kek);
-
         // add defaults
         channel.with_defaults(&creator_cap);
 
@@ -213,7 +205,7 @@ fun test_new_with_defaults() {
             ciphertext,
             wrapped_dek,
             nonce,
-            // attachments,
+            attachments,
             &clock,
             scenario.ctx(),
         );

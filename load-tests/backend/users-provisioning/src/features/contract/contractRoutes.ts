@@ -10,6 +10,7 @@ import { config } from "../../appConfig.js";
 type ContractVariables = {
   suiContractService: SuiContractService;
   contractDuration: number;
+  contractGasCost: number;
 };
 
 // Initialize services
@@ -55,8 +56,8 @@ contract.post("/channel", async (c) => {
     );
   }
 
-  const { secretKey } = decodeSuiPrivateKey(secret_key);
-  const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+  // const { secretKey } = decodeSuiPrivateKey(secret_key);
+  const keypair = Ed25519Keypair.fromSecretKey(secret_key);
 
   const result = await c.var.suiContractService.createChannelWithDefaults(
     keypair,
@@ -64,6 +65,7 @@ contract.post("/channel", async (c) => {
     initial_members
   );
   c.set("contractDuration", c.var.suiContractService.lastDuration);
+  c.set("contractGasCost", c.var.suiContractService.lastGasCost);
 
   return c.json({
     message: `Channel created successfully.`,
@@ -84,8 +86,8 @@ contract.post("/channel/message", async (c) => {
     );
   }
 
-  const { secretKey } = decodeSuiPrivateKey(secret_key);
-  const keypair = Ed25519Keypair.fromSecretKey(secretKey);
+  // const { secretKey } = decodeSuiPrivateKey(secret_key);
+  const keypair = Ed25519Keypair.fromSecretKey(secret_key);
 
   await c.var.suiContractService.sendMessage(
     keypair,
@@ -94,6 +96,7 @@ contract.post("/channel/message", async (c) => {
     message
   );
   c.set("contractDuration", c.var.suiContractService.lastDuration);
+  c.set("contractGasCost", c.var.suiContractService.lastGasCost);
 
   return c.json({
     message: `Message sent successfully to channel ${channel_id}.`,

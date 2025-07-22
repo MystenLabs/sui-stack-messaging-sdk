@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { config } from './config.js';
+import { metrics, recordMetric } from './metrics.js';
 
 const PROVISIONING_API_URL = 'http://localhost:4321';
 
@@ -17,7 +18,7 @@ function fundUsers() {
     const url = `${PROVISIONING_API_URL}/users/fund`;
     const payload = JSON.stringify({
         sui_address: config.fundingAccount.address,
-        secret_key: config.fundingAccount.privateKey,
+        secret_key: config.fundingAccount.secretKey,
         amount_per_user: config.fundingAccount.amountPerUser,
     });
     const params = { headers: { 'Content-Type': 'application/json' } };
@@ -46,12 +47,17 @@ function fetchUsers(variant, isFunded, limit = 100) {
 function createChannel(channelName, initialMembers) {
     const url = `${PROVISIONING_API_URL}/contract/channel`;
     const payload = JSON.stringify({
-        secret_key: config.fundingAccount.privateKey,
+        secret_key: config.fundingAccount.secretKey,
         channel_name: channelName,
         initial_members: initialMembers,
     });
     const params = { headers: { 'Content-Type': 'application/json' } };
     const res = http.post(url, payload, params);
+    recordMetric(res, metrics.createChannel_latency, metrics.errorRate_createChannel);
+
+    // Gas cost metrics
+    metrics.createChannel_gas.add(res.headers['X-Gas-Cost'] ? parseFloat(res.headers['X-Gas-Cost']) : 0);
+
     if (res.status !== 200) {
         console.error('Failed to create channel:', res.body);
         return null;
@@ -86,15 +92,34 @@ export function setupTestEnvironment() {
     const allActiveUsers = fetchUsers('active', true, config.activeUsers.total);
     const allPassiveUsers = fetchUsers('passive', false, config.passiveUsers.total);
 
-    // 4. Create channels and distribute users
-    console.log(`Creating ${config.channelCount} channels...`);
-    const usersPerChannel = Math.ceil((allActiveUsers.length + allPassiveUsers.length) / config.channelCount);
-    const allUsers = [...allActiveUsers, ...allPassiveUsers];
+    // 4. Create channels and distribute users according to perChannel constraints
+    const totalUsersPerChannel = config.activeUsers.perChannel + config.passiveUsers.perChannel;
+    const requiredChannels = Math.max(
+        Math.ceil(allActiveUsers.length / config.activeUsers.perChannel),
+        Math.ceil(allPassiveUsers.length / config.passiveUsers.perChannel)
+    );
+    
+    console.log(`Creating ${requiredChannels} channels with ${config.activeUsers.perChannel} active and ${config.passiveUsers.perChannel} passive users per channel...`);
 
-    for (let i = 0; i < config.channelCount; i++) {
+    for (let i = 0; i < requiredChannels; i++) {
         const channelName = `channel-${i}`;
-        const channelMembers = allUsers.slice(i * usersPerChannel, (i + 1) * usersPerChannel).map(u => u.sui_address);
-        createChannel(channelName, channelMembers);
+        
+        // Distribute active users
+        const activeStartIndex = i * config.activeUsers.perChannel;
+        const activeEndIndex = Math.min(activeStartIndex + config.activeUsers.perChannel, allActiveUsers.length);
+        const activeMembers = allActiveUsers.slice(activeStartIndex, activeEndIndex).map(u => u.sui_address);
+        
+        // Distribute passive users
+        const passiveStartIndex = i * config.passiveUsers.perChannel;
+        const passiveEndIndex = Math.min(passiveStartIndex + config.passiveUsers.perChannel, allPassiveUsers.length);
+        const passiveMembers = allPassiveUsers.slice(passiveStartIndex, passiveEndIndex).map(u => u.sui_address);
+        
+        // Combine members for this channel
+        const channelMembers = [...activeMembers, ...passiveMembers];
+        
+        if (channelMembers.length > 0) {
+            createChannel(channelName, channelMembers);
+        }
     }
 
     console.log("Setup complete!");

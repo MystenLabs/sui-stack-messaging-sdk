@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { bcs } from "@mysten/sui/bcs";
-import type { SuiObjectResponse } from "@mysten/sui/client";
+import type { GasCostSummary, SuiObjectResponse } from "@mysten/sui/client";
 import { SuiClient } from "@mysten/sui/client";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import {
@@ -61,6 +61,7 @@ export type Channel = {
 export class SuiContractService {
   private suiClient: SuiClient;
   public lastDuration: number = 0;
+  public lastGasCost: number = 0;
 
   constructor(suiClient: SuiClient) {
     this.suiClient = suiClient;
@@ -83,7 +84,7 @@ export class SuiContractService {
     initialMemberAddresses?: string[]
   ): Promise<{ channelId: string; creatorCapId: string }> {
     return this.measure(async () => {
-      console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
+      // console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
       const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
 
       let tx = new Transaction();
@@ -91,14 +92,14 @@ export class SuiContractService {
         bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
       );
 
-      const [channel, creator_cap, promise] = tx.moveCall({
+      const [channel, creator_cap] = tx.moveCall({
         target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
         arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
       });
 
       tx.moveCall({
         target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
-        arguments: [channel, creator_cap, promise, wrapped_kek],
+        arguments: [channel, creator_cap, wrapped_kek],
       });
 
       tx.moveCall({
@@ -139,9 +140,14 @@ export class SuiContractService {
       );
       if (!creatorCapObject) throw new Error("CreatorCap was not created.");
 
-      console.log(
-        `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
-      );
+      // console.log(
+      // `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
+      // );
+
+      // Set gas cost
+      this.lastGasCost = result.effects
+        ? this.calculateGasCost(result.effects.gasUsed)
+        : 0;
 
       return {
         channelId: sharedObject.objectId,
@@ -160,7 +166,7 @@ export class SuiContractService {
     message: string
   ) {
     return this.measure(async () => {
-      console.log(`\n--- Sending message to channel ${channelId} ---`);
+      // console.log(`\n--- Sending message to channel ${channelId} ---`);
 
       const tx = new Transaction();
       const ciphertext = tx.pure(
@@ -192,10 +198,18 @@ export class SuiContractService {
         ],
       });
 
-      await executeTransaction(this.suiClient, tx, senderKeypair);
-      console.log(
-        `Message "${message}" sent successfully to channel ${channelId}.`
+      const result = await executeTransaction(
+        this.suiClient,
+        tx,
+        senderKeypair
       );
+      // console.log(
+      // `Message "${message}" sent successfully to channel ${channelId}.`
+      // );
+      // Set gas cost
+      this.lastGasCost = result.effects
+        ? this.calculateGasCost(result.effects.gasUsed)
+        : 0;
     });
   }
 
@@ -206,7 +220,7 @@ export class SuiContractService {
    */
   async fetchChannelById(channelId: string): Promise<Channel> {
     return this.measure(async () => {
-      console.log(`Fetching channel object for ${channelId}...`);
+      // console.log(`Fetching channel object for ${channelId}...`);
 
       const channelObjectResponse = await this.suiClient.getObject({
         id: channelId,
@@ -238,6 +252,54 @@ export class SuiContractService {
     });
   }
 
+  async fetchChannelObjects(channelIds: string[]): Promise<Channel[]> {
+    // console.log(`Fetching channel objects for IDs: ${channelIds.join(", ")}`);
+    const response = await this.suiClient.multiGetObjects({
+      ids: channelIds,
+      options: { showContent: true },
+    });
+
+    const channelObjects: Channel[] = response.map((channelObjRes) => {
+      if (channelObjRes.error) {
+        console.error(
+          `- Error fetching channel: ${JSON.stringify(channelObjRes.error)}`
+        );
+      }
+
+      // TODO: proper typescript
+      const content = channelObjRes.data?.content as unknown as any;
+      const fields = content.fields;
+      const id = fields.id.id;
+      const version = fields.version;
+      const rolesTableId = fields.roles.fields.id.id;
+      const membersTableId = fields.members.fields.id.id;
+      const messagesTableId = fields.messages.fields.contents.fields.id.id;
+      const messagesCount = fields.messages_count;
+      const lastMessage = fields.last_message
+        ? fields.last_message.fields
+        : null;
+      const wrappedKek = fields.wrapped_kek;
+      const kekVersion = fields.kek_version;
+      const createdAtMs = fields.created_at_ms;
+      const updatedAtMs = fields.updated_at_ms;
+
+      return {
+        id,
+        version,
+        rolesTableId,
+        membersTableId,
+        messagesTableId,
+        messagesCount,
+        lastMessage,
+        wrappedKek,
+        kekVersion,
+        createdAtMs,
+        updatedAtMs,
+      };
+    });
+    return channelObjects;
+  }
+
   /**
    * Fetches channel memberships with enhanced channel metadata.
    * @param userAddress The user's address
@@ -255,16 +317,16 @@ export class SuiContractService {
       );
 
       // Fetch channel objects for each membership
-      const membershipsWithMetadata = await Promise.all(
-        memberships.map(async (membership) => {
-          const channel = await this.fetchChannelById(membership.channelId);
-          return {
-            ...membership,
-            channel,
-          };
-        })
+      const channels = await this.fetchChannelObjects(
+        memberships.map((membership) => membership.channelId)
       );
 
+      const membershipsWithMetadata = memberships.map((membership) => ({
+        ...membership,
+        channel: channels.find(
+          (channel) => channel.id === membership.channelId
+        )!,
+      }));
       return membershipsWithMetadata;
     });
   }
@@ -288,17 +350,17 @@ export class SuiContractService {
         return [];
       }
 
-      console.log(
-        `Found ${latestMemberCaps.length} channel membership(s). Fetching details...`
-      );
+      // console.log(
+      // `Found ${latestMemberCaps.length} channel membership(s). Fetching details...`
+      // );
 
-      const channelIds = latestMemberCaps.map(
-        (cap: any) => cap.data.content.fields.channel_id
-      );
+      // const channelIds = latestMemberCaps.map(
+      //   (cap: any) => cap.data.content.fields.channel_id
+      // );
 
       return latestMemberCaps.map((cap, index) => ({
         memberCapId: cap.data!.objectId,
-        channelId: channelIds[index],
+        channelId: (cap.data!.content! as unknown as any).fields!.channel_id,
       }));
     });
   }
@@ -308,9 +370,9 @@ export class SuiContractService {
     limit: number = 10
   ): Promise<Message[]> {
     return this.measure(async () => {
-      console.log(
-        `Fetching latest ${limit} messages for channel ${channelId}...`
-      );
+      // console.log(
+      // `Fetching latest ${limit} messages for channel ${channelId}...`
+      // );
 
       const channelObjetResponse = await this.suiClient.getObject({
         id: channelId,
@@ -343,7 +405,6 @@ export class SuiContractService {
         options: { showContent: true },
       });
       return messageObjectsResponse.map((objRes: any) => {
-        console.log(JSON.stringify(objRes, null, 2));
         const fields = objRes.data.content.fields.value.fields;
         return {
           sender: fields.sender,
@@ -390,5 +451,13 @@ export class SuiContractService {
     });
 
     return tx;
+  }
+
+  private calculateGasCost(gasUsed: GasCostSummary): number {
+    return (
+      parseInt(gasUsed.computationCost) +
+      parseInt(gasUsed.storageCost) -
+      parseInt(gasUsed.storageRebate)
+    );
   }
 }

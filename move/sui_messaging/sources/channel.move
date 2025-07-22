@@ -14,17 +14,11 @@ use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
-// === Errors ===
-
-// === Constants ===
-
 // === Enums ===
 public enum Presense has copy, drop, store {
     Online,
     Offline,
 }
-
-// === Witnesses ===
 
 // === Capabilities ===
 
@@ -119,15 +113,6 @@ public struct MemberInfo has drop, store {
 
 // === Potatos ===
 
-// TODO: re-evaluate this, it makes using the contract tricky
-// /// Returned after a call to `channel::new`,
-// /// ensuring that the creator of the Channel
-// /// adds a KEK (Key Encryption Key)
-// public struct AddWrappedKEKPromise {
-//     channel_id: ID,
-//     creator_cap_id: ID,
-// }
-
 /// Returned after a call to `channel::remove_config_for_editing`,
 /// ensuring that the caller will return/reattach a Config to
 /// the Channel after editing.
@@ -160,13 +145,11 @@ use fun df::remove as UID.remove;
 /// Adds the creator as a member.
 ///
 /// The flow is:
-/// new() -> add_wrapped_kek()
-///       -> (optionally set_initial_roles())
+/// new() -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
 public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     let channel_uid = object::new(ctx);
-    // let channel_id = channel_uid.to_inner();
     let mut channel = Channel {
         id: channel_uid,
         version: admin::version(),
@@ -183,19 +166,11 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
 
     // Mint CreatorCap
     let creator_cap_uid = object::new(ctx);
-    // let creator_cap_id = creator_cap_uid.to_inner();
     let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
     // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
     channel.add_creator_to_members(&creator_cap, clock, ctx);
 
-    (
-        channel,
-        creator_cap,
-        // AddWrappedKEKPromise {
-        //     channel_id: channel_id,
-        //     creator_cap_id: creator_cap_id,
-        // },
-    )
+    (channel, creator_cap)
 }
 
 // Builder pattern
@@ -215,24 +190,6 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
         self.roles.add(name, role);
     };
 }
-
-// TODO: re-evaluate this
-// /// Mandatory function to call after `channel::new`
-// /// We do this in 2 steps, because we want to use
-// /// the channel's ID for the seal-encrypted KEK.
-// public fun add_wrapped_kek(
-//     self: &mut Channel,
-//     creator_cap: &CreatorCap,
-//     promise: AddWrappedKEKPromise,
-//     wrapped_kek: vector<u8>,
-// ) {
-//     // Unpack promise
-//     let AddWrappedKEKPromise { channel_id, creator_cap_id } = promise;
-//     // Assert correct channel-promise
-//     assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
-//     assert!(creator_cap.id.to_inner() == creator_cap_id, errors::e_channel_not_creator());
-//     self.wrapped_kek = wrapped_kek;
-// }
 
 public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
     // Assert correct channel-promise
@@ -346,8 +303,6 @@ public fun kek_version(self: &Channel): u64 {
 public fun namespace(self: &Channel): vector<u8> {
     self.id.to_bytes()
 }
-
-// === Admin Functions ===
 
 // === Package Functions ===
 

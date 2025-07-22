@@ -37,7 +37,7 @@ export class SuiUserService {
   generateUser(userType: UserVariant): GeneratedUser {
     const keypair = Ed25519Keypair.generate();
     const sui_address = keypair.getPublicKey().toSuiAddress();
-    const secret_key = Buffer.from(keypair.getSecretKey()).toString("base64");
+    const secret_key = keypair.getSecretKey();
 
     return {
       sui_address,

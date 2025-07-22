@@ -3,20 +3,11 @@ import http from 'k6/http';
 import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
 
 import { config } from './config.js';
-import { metrics } from './metrics.js';
+import { metrics, recordMetric } from './metrics.js';
 
 const PROVISIONING_API_URL = 'http://localhost:4321';
 
-function recordMetric(response, metric, errorMetric) {
-    const contractDuration = response.headers['X-Contract-Duration'] ? parseFloat(response.headers['X-Contract-Duration']) : 0;
-    if (contractDuration > 0) {
-        metric.add(contractDuration);
-    } else {
-        const internalDuration = response.headers['X-Internal-Duration'] ? parseFloat(response.headers['X-Internal-Duration']) : 0;
-        metric.add(internalDuration);
-    }
-    errorMetric.add(response.status !== 200);
-}
+
 
 function fetchChannelMemberships(userAddress) {
     const url = `${PROVISIONING_API_URL}/contract/channel/memberships/${userAddress}`;
@@ -24,6 +15,17 @@ function fetchChannelMemberships(userAddress) {
     recordMetric(res, metrics.fetchChannelMemberships_latency, metrics.errorRate_fetchMemberships);
     if (res.status !== 200) {
         console.error(`Failed to fetch memberships for ${userAddress}:`, res.body);
+        return [];
+    }
+    return JSON.parse(res.body).memberships;
+}
+
+function fetchChannelMembershipsWithMetadata(userAddress) {
+    const url = `${PROVISIONING_API_URL}/contract/channel/memberships/${userAddress}/with-metadata`;
+    const res = http.get(url);
+    recordMetric(res, metrics.fetchChannelMembershipsWithMetadata_latency, metrics.errorRate_fetchMembershipsWithMetadata);
+    if (res.status !== 200) {
+        console.error(`Failed to fetch memberships with metadata for ${userAddress}:`, res.body);
         return [];
     }
     return JSON.parse(res.body).memberships;
@@ -40,6 +42,8 @@ function sendMessage(secretKey, channelId, memberCapId, message) {
     const params = { headers: { 'Content-Type': 'application/json' } };
     const res = http.post(url, payload, params);
     recordMetric(res, metrics.sendMessage_latency, metrics.errorRate_sendMessage);
+    // Gas cost metrics
+    metrics.sendMessage_gas.add(res.headers['X-Gas-Cost'] ? parseFloat(res.headers['X-Gas-Cost']) : 0);
 }
 
 function fetchChannelMessages(channelId) {
@@ -53,12 +57,21 @@ function fetchChannelMessages(channelId) {
     return JSON.parse(res.body).messages;
 }
 
-export function activeUserWorkflow(data) {
-    if (__VU > data.activeUsers.length) {
-        console.log(`VU ${__VU} has no active user assigned.`);
-        return;
+function fetchChannelMessagesByTableId(tableId) {
+    const url = `${PROVISIONING_API_URL}/contract/messages/table/${tableId}`;
+    const res = http.get(url);
+    recordMetric(res, metrics.fetchChannelMessagesByTableId_latency, metrics.errorRate_fetchMessagesByTableId);
+    if (res.status !== 200) {
+        console.error(`Failed to fetch messages for table ${tableId}:`, res.body);
+        return [];
     }
-    const user = data.activeUsers[__VU - 1];
+    return JSON.parse(res.body).messages;
+}
+
+export function activeUserWorkflow(data) {
+    // Use modulo to cycle through available users if there are more VUs than users
+    const userIndex = (__VU - 1) % data.activeUsers.length;
+    const user = data.activeUsers[userIndex];
 
     const memberships = fetchChannelMemberships(user.sui_address);
     if (memberships.length === 0) {
@@ -76,20 +89,32 @@ export function activeUserWorkflow(data) {
 }
 
 export function passiveUserWorkflow(data) {
-    if (__VU - 1 - data.activeUsers.length >= data.passiveUsers.length) {
-        console.log(`VU ${__VU} has no passive user assigned.`);
-        return;
-    }
-    const user = data.passiveUsers[__VU - 1 - data.activeUsers.length];
+    // For passive users, we need to account for the fact that VUs are numbered starting from 1
+    // and we want to assign passive users to VUs that come after active users
+    const passiveUserIndex = (__VU - 1) % data.passiveUsers.length;
+    const user = data.passiveUsers[passiveUserIndex];
 
-    const memberships = fetchChannelMemberships(user.sui_address);
+    const memberships = fetchChannelMembershipsWithMetadata(user.sui_address);
     if (memberships.length === 0) {
+        console.log(`User ${user.sui_address} has no channels to fetch messages from.`);
         return;
     }
-    const channelId = memberships[0].channelId;
 
+    // Select random channel to fetch messages from  
+    const randomMembership = memberships[randomIntBetween(0, memberships.length - 1)];
+    if (!randomMembership.channel || !randomMembership.channel.messagesTableId) {
+        console.error(`User ${user.sui_address} has no channel to fetch messages from.`);
+        return;
+    }
+
+    const tableId = randomMembership.channel.messagesTableId;
+
+    // Poll for new messages
     while (true) {
-        fetchChannelMessages(channelId);
+        const messages = fetchChannelMessagesByTableId(tableId);
+        if (messages.length > 0) {
+            console.log(`User ${user.sui_address} received ${messages.length} new messages.`);
+        }
         sleep(config.passiveUsers.pollingInterval);
     }
 }

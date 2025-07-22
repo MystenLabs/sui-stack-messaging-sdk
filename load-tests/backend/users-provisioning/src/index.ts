@@ -3,7 +3,11 @@ import { Hono } from "hono";
 import { config } from "./appConfig.js";
 import userRoutes from "./features/users/userRoutes.js";
 import contractRoutes from "./features/contract/contractRoutes.js";
-import type { Variables } from "./core/types.js";
+
+type Variables = {
+  contractDuration: number;
+  contractGasCost: number;
+};
 
 const app = new Hono<{ Variables: Variables }>();
 
@@ -17,6 +21,11 @@ app.use("*", async (c, next) => {
   const contractDuration = c.get("contractDuration");
   if (contractDuration) {
     c.header("X-Contract-Duration", contractDuration.toString());
+  }
+
+  const contractGasCost = c.get("contractGasCost");
+  if (contractGasCost) {
+    c.header("X-Gas-Cost", contractGasCost.toString());
   }
 });
 
