@@ -4,17 +4,15 @@ import { SuiUserService } from "./userService.js";
 import { UserRepository } from "./userRepository.js";
 import type { UserVariant } from "../../core/types.js";
 import db from "../../db.js";
-import { config } from "../../appConfig.js";
 
 // Define types for our dependencies
 type UserVariables = {
   userService: SuiUserService;
-  userRepository: UserRepository;
 };
 
 // Initialize services
-const userService = new SuiUserService();
 const userRepository = new UserRepository(db);
+const userService = new SuiUserService(userRepository);
 
 // Create a new router instance with typed variables
 const users = new Hono<{
@@ -38,7 +36,6 @@ const withErrorHandling = factory.createMiddleware(async (c, next) => {
 // Handle user generation with proper type checking
 users.use("*", async (c, next) => {
   c.set("userService", userService);
-  c.set("userRepository", userRepository);
   await next();
 });
 
@@ -130,7 +127,7 @@ users
     // Parse is_funded if provided
     const isFunded = isFundedStr ? isFundedStr === "true" : undefined;
 
-    const result = c.var.userRepository.getUsers({
+    const result = c.var.userService.getUsers({
       variant,
       isFunded,
       limit,
@@ -157,7 +154,7 @@ users
 
     const isFunded = isFundedStr ? isFundedStr === "true" : undefined;
 
-    const result = c.var.userRepository.getUsersWithSecrets({
+    const result = c.var.userService.getUsersWithSecrets({
       variant,
       isFunded,
       limit,
@@ -180,39 +177,25 @@ users
 
     const count = parseInt(c.req.query("count") || "1", 10);
 
-    // Validate batch size
-    if (
-      isNaN(count) ||
-      count < config.userGeneration.minBatchSize ||
-      count > config.userGeneration.maxBatchSize
-    ) {
+    // Validate count is a number
+    if (isNaN(count)) {
       return c.json(
         {
-          error: `Invalid count. Must be a number between ${config.userGeneration.minBatchSize} and ${config.userGeneration.maxBatchSize}`,
+          error: "Invalid count. Must be a valid number.",
         },
         400
       );
     }
 
-    // Generate all users first
-    const generatedUsers = Array.from({ length: count }, () => ({
-      ...c.var.userService.generateUser(userVariant as UserVariant),
-      is_funded: false,
-    }));
-
-    // Insert all users in a single transaction
-    const insertedCount = c.var.userRepository.createUsers(generatedUsers);
-
-    // Prepare response without sensitive data
-    const usersResponse = generatedUsers.map((user) => ({
-      sui_address: user.sui_address,
-      user_variant: user.user_variant,
-    }));
-
-    return c.json({
-      message: `${insertedCount} ${userVariant} user(s) generated.`,
-      users: usersResponse,
-    });
+    try {
+      const result = c.var.userService.createUsers(
+        userVariant as UserVariant,
+        count
+      );
+      return c.json(result);
+    } catch (error: any) {
+      return c.json({ error: error.message }, 400);
+    }
   })
   // POST /users/fund - Fund unfunded active users
   .post("/fund", async (c) => {
@@ -244,57 +227,17 @@ users
       secret_key,
     };
 
-    const fundingConfig = {
-      amountPerUser,
-      maxUsersPerBatch: config.maxFundingBatchSize,
-    };
-
-    // Get unfunded active users (no need for secret keys)
-    const users = c.var.userRepository.getUsers({
-      variant: "active",
-      // isFunded: false,
-      limit: 200, //
-    });
-
-    if (users.items.length === 0) {
-      return c.json({
-        message: "No unfunded active users found",
-        fundingResult: {
-          successCount: 0,
-          failedCount: 0,
-          totalFunded: "0",
-        },
-      });
-    }
-
     try {
-      const result = await c.var.userService.fundUsers(
-        users.items,
+      const result = await c.var.userService.fundUnfundedActiveUsers(
         fundingAccount,
-        fundingConfig,
-        true
+        amountPerUser
       );
 
-      // Update funded status for successful transfers
-      if (result.successCount > 0) {
-        const fundedAddresses = users.items
-          .slice(0, result.successCount)
-          .map((u) => u.sui_address);
-
-        c.var.userRepository.markAsFunded(fundedAddresses);
-      }
-
-      return c.json({
-        message: `Funding complete. ${result.successCount} users funded, ${result.failedCount} failed.`,
-        fundingResult: {
-          ...result,
-          totalFunded: result.totalFunded.toString(),
-        },
-      });
+      return c.json(result);
     } catch (error: any) {
       return c.json(
         {
-          error: `Funding failed: ${error.message}`,
+          error: error.message,
         },
         500
       );

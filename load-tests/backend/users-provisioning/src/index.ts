@@ -3,8 +3,9 @@ import { Hono } from "hono";
 import { config } from "./appConfig.js";
 import userRoutes from "./features/users/userRoutes.js";
 import contractRoutes from "./features/contract/contractRoutes.js";
+import type { Variables } from "./core/types.js";
 
-const app = new Hono();
+const app = new Hono<{ Variables: Variables }>();
 
 // Timing middleware to measure backend processing time
 app.use("*", async (c, next) => {
@@ -12,6 +13,11 @@ app.use("*", async (c, next) => {
   await next();
   const duration = Date.now() - start;
   c.header("X-Internal-Duration", duration.toString());
+
+  const contractDuration = c.get("contractDuration");
+  if (contractDuration) {
+    c.header("X-Contract-Duration", contractDuration.toString());
+  }
 });
 
 // Health check endpoint

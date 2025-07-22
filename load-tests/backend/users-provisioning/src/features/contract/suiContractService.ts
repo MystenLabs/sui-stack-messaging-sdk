@@ -48,7 +48,7 @@ export type Channel = {
   membersTableId: string;
   messagesTableId: string;
   messagesCount: number;
-  lastMessage: Message;
+  lastMessage: Message | null;
   wrappedKek: Uint8Array;
   kekVersion: number;
   createdAtMs: number;
@@ -60,9 +60,17 @@ export type Channel = {
  */
 export class SuiContractService {
   private suiClient: SuiClient;
+  public lastDuration: number = 0;
 
-  constructor() {
-    this.suiClient = new SuiClient({ url: config.suiFullNode });
+  constructor(suiClient: SuiClient) {
+    this.suiClient = suiClient;
+  }
+
+  private async measure<T>(promise: () => Promise<T>): Promise<T> {
+    const start = Date.now();
+    const result = await promise();
+    this.lastDuration = Date.now() - start;
+    return result;
   }
 
   /**
@@ -74,66 +82,72 @@ export class SuiContractService {
     channelName: string,
     initialMemberAddresses?: string[]
   ): Promise<{ channelId: string; creatorCapId: string }> {
-    console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
-    const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
+    return this.measure(async () => {
+      console.log(`\n--- Creating channel "${channelName}" with defaults ---`);
+      const senderAddress = senderKeypair.getPublicKey().toSuiAddress();
 
-    let tx = new Transaction();
-    const wrapped_kek = tx.pure(
-      bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
-    );
-
-    const [channel, creator_cap, promise] = tx.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
-      arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
-    });
-
-    tx.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
-      arguments: [channel, creator_cap, promise, wrapped_kek],
-    });
-
-    tx.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
-      arguments: [channel, creator_cap],
-    });
-
-    // add initial members
-    if (!!initialMemberAddresses && initialMemberAddresses.length > 0) {
-      tx = this.addInitialMembers(
-        tx,
-        channel,
-        creator_cap,
-        initialMemberAddresses
+      let tx = new Transaction();
+      const wrapped_kek = tx.pure(
+        bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes()
       );
-    }
 
-    tx.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
-      arguments: [channel],
+      const [channel, creator_cap, promise] = tx.moveCall({
+        target: `${SUI_MESSAGING_PACKAGE_ID}::channel::new`,
+        arguments: [tx.object(SUI_CLOCK_OBJECT_ID)],
+      });
+
+      tx.moveCall({
+        target: `${SUI_MESSAGING_PACKAGE_ID}::channel::add_wrapped_kek`,
+        arguments: [channel, creator_cap, promise, wrapped_kek],
+      });
+
+      tx.moveCall({
+        target: `${SUI_MESSAGING_PACKAGE_ID}::channel::with_defaults`,
+        arguments: [channel, creator_cap],
+      });
+
+      // add initial members
+      if (!!initialMemberAddresses && initialMemberAddresses.length > 0) {
+        tx = this.addInitialMembers(
+          tx,
+          channel,
+          creator_cap,
+          initialMemberAddresses
+        );
+      }
+
+      tx.moveCall({
+        target: `${SUI_MESSAGING_PACKAGE_ID}::channel::share`,
+        arguments: [channel],
+      });
+      tx.transferObjects([creator_cap], senderAddress);
+
+      const result = await executeTransaction(
+        this.suiClient,
+        tx,
+        senderKeypair
+      );
+
+      const sharedObject: any = result.objectChanges?.find(
+        (o: any) => o.type === "created" && o.objectType === CHANNEL_TYPE
+      );
+      if (!sharedObject)
+        throw new Error("Channel creation did not return a shared object.");
+
+      const creatorCapObject: any = result.objectChanges?.find(
+        (o: any) => o.type === "created" && o.objectType === CREATOR_CAP_TYPE
+      );
+      if (!creatorCapObject) throw new Error("CreatorCap was not created.");
+
+      console.log(
+        `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
+      );
+
+      return {
+        channelId: sharedObject.objectId,
+        creatorCapId: creatorCapObject.objectId,
+      };
     });
-    tx.transferObjects([creator_cap], senderAddress);
-
-    const result = await executeTransaction(this.suiClient, tx, senderKeypair);
-
-    const sharedObject: any = result.objectChanges?.find(
-      (o: any) => o.type === "created" && o.objectType === CHANNEL_TYPE
-    );
-    if (!sharedObject)
-      throw new Error("Channel creation did not return a shared object.");
-
-    const creatorCapObject: any = result.objectChanges?.find(
-      (o: any) => o.type === "created" && o.objectType === CREATOR_CAP_TYPE
-    );
-    if (!creatorCapObject) throw new Error("CreatorCap was not created.");
-
-    console.log(
-      `Channel "${channelName}" created successfully. Shared ID: ${sharedObject.objectId}`
-    );
-
-    return {
-      channelId: sharedObject.objectId,
-      creatorCapId: creatorCapObject.objectId,
-    };
   }
 
   /**
@@ -145,121 +159,201 @@ export class SuiContractService {
     memberCapId: string,
     message: string
   ) {
-    console.log(`\n--- Sending message to channel ${channelId} ---`);
+    return this.measure(async () => {
+      console.log(`\n--- Sending message to channel ${channelId} ---`);
 
-    const tx = new Transaction();
-    const ciphertext = tx.pure(
-      bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
-    );
-    const wrapped_dek = tx.pure(
-      bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
-    );
-    const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
+      const tx = new Transaction();
+      const ciphertext = tx.pure(
+        bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
+      );
+      const wrapped_dek = tx.pure(
+        bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
+      );
+      const nonce = tx.pure(
+        bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes()
+      );
 
-    const attachmentsVec = tx.moveCall({
-      target: `0x1::vector::empty`,
-      typeArguments: [ATTACHMENT_TYPE],
-      arguments: [],
+      const attachmentsVec = tx.moveCall({
+        target: `0x1::vector::empty`,
+        typeArguments: [ATTACHMENT_TYPE],
+        arguments: [],
+      });
+
+      tx.moveCall({
+        target: `${SUI_MESSAGING_PACKAGE_ID}::api::send_message`,
+        arguments: [
+          tx.object(channelId),
+          tx.object(memberCapId),
+          ciphertext,
+          wrapped_dek,
+          nonce,
+          attachmentsVec,
+          tx.object(SUI_CLOCK_OBJECT_ID),
+        ],
+      });
+
+      await executeTransaction(this.suiClient, tx, senderKeypair);
+      console.log(
+        `Message "${message}" sent successfully to channel ${channelId}.`
+      );
     });
+  }
 
-    tx.moveCall({
-      target: `${SUI_MESSAGING_PACKAGE_ID}::api::send_message`,
-      arguments: [
-        tx.object(channelId),
-        tx.object(memberCapId),
-        ciphertext,
-        wrapped_dek,
-        nonce,
-        attachmentsVec,
-        tx.object(SUI_CLOCK_OBJECT_ID),
-      ],
+  /**
+   * Fetches a channel object by its ID.
+   * @param channelId The ID of the channel to fetch
+   * @returns The channel object with all its metadata
+   */
+  async fetchChannelById(channelId: string): Promise<Channel> {
+    return this.measure(async () => {
+      console.log(`Fetching channel object for ${channelId}...`);
+
+      const channelObjectResponse = await this.suiClient.getObject({
+        id: channelId,
+        options: { showContent: true },
+      });
+
+      if (!channelObjectResponse.data?.content) {
+        throw new Error(`Channel ${channelId} not found`);
+      }
+
+      const fields = (channelObjectResponse.data.content as any).fields;
+
+      // Extract messages table ID from the nested structure
+      const messageTableId = fields.messages.fields.contents.fields.id.id;
+
+      return {
+        id: channelId,
+        version: fields.version,
+        rolesTableId: fields.roles.fields.contents.fields.id.id,
+        membersTableId: fields.members.fields.contents.fields.id.id,
+        messagesTableId: messageTableId,
+        messagesCount: fields.messages_count,
+        lastMessage: fields.last_message || null,
+        wrappedKek: fields.wrapped_kek,
+        kekVersion: fields.kek_version,
+        createdAtMs: fields.created_at_ms,
+        updatedAtMs: fields.updated_at_ms,
+      };
     });
+  }
 
-    await executeTransaction(this.suiClient, tx, senderKeypair);
-    console.log(
-      `Message "${message}" sent successfully to channel ${channelId}.`
-    );
+  /**
+   * Fetches channel memberships with enhanced channel metadata.
+   * @param userAddress The user's address
+   * @param limit Maximum number of memberships to return
+   * @returns Array of memberships with channel metadata
+   */
+  async fetchLatestChannelMembershipsWithMetadata(
+    userAddress: string,
+    limit: number = 10
+  ): Promise<{ memberCapId: string; channelId: string; channel: Channel }[]> {
+    return this.measure(async () => {
+      const memberships = await this.fetchLatestChannelMemberships(
+        userAddress,
+        limit
+      );
+
+      // Fetch channel objects for each membership
+      const membershipsWithMetadata = await Promise.all(
+        memberships.map(async (membership) => {
+          const channel = await this.fetchChannelById(membership.channelId);
+          return {
+            ...membership,
+            channel,
+          };
+        })
+      );
+
+      return membershipsWithMetadata;
+    });
   }
 
   async fetchLatestChannelMemberships(
     userAddress: string,
     limit: number = 10
   ): Promise<{ memberCapId: string; channelId: string }[]> {
-    const response = await this.suiClient.getOwnedObjects({
-      owner: userAddress,
-      filter: { StructType: MEMBER_CAP_TYPE },
-      options: { showContent: true },
-      limit,
+    return this.measure(async () => {
+      const response = await this.suiClient.getOwnedObjects({
+        owner: userAddress,
+        filter: { StructType: MEMBER_CAP_TYPE },
+        options: { showContent: true },
+        limit,
+      });
+
+      const latestMemberCaps = response.data;
+
+      if (latestMemberCaps.length === 0) {
+        console.log("No channel memberships found for this user.");
+        return [];
+      }
+
+      console.log(
+        `Found ${latestMemberCaps.length} channel membership(s). Fetching details...`
+      );
+
+      const channelIds = latestMemberCaps.map(
+        (cap: any) => cap.data.content.fields.channel_id
+      );
+
+      return latestMemberCaps.map((cap, index) => ({
+        memberCapId: cap.data!.objectId,
+        channelId: channelIds[index],
+      }));
     });
-
-    const latestMemberCaps = response.data;
-
-    if (latestMemberCaps.length === 0) {
-      console.log("No channel memberships found for this user.");
-      return [];
-    }
-
-    console.log(
-      `Found ${latestMemberCaps.length} channel membership(s). Fetching details...`
-    );
-
-    const channelIds = latestMemberCaps.map(
-      (cap: any) => cap.data.content.fields.channel_id
-    );
-
-    return latestMemberCaps.map((cap, index) => ({
-      memberCapId: cap.data!.objectId,
-      channelId: channelIds[index],
-    }));
   }
 
   async fetchLatestMessagesByChannelId(
     channelId: string,
     limit: number = 10
   ): Promise<Message[]> {
-    console.log(
-      `Fetching latest ${limit} messages for channel ${channelId}...`
-    );
+    return this.measure(async () => {
+      console.log(
+        `Fetching latest ${limit} messages for channel ${channelId}...`
+      );
 
-    const channelObjetResponse = await this.suiClient.getObject({
-      id: channelId,
-      options: { showContent: true },
+      const channelObjetResponse = await this.suiClient.getObject({
+        id: channelId,
+        options: { showContent: true },
+      });
+
+      const messageTableId = (channelObjetResponse.data?.content as any).fields
+        .messages.fields.contents.fields.id.id;
+
+      const messages = await this.fetchLatestMessagesByTableId(
+        messageTableId,
+        limit
+      );
+      return messages;
     });
-
-    const messageTableId = (channelObjetResponse.data?.content as any).fields
-      .messages.fields.contents.fields.id.id;
-
-    const messages = await this.fetchLatestMessagesByTableId(
-      messageTableId,
-      limit
-    );
-    return messages;
   }
 
   async fetchLatestMessagesByTableId(
     messsageTableId: string,
     limit: number = 10
   ): Promise<Message[]> {
-    const response = await this.suiClient.getDynamicFields({
-      parentId: messsageTableId,
-      limit,
-    });
-    const messageIds = response.data.map((field) => field.objectId);
-    const messageObjectsResponse = await this.suiClient.multiGetObjects({
-      ids: messageIds,
-      options: { showContent: true },
-    });
-    return messageObjectsResponse.map((objRes: any) => {
-      console.log(JSON.stringify(objRes, null, 2));
-      const fields = objRes.data.content.fields.value.fields;
-      return {
-        sender: fields.sender,
-        ciphertext: fields.ciphertext,
-        wrappedDek: fields.wrapped_dek,
-        nonce: fields.nonce,
-        kekVersion: fields.kek_version,
-        attachments: fields.attachments,
-      };
+    return this.measure(async () => {
+      const response = await this.suiClient.getDynamicFields({
+        parentId: messsageTableId,
+        limit,
+      });
+      const messageIds = response.data.map((field) => field.objectId);
+      const messageObjectsResponse = await this.suiClient.multiGetObjects({
+        ids: messageIds,
+        options: { showContent: true },
+      });
+      return messageObjectsResponse.map((objRes: any) => {
+        console.log(JSON.stringify(objRes, null, 2));
+        const fields = objRes.data.content.fields.value.fields;
+        return {
+          sender: fields.sender,
+          ciphertext: fields.ciphertext,
+          wrappedDek: fields.wrapped_dek,
+          nonce: fields.nonce,
+          kekVersion: fields.kek_version,
+          attachments: fields.attachments,
+        };
+      });
     });
   }
 

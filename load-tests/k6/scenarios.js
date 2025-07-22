@@ -8,9 +8,13 @@ import { metrics } from './metrics.js';
 const PROVISIONING_API_URL = 'http://localhost:4321';
 
 function recordMetric(response, metric, errorMetric) {
-    const internalDuration = response.headers['X-Internal-Duration'] ? parseFloat(response.headers['X-Internal-Duration']) : 0;
-    const adjustedDuration = response.timings.duration - internalDuration;
-    metric.add(adjustedDuration);
+    const contractDuration = response.headers['X-Contract-Duration'] ? parseFloat(response.headers['X-Contract-Duration']) : 0;
+    if (contractDuration > 0) {
+        metric.add(contractDuration);
+    } else {
+        const internalDuration = response.headers['X-Internal-Duration'] ? parseFloat(response.headers['X-Internal-Duration']) : 0;
+        metric.add(internalDuration);
+    }
     errorMetric.add(response.status !== 200);
 }
 

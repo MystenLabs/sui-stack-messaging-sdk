@@ -12,16 +12,23 @@ import type {
 } from "../../core/types.js";
 import { fromBase64 } from "@mysten/sui/utils";
 import { config } from "../../appConfig.js";
+import {
+  UserRepository,
+  type UserQueryParams,
+  type PaginatedResponse,
+} from "./userRepository.js";
 
 /**
  * Service for handling Sui user generation and management
  */
 export class SuiUserService {
   private suiClient: SuiClient;
+  private userRepository: UserRepository;
 
-  constructor() {
+  constructor(userRepository: UserRepository) {
     // Initialize SuiClient with testnet
     this.suiClient = new SuiClient({ url: config.suiFullNode });
+    this.userRepository = userRepository;
   }
 
   /**
@@ -37,6 +44,139 @@ export class SuiUserService {
       secret_key,
       user_variant: userType,
     };
+  }
+
+  /**
+   * Creates multiple users and persists them to the database
+   * @param userVariant The type of users to generate
+   * @param count Number of users to generate
+   * @returns Information about the created users (without sensitive data)
+   */
+  createUsers(
+    userVariant: UserVariant,
+    count: number
+  ): {
+    message: string;
+    users: Array<{ sui_address: string; user_variant: UserVariant }>;
+  } {
+    // Validate batch size
+    if (
+      count < config.userGeneration.minBatchSize ||
+      count > config.userGeneration.maxBatchSize
+    ) {
+      throw new Error(
+        `Invalid count. Must be a number between ${config.userGeneration.minBatchSize} and ${config.userGeneration.maxBatchSize}`
+      );
+    }
+
+    // Generate all users first
+    const generatedUsers = Array.from({ length: count }, () => ({
+      ...this.generateUser(userVariant),
+      is_funded: false,
+    }));
+
+    // Insert all users in a single transaction
+    const insertedCount = this.userRepository.createUsers(generatedUsers);
+
+    // Prepare response without sensitive data
+    const usersResponse = generatedUsers.map((user) => ({
+      sui_address: user.sui_address,
+      user_variant: user.user_variant,
+    }));
+
+    return {
+      message: `${insertedCount} ${userVariant} user(s) generated.`,
+      users: usersResponse,
+    };
+  }
+
+  /**
+   * Retrieves users with filtering and pagination
+   * @param params Query parameters for filtering and pagination
+   * @returns Paginated list of users (without sensitive data)
+   */
+  getUsers(
+    params: UserQueryParams = {}
+  ): PaginatedResponse<Omit<User, "secret_key">> {
+    return this.userRepository.getUsers(params);
+  }
+
+  /**
+   * Retrieves users with secrets (FOR LOAD TESTING ONLY)
+   * @param params Query parameters for filtering and pagination
+   * @returns Paginated list of users with secret keys
+   */
+  getUsersWithSecrets(params: UserQueryParams = {}): PaginatedResponse<User> {
+    return this.userRepository.getUsersWithSecrets(params);
+  }
+
+  /**
+   * Funds unfunded active users from a funding account
+   * @param fundingAccount The account to fund from
+   * @param amountPerUser Amount to fund each user
+   * @returns Result of the funding operation
+   */
+  async fundUnfundedActiveUsers(
+    fundingAccount: FundingAccount,
+    amountPerUser: bigint
+  ): Promise<{
+    message: string;
+    fundingResult: {
+      successCount: number;
+      failedCount: number;
+      totalFunded: string;
+      errors?: string[];
+    };
+  }> {
+    // Get unfunded active users
+    const users = this.userRepository.getUsers({
+      variant: "active",
+      limit: 200,
+    });
+
+    if (users.items.length === 0) {
+      return {
+        message: "No unfunded active users found",
+        fundingResult: {
+          successCount: 0,
+          failedCount: 0,
+          totalFunded: "0",
+        },
+      };
+    }
+
+    const fundingConfig = {
+      amountPerUser,
+      maxUsersPerBatch: config.maxFundingBatchSize,
+    };
+
+    try {
+      const result = await this.fundUsers(
+        users.items,
+        fundingAccount,
+        fundingConfig,
+        true
+      );
+
+      // Update funded status for successful transfers
+      if (result.successCount > 0) {
+        const fundedAddresses = users.items
+          .slice(0, result.successCount)
+          .map((u) => u.sui_address);
+
+        this.userRepository.markAsFunded(fundedAddresses);
+      }
+
+      return {
+        message: `Funding complete. ${result.successCount} users funded, ${result.failedCount} failed.`,
+        fundingResult: {
+          ...result,
+          totalFunded: result.totalFunded.toString(),
+        },
+      };
+    } catch (error: any) {
+      throw new Error(`Funding failed: ${error.message}`);
+    }
   }
 
   /**
@@ -107,7 +247,8 @@ export class SuiUserService {
         } else {
           console.error("Transaction failed:", response);
           result.failedCount += batch.length;
-          result.errors?.push(
+          if (!result.errors) result.errors = [];
+          result.errors.push(
             `Batch ${i / config.maxUsersPerBatch + 1} failed: ${
               response.effects?.status.error || "Unknown error"
             }`
@@ -116,7 +257,8 @@ export class SuiUserService {
       } catch (error: any) {
         console.error("Transaction failed:", error);
         result.failedCount += batch.length;
-        result.errors?.push(
+        if (!result.errors) result.errors = [];
+        result.errors.push(
           `Batch ${i / config.maxUsersPerBatch + 1} failed: ${error.message}`
         );
       }
