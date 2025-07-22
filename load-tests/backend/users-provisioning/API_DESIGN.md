@@ -1,9 +1,5 @@
 # Sui Messaging API Design
 
-## Overview
-
-This document describes the API design for efficient polling and channel object fetching in the Sui Messaging system. The design focuses on minimizing round trips and providing optimal performance for real-time messaging applications.
-
 ## API Endpoints
 
 ### Channel Management
@@ -165,43 +161,6 @@ GET /contract/messages/table/:table_id?limit=10
 - **Cached Table IDs**: Store messages table IDs locally after initial fetch
 - **Efficient Polling**: Direct access to message table without channel object overhead
 
-### Example Client Implementation
-
-```typescript
-class MessagingClient {
-  private messageTableIds = new Map<string, string>();
-
-  async loadChannelList(userAddress: string) {
-    const response = await fetch(
-      `/contract/channel/memberships/${userAddress}/with-metadata`
-    );
-    const { memberships } = await response.json();
-
-    // Cache message table IDs for efficient polling
-    memberships.forEach((membership) => {
-      this.messageTableIds.set(
-        membership.channelId,
-        membership.channel.messagesTableId
-      );
-    });
-
-    return memberships;
-  }
-
-  async pollMessages(channelId: string, limit = 10) {
-    const tableId = this.messageTableIds.get(channelId);
-    if (!tableId) {
-      throw new Error(`No cached table ID for channel ${channelId}`);
-    }
-
-    const response = await fetch(
-      `/contract/messages/table/${tableId}?limit=${limit}`
-    );
-    return response.json();
-  }
-}
-```
-
 ## Error Handling
 
 All endpoints return consistent error responses:
@@ -217,16 +176,3 @@ Common HTTP status codes:
 - `400`: Bad Request (missing required fields)
 - `404`: Not Found (channel doesn't exist)
 - `500`: Internal Server Error
-
-## Performance Considerations
-
-1. **Batch Operations**: Consider implementing batch message fetching for multiple channels
-2. **Caching**: Cache channel objects and table IDs on the client side
-3. **Pagination**: Use the `limit` parameter to control response size
-4. **Polling Intervals**: Implement exponential backoff for polling to reduce server load
-
-## Security Notes
-
-- All write operations require a valid `secret_key`
-- Read operations are public but should be rate-limited
-- Consider implementing authentication for production use
