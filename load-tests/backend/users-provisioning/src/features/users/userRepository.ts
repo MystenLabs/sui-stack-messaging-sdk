@@ -10,7 +10,7 @@ export class UserRepository {
   private readonly countStatement: ReturnType<Database["prepare"]>;
   private readonly updateFundedStatement: ReturnType<Database["prepare"]>;
   private readonly DEFAULT_LIMIT = 50;
-  private readonly MAX_LIMIT = 1000;
+  private readonly MAX_LIMIT = 2000;
 
   constructor(private readonly db: Database) {
     // Prepare statements once during initialization

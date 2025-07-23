@@ -25,7 +25,7 @@ class AppConfig {
   public readonly dbFile: string;
   public readonly port: number;
   public readonly userGeneration = {
-    maxBatchSize: 1000,
+    maxBatchSize: 2000,
     minBatchSize: 1,
     defaultBatchSize: 1,
   };
@@ -51,7 +51,7 @@ class AppConfig {
 
     // 3. Load user generation limits
     this.userGeneration.maxBatchSize = parseInt(
-      this.getEnvVariable("MAX_BATCH_SIZE", "1000"),
+      this.getEnvVariable("MAX_BATCH_SIZE", "2000"),
       10
     );
     this.userGeneration.minBatchSize = parseInt(
