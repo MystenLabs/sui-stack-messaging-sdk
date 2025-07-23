@@ -1,0 +1,60 @@
+{
+	"name": "@mysten/messaging",
+	"version": "0.0.1",
+	"description": "Messaging SDK",
+	"license": "Apache-2.0",
+	"author": "Mysten Labs <build@mystenlabs.com>",
+	"type": "commonjs",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js"
+		}
+	},
+	"sideEffects": false,
+	"files": [
+		"CHANGELOG.md",
+		"dist"
+	],
+	"scripts": {
+		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+		"build": "node genversion.mjs && build-package",
+		"codegen:version": "node genversion.mjs",
+		"vitest": "vitest",
+		"test": "pnpm test:typecheck && pnpm test:unit",
+		"test:typecheck": "tsc -p ./test",
+		"test:unit": "vitest run unit __tests__",
+		"prepublishOnly": "pnpm turbo build",
+		"prettier:check": "prettier -c --ignore-unknown .",
+		"prettier:fix": "prettier -w --ignore-unknown .",
+		"eslint:check": "eslint --max-warnings=0 .",
+		"eslint:fix": "pnpm run eslint:check --fix",
+		"lint": "pnpm run eslint:check && pnpm run prettier:check",
+		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/mystenlabs/<tbd>.git"
+	},
+	"bugs": {
+		"url": "https://github.com/mystenlabs/<tbd>/issues"
+	},
+	"homepage": "https://github.com/MystenLabs/<tbd>#readme",
+	"dependencies": {
+		"@mysten/bcs": "^1.6.4",
+		"@mysten/build-scripts": "workspace:*",
+		"@mysten/sui": "^1.36.0",
+		"@mysten/sui-grpc": "^0.0.8",
+		"@protobuf-ts/grpcweb-transport": "^2.11.1"
+	},
+	"devDependencies": {
+		"@protobuf-ts/plugin": "^2.11.1",
+		"@types/node": "^24.0.15",
+		"testcontainers": "^11.3.2",
+		"typescript": "^5.8.3",
+		"vitest": "^3.2.4"
+	}
+}

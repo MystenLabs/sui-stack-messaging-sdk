@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  wiremock-jsonrpc-node:
+    image: wiremock/wiremock:latest
+    ports:
+      - "9000:8080"
+    volumes:
+      - ./wiremock/jsonrpc/extensions:/var/wiremock/extensions
+      - ./wiremock/jsonrpc/__files:/home/wiremock/__files
+      - ./wiremock/jsonrpc/mappings:/home/wiremock/mappings
+    command: --verbose
+
+  wiremock-grapqhql-node:
+    image: wiremock/wiremock:latest
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./wiremock/grapqhql/extensions:/var/wiremock/extensions
+      - ./wiremock/grapqhql/__files:/home/wiremock/__files
+      - ./wiremock/grapqhql/mappings:/home/wiremock/mappings
+    command: --verbose
+
+  wiremock-grpc-node:
+    image: wiremock/wiremock:latest
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./wiremock/grpc/extensions:/var/wiremock/extensions
+      - ./wiremock/grpc/__files:/home/wiremock/__files
+      - ./wiremock/grpc/mappings:/home/wiremock/mappings
+    command: --verbose

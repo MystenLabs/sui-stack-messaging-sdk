@@ -1,0 +1,28 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "data": [
+      {
+        "data": {
+          "objectId": "0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47",
+          "version": "502028368",
+          "digest": "FVXhSoBg9nnfmkAUmg1pg8ozRFEBfa499yvzHonAz9GX",
+          "type": "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
+          "owner": {
+            "AddressOwner": "0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6"
+          },
+          "bcs": {
+            "dataType": "moveObject",
+            "type": "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
+            "hasPublicTransfer": false,
+            "version": 502028368,
+            "bcsBytes": "Z393BbfLLyDaOCM63DbBMpSyV827pPFNc5v64Glk20cBa8+YRL5BmQkAHBz6s7mL1iDst1kCfuNjmdmfP3OfEg=="
+          }
+        }
+      }
+    ],
+    "nextCursor": "0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47",
+    "hasNextPage": true
+  }
+}
