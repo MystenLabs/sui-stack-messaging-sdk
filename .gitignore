@@ -24,4 +24,7 @@
 .publish.res.json
 .template_bytecode.json
 
+# Load tests
+load-tests/k6/details*.json
+
 .DS_store

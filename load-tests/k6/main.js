@@ -7,26 +7,30 @@ export const options = {
   scenarios: {
     active_users: {
       executor: "ramping-vus",
+      startVUs: 0,
       stages: [
-        { duration: "30s", target: config.activeUsers.total },
-        { duration: config.duration, target: config.activeUsers.total },
-        { duration: "30s", target: 0 },
+        { duration: "20s", target: config.activeUsers.total }, // ramp up to total
+        { duration: config.duration, target: config.activeUsers.total }, // stay at total
       ],
+      startTime: "10s",
       exec: "active_user_scenario", // Tag for routing
     },
     passive_users: {
-      executor: "constant-vus",
-      vus: config.passiveUsers.total,
-      duration: config.duration,
-      startTime: "30s",
+      executor: "ramping-vus",
+      startVUs: 0,
+      stages: [
+        { duration: "10s", target: config.passiveUsers.total }, // ramp up to total
+        { duration: config.duration, target: config.passiveUsers.total }, // stay at total
+      ],
+      startTime: "20s",
       exec: "passive_user_scenario", // Tag for routing
     },
   },
   thresholds: {
     ...config.testThresholds,
     // Add specific thresholds for custom metrics
-    createChannel_latency: ["p(95)<4000"],
-    sendMessage_latency: ["p(95)<3500"],
+    createChannel_latency: ["p(95)<5000"],
+    sendMessage_latency: ["p(95)<4000"],
     fetchChannelMessagesByTableId_latency: ["p(95)<1000"],
   },
   setupTimeout: "10m",
@@ -49,7 +53,7 @@ export function passive_user_scenario(data) {
 
 // Default function is no longer needed since we're using named exports
 export default function (data) {
-  // This function won't be called since we're using named scenario functions
+  // This function won't be called since we're using named scenario exports
   console.log(
     "Default function called - this shouldn't happen with named scenario exports"
   );

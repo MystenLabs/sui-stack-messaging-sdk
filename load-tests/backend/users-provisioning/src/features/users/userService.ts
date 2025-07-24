@@ -131,7 +131,7 @@ export class SuiUserService {
     // Get unfunded active users
     const users = this.userRepository.getUsers({
       variant: "active",
-      limit: 200,
+      limit: 250, // TODO: add proper limit on the route
     });
 
     if (users.items.length === 0) {

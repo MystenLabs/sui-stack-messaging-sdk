@@ -1,0 +1,330 @@
+{
+    "metrics": {
+        "fetchChannelMessagesByTableId_latency": {
+            "p(95)": 780.3,
+            "avg": 458.67875647668393,
+            "min": 397,
+            "med": 424,
+            "max": 1048,
+            "p(90)": 523.4000000000001,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "max": 0.981,
+            "p(90)": 0,
+            "p(95)": 0.5722499999999996,
+            "avg": 0.045370870870870876,
+            "min": 0
+        },
+        "createChannel_latency": {
+            "avg": 3266,
+            "min": 2877,
+            "med": 3266,
+            "max": 3655,
+            "p(90)": 3577.2,
+            "p(95)": 3616.1,
+            "thresholds": {
+                "p(95)<5000": false
+            }
+        },
+        "http_req_failed": {
+            "passes": 6,
+            "fails": 660,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0.009009009009009009
+        },
+        "http_req_blocked": {
+            "avg": 0.07077927927927967,
+            "min": 0.001,
+            "med": 0.012,
+            "max": 1.204,
+            "p(90)": 0.018,
+            "p(95)": 0.7049999999999998
+        },
+        "sendMessage_gas": {
+            "value": 3881008,
+            "min": 3881008,
+            "max": 4911796
+        },
+        "errorRate_fetchMemberships": {
+            "fails": 6,
+            "passes": 0,
+            "value": 0
+        },
+        "http_reqs": {
+            "count": 666,
+            "rate": 5.224543874766334
+        },
+        "errorRate_createChannel": {
+            "passes": 0,
+            "fails": 2,
+            "value": 0
+        },
+        "errorRate_fetchMessagesByTableId": {
+            "passes": 0,
+            "fails": 579,
+            "value": 0
+        },
+        "sendMessage_latency": {
+            "med": 2191.5,
+            "max": 4054,
+            "p(90)": 3072.3,
+            "p(95)": 3618.9499999999994,
+            "avg": 2138.4285714285716,
+            "min": 0,
+            "thresholds": {
+                "p(95)<4000": false
+            }
+        },
+        "createChannel_gas": {
+            "value": 52431480,
+            "min": 52431480,
+            "max": 52431480
+        },
+        "http_req_tls_handshaking": {
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0
+        },
+        "http_req_sending": {
+            "avg": 0.05409309309309306,
+            "min": 0.005,
+            "med": 0.04,
+            "max": 5.185,
+            "p(90)": 0.057500000000000016,
+            "p(95)": 0.081
+        },
+        "fetchChannelMemberships_latency": {
+            "avg": 366.6666666666667,
+            "min": 199,
+            "med": 220.5,
+            "max": 737,
+            "p(90)": 678.5,
+            "p(95)": 707.75
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(95)": 2082.23305,
+            "avg": 584.0223454545454,
+            "min": 0.784,
+            "med": 426.83500000000004,
+            "max": 4094.6,
+            "p(90)": 794.4416
+        },
+        "http_req_waiting": {
+            "med": 426.5365,
+            "max": 4094.436,
+            "p(90)": 791.2235000000001,
+            "p(95)": 2078.2014999999997,
+            "avg": 578.5904354354351,
+            "min": 0.139
+        },
+        "data_sent": {
+            "count": 128494,
+            "rate": 1007.991802769107
+        },
+        "http_req_receiving": {
+            "avg": 0.11966966966966952,
+            "min": 0,
+            "med": 0.116,
+            "max": 0.57,
+            "p(90)": 0.16700000000000004,
+            "p(95)": 0.18574999999999997
+        },
+        "data_received": {
+            "count": 1918991,
+            "rate": 15053.8328450176
+        },
+        "errorRate_sendMessage": {
+            "passes": 6,
+            "fails": 36,
+            "value": 0.14285714285714285
+        },
+        "vus_max": {
+            "max": 20,
+            "value": 20,
+            "min": 20
+        },
+        "errorRate_fetchMembershipsWithMetadata": {
+            "passes": 0,
+            "fails": 29,
+            "value": 0
+        },
+        "iteration_duration": {
+            "med": 62219.054021,
+            "max": 66966.9415,
+            "p(90)": 65269.1565378,
+            "p(95)": 65830.019975,
+            "avg": 62772.86395009999,
+            "min": 60814.392584
+        },
+        "vus": {
+            "value": 15,
+            "min": 0,
+            "max": 20
+        },
+        "fetchChannelMembershipsWithMetadata_latency": {
+            "avg": 549.2068965517242,
+            "min": 402,
+            "med": 427,
+            "max": 1225,
+            "p(90)": 742.2,
+            "p(95)": 1033.9999999999995
+        },
+        "iterations": {
+            "count": 20,
+            "rate": 0.15689320945244245
+        },
+        "http_req_duration": {
+            "p(90)": 791.364,
+            "p(95)": 2078.3904999999995,
+            "avg": 578.7641981981981,
+            "min": 0.19,
+            "med": 426.67949999999996,
+            "max": 4094.6,
+            "thresholds": {
+                "p(95)<4000": false
+            }
+        }
+    },
+    "setup_data": {
+        "activeUsers": [
+            {
+                "secret_key": "suiprivkey1qzeg4lyr6pslny70vr2dh6mjmrj0s99p6am7sa8jh9n9x04mlaw65kvknsq",
+                "sui_address": "0x7fe15eea95fe24747b802ab263a740dfef1c80970dbcbb0fb1034186126e53b9",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "secret_key": "suiprivkey1qqkjch2seme5errr7a03mne7vdn06y4mpy9h9jjg665q3vqs697ps3etpl0",
+                "sui_address": "0xb5616c8093bc0f563a43543068c5c347fbd0a57bf7d5741383d0e489bb2605bf",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqsvz3czjjjac5asa0kpw3fdn9st9mmz5we9f2kxtyjadrw4zqjyu0umhg4",
+                "sui_address": "0x27bb019459fdcfbbf64c78b6b0708431e0534d91c39922bd093c2b534d7ed41f",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qz72qyft07l878tppt8dsq0u5yumrugr9yhqvyvm85ug525y95sdsajaygq",
+                "sui_address": "0xc1b58769f0ea6689cb0395b2eaf897373513f2e423989be0ea7788be6f9e7b46",
+                "user_variant": "active"
+            }
+        ],
+        "passiveUsers": [
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzzxs2yktyaps3tsztfrv4xteva28shgtestsw9j9cs052kdp7s8wc07mf2",
+                "sui_address": "0x8ec722f3861fac3ae5518169a2743ee13ade012deb28938957b0e1be715990a8",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzm6qyk9c6ysfm20w29nhxtusdcu9q7aysppeup2ejekr8d4yd8a7rwhss0",
+                "sui_address": "0xe8a86be71b99a5f55f8038baa783ea6040e6e680a8f83103cee76b306bbe4bb7",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "secret_key": "suiprivkey1qzxvw7jg5yszqfdf2fkcyearm7d6q930rew3x6x99cmt02nuh8xwjkthtpa",
+                "sui_address": "0xb5452956a29f8a78e97ea691038fd1d51d4ef326763ad881f2fd707e9458038e",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "secret_key": "suiprivkey1qpuptc3lxfhavj6jm5eln5e7jvxfe7wp5azj9cmc27wyws059lfj22n39wq",
+                "sui_address": "0x81e6248fbed07861577c2b31e733c511b3a45555f709c8fbf10c65d73b3757dd",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz6s6lcfw3qultwglwkhxjj7zmnmmdxtwnxzghpcg79knua0ysht74zy4ft",
+                "sui_address": "0x4021a613c921419d89806c76f9d4678ec0dd421513e74982df591ef40020c978",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpl24gxhl6fxh2a90y69vef4xxtj762h9yy38jzgxt59hp35cwl9j8t27u2",
+                "sui_address": "0x039d76213fe4a073b86f8a8c5bd8256ecb0a3e505a2a72bbe1f9af3f9a189bbe",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrn260243m04grwlj4g0lshy50gynt0mkgw623ccv3kv59eetsksupktexa",
+                "sui_address": "0x284df3d4f524476b1909826dd0fdf98b13503da2849bf626dfdc565f027ebd41",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp7ruscxhg2tmvlndr4a995ju8hu25dc2cvmcr2c72wmj43hwjequy5enrv",
+                "sui_address": "0xcd7369c9e8d33aa7d52468d1c91d5410fbf2c91e0128fd50a52c211d8ddce93a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzfrwsejzjued0qlxkksr8z9pcv6q7rww2g9hzcd4g5lz90d23xs7cx6r00",
+                "sui_address": "0x03dbfd4eed2c6a5a471df4704bf862399ed85686bd1b4fbc9dfc5bb4f8527540",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq463nuz3weug3a837r6ev7efsw9kds0p82xgls2vqsx932hqqlzq6f44kg",
+                "sui_address": "0xe5a121e8bd8a7d0fc9a00c04a15aaa0787e24ba241c86857ce9645c50d6b63cf",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqq2qtmq8zz0e0eh47zem7nve94sg0gvj33hdn850xhaytu84amrwjcm3l5",
+                "sui_address": "0xfa1d7f32c1d9746034979f3d66b105fa41430c8ca557d35d549be92a7ad771e8",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqkjzhtd7w6ma02fwhl6thtpwluzlfp8t32epf38stjg3hl584gpjmk2605",
+                "sui_address": "0x8b5b3e01b750545adbd75d531f3d95c38b7a395186c08a4673b09b2604ebe152"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq7a5rl3a27t0wymm657ytr6hx6euku52sjsva96rtfq5587lftyq7yjkzt",
+                "sui_address": "0x5610a487e4f031585027a7de20a1837325a717c011b45113de07df0968b91d49"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrmj25vrwdwuc3pl9e4yq5tlfz7neemmnm46y835cxvfgq4xrmd8q2pzffh",
+                "sui_address": "0xe7092fe142307e28121e1e421233360f822d528cf078747e7cda59cefd0853f6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz9up7hlamquej9ssngkxx07vlx49ufh6n2udffv0jt4pag05rp7g20ruj4",
+                "sui_address": "0x7013446ffb03c1bc0788fcd65e76784cc9af2476b27ed08919d8710e102991fc",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qznwvejjjehvzae3z86hgd7c7zntx66l0n2hnyre9yqg0wmy9l5kyrnfpc0",
+                "sui_address": "0x1cc2cc8ed67ea87f192f0693d9cdcffffbb4b075d2ee6bf1ba23a93ceba2fc9a",
+                "user_variant": "passive",
+                "is_funded": 0
+            }
+        ]
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {},
+        "checks": {}
+    }
+}

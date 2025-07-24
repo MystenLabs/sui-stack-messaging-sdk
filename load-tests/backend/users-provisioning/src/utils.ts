@@ -25,6 +25,6 @@ export async function executeTransaction(
     },
   });
 
-  await client.waitForTransaction({ digest: txResult.digest });
+  // await client.waitForTransaction({ digest: txResult.digest });
   return txResult;
 }

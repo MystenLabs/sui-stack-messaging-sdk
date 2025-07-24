@@ -163,53 +163,77 @@ export class SuiContractService {
     senderKeypair: Ed25519Keypair,
     channelId: string,
     memberCapId: string,
-    message: string
+    message: string,
+    maxRetries: number = 2
   ) {
     return this.measure(async () => {
-      // console.log(`\n--- Sending message to channel ${channelId} ---`);
+      let lastError: Error | null = null;
 
-      const tx = new Transaction();
-      const ciphertext = tx.pure(
-        bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
-      );
-      const wrapped_dek = tx.pure(
-        bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
-      );
-      const nonce = tx.pure(
-        bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes()
-      );
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const tx = new Transaction();
+          const ciphertext = tx.pure(
+            bcs.vector(bcs.U8).serialize(Buffer.from(message)).toBytes()
+          );
+          const wrapped_dek = tx.pure(
+            bcs.vector(bcs.U8).serialize([0, 1, 0, 1]).toBytes()
+          );
+          const nonce = tx.pure(
+            bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes()
+          );
 
-      const attachmentsVec = tx.moveCall({
-        target: `0x1::vector::empty`,
-        typeArguments: [ATTACHMENT_TYPE],
-        arguments: [],
-      });
+          const attachmentsVec = tx.moveCall({
+            target: `0x1::vector::empty`,
+            typeArguments: [ATTACHMENT_TYPE],
+            arguments: [],
+          });
 
-      tx.moveCall({
-        target: `${SUI_MESSAGING_PACKAGE_ID}::api::send_message`,
-        arguments: [
-          tx.object(channelId),
-          tx.object(memberCapId),
-          ciphertext,
-          wrapped_dek,
-          nonce,
-          attachmentsVec,
-          tx.object(SUI_CLOCK_OBJECT_ID),
-        ],
-      });
+          tx.moveCall({
+            target: `${SUI_MESSAGING_PACKAGE_ID}::api::send_message`,
+            arguments: [
+              tx.object(channelId),
+              tx.object(memberCapId),
+              ciphertext,
+              wrapped_dek,
+              nonce,
+              attachmentsVec,
+              tx.object(SUI_CLOCK_OBJECT_ID),
+            ],
+          });
 
-      const result = await executeTransaction(
-        this.suiClient,
-        tx,
-        senderKeypair
-      );
-      // console.log(
-      // `Message "${message}" sent successfully to channel ${channelId}.`
-      // );
-      // Set gas cost
-      this.lastGasCost = result.effects
-        ? this.calculateGasCost(result.effects.gasUsed)
-        : 0;
+          const result = await executeTransaction(
+            this.suiClient,
+            tx,
+            senderKeypair
+          );
+
+          this.lastGasCost = result.effects
+            ? this.calculateGasCost(result.effects.gasUsed)
+            : 0;
+
+          return; // Success
+        } catch (error: any) {
+          lastError = error;
+
+          // Check if it's a version conflict error
+          if (
+            error.message?.includes("not available for consumption") ||
+            error.message?.includes("Could not find the referenced object")
+          ) {
+            if (attempt < maxRetries - 1) {
+              // Wait before retry with exponential backoff
+              await new Promise((resolve) =>
+                setTimeout(resolve, Math.pow(2, attempt) * 100)
+              );
+              continue;
+            }
+          }
+
+          throw error;
+        }
+      }
+
+      throw lastError || new Error("Max retries exceeded");
     });
   }
 

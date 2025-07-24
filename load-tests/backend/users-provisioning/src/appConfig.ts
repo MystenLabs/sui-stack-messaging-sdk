@@ -69,12 +69,27 @@ class AppConfig {
       10
     );
 
-    // 5. Load sui network from .env
-    const network = this.getEnvVariable("NETWORK", "testnet");
-    if (!this.suiNetworks.includes(network)) {
-      throw new Error(
-        `Invalid NETWORK specified in .env file. Valid values: ${this.suiNetworks.toString()}`
-      );
+    // 5. Load fullnode url from .env if it exists, otherwise look for the network var
+    const fullnodeUrl = this.getEnvVariable("FULLNODE_URL", "");
+    if (fullnodeUrl !== "") {
+      this.suiFullNode = fullnodeUrl;
+    } else {
+      const network = this.getEnvVariable("NETWORK", "testnet");
+      if (!this.suiNetworks.includes(network)) {
+        throw new Error(
+          `Invalid NETWORK specified in .env file. Valid values: ${this.suiNetworks.toString()}`
+        );
+      }
+      this.suiNetwork = network as
+        | "localnet"
+        | "devnet"
+        | "testnet"
+        | "mainnet";
+
+      this.suiFullNode =
+        this.suiNetwork === "localnet"
+          ? "http://127.0.0.1:9000"
+          : `https://fullnode.${this.suiNetwork}.sui.io:443`;
     }
 
     if (isNaN(this.port)) {
@@ -82,11 +97,6 @@ class AppConfig {
         `Invalid PORT specified in .env file. Must be a number. Got: ${portStr}`
       );
     }
-
-    this.suiFullNode =
-      this.suiNetwork === "localnet"
-        ? "http://127.0.0.1:9000"
-        : `https://fullnode.${this.suiNetwork}.sui.io`;
 
     this.suiFaucet = "http://127.0.0.1:9123";
     this.suiContractPackageId = process.env.PACKAGE_ID || "";
@@ -102,6 +112,8 @@ class AppConfig {
         `[Config] Environment variable ${key} not found. Using default value: "${defaultValue}"`
       );
       return defaultValue;
+    } else {
+      console.log(`[Config] Environment variable ${key} found: "${value}"`);
     }
     return value;
   }

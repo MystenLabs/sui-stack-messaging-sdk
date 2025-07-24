@@ -27,12 +27,42 @@ const factory = createFactory<{
   Variables: ContractVariables;
 }>();
 
+// Create timeout middleware for long-running operations
+const withTimeout = factory.createMiddleware(async (c, next) => {
+  const timeout = 25000; // 25 seconds for blockchain operations
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("Request timeout")), timeout);
+  });
+
+  try {
+    await Promise.race([next(), timeoutPromise]);
+  } catch (error: any) {
+    if (error.message === "Request timeout") {
+      return c.json(
+        {
+          error: "Request timeout - blockchain operation took too long",
+          details: "The Sui network may be congested. Please try again.",
+        },
+        408
+      );
+    }
+    throw error;
+  }
+});
+
 // Create error handling middleware
 const withErrorHandling = factory.createMiddleware(async (c, next) => {
   try {
     await next();
   } catch (err: any) {
-    return c.json({ error: err.message }, 500);
+    console.error(`Contract route error: ${err.message}`, err);
+    return c.json(
+      {
+        error: err.message,
+        details: "An error occurred while processing your request",
+      },
+      500
+    );
   }
 });
 
@@ -73,7 +103,7 @@ contract.post("/channel", async (c) => {
   });
 });
 
-contract.post("/channel/message", async (c) => {
+contract.post("/channel/message", withTimeout, async (c) => {
   const { secret_key, channel_id, member_cap_id, message } = await c.req.json();
 
   if (!secret_key || !channel_id || !member_cap_id || !message) {

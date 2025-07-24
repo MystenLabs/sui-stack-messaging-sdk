@@ -4,6 +4,62 @@ import { metrics, recordMetric } from "./metrics.js";
 
 const PROVISIONING_API_URL = "http://localhost:4321";
 
+/**
+ * Validates that the user configuration can be achieved with the given constraints
+ * @returns {Object} Validation result with success status and error message if applicable
+ */
+function validateUserConfiguration() {
+  const { activeUsers, passiveUsers } = config;
+
+  // Calculate required channels for each user type
+  const activeChannelsNeeded = Math.ceil(
+    activeUsers.total / activeUsers.perChannel
+  );
+  const passiveChannelsNeeded = Math.ceil(
+    passiveUsers.total / passiveUsers.perChannel
+  );
+
+  // Find the maximum number of channels needed
+  const maxChannelsNeeded = Math.max(
+    activeChannelsNeeded,
+    passiveChannelsNeeded
+  );
+
+  // Check if we have enough users to fill all channels
+  const totalActiveUsersNeeded = maxChannelsNeeded * activeUsers.perChannel;
+  const totalPassiveUsersNeeded = maxChannelsNeeded * passiveUsers.perChannel;
+
+  const errors = [];
+
+  if (activeUsers.total < totalActiveUsersNeeded) {
+    errors.push(
+      `Insufficient active users: need ${totalActiveUsersNeeded} but only have ${activeUsers.total}. ` +
+        `Either increase ACTIVE_USERS_TOTAL to ${totalActiveUsersNeeded} or decrease ACTIVE_USERS_PER_CHANNEL to ${Math.ceil(
+          activeUsers.total / maxChannelsNeeded
+        )}`
+    );
+  }
+
+  if (passiveUsers.total < totalPassiveUsersNeeded) {
+    errors.push(
+      `Insufficient passive users: need ${totalPassiveUsersNeeded} but only have ${passiveUsers.total}. ` +
+        `Either increase PASSIVE_USERS_TOTAL to ${totalPassiveUsersNeeded} or decrease PASSIVE_USERS_PER_CHANNEL to ${Math.ceil(
+          passiveUsers.total / maxChannelsNeeded
+        )}`
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    channelsNeeded: maxChannelsNeeded,
+    activeChannelsNeeded,
+    passiveChannelsNeeded,
+    totalActiveUsersNeeded,
+    totalPassiveUsersNeeded,
+  };
+}
+
 function generateUsers(variant, count) {
   const url = `${PROVISIONING_API_URL}/users/generate/${variant}?count=${count}`;
   const res = http.post(url);
@@ -115,12 +171,14 @@ function createChannelsInBatch(channelConfigs, batchSize = 10) {
         response.headers["X-Gas-Cost"] &&
         response.headers["X-Gas-Cost"] !== "0"
       ) {
-        metrics.sendMessage_gas.add(parseFloat(response.headers["X-Gas-Cost"]));
+        metrics.createChannel_gas.add(
+          parseFloat(response.headers["X-Gas-Cost"])
+        );
       }
 
       if (response.status === 200) {
         try {
-          const channelData = JSON.parse(response.body).channel;
+          const channelData = JSON.parse(response.body);
           results.push(channelData);
         } catch (error) {
           console.error(
@@ -154,6 +212,31 @@ function createChannelsInBatch(channelConfigs, batchSize = 10) {
 
 export function setupTestEnvironment() {
   console.log("Setting up the test environment...");
+
+  // 0. Validate configuration before proceeding
+  const validation = validateUserConfiguration();
+  if (!validation.isValid) {
+    console.error("Configuration validation failed:");
+    validation.errors.forEach((error) => console.error(`- ${error}`));
+    throw new Error(
+      "Invalid user configuration. Please fix the configuration errors above."
+    );
+  }
+
+  console.log(`Configuration validated successfully:`);
+  console.log(`- Will create ${validation.channelsNeeded} channels`);
+  console.log(
+    `- Active users: ${config.activeUsers.total} total, ${config.activeUsers.perChannel} per channel`
+  );
+  console.log(
+    `- Passive users: ${config.passiveUsers.total} total, ${config.passiveUsers.perChannel} per channel`
+  );
+  console.log(
+    `- User distribution: Active users ${validation.activeChannelsNeeded} channels, Passive users ${validation.passiveChannelsNeeded} channels`
+  );
+  console.log(
+    `- Total users needed: ${validation.totalActiveUsersNeeded} active, ${validation.totalPassiveUsersNeeded} passive`
+  );
 
   // 1. Generate users if needed
   let activeUsers = fetchUsers("active", undefined, config.activeUsers.total);
@@ -199,16 +282,11 @@ export function setupTestEnvironment() {
     config.passiveUsers.total
   );
 
-  // 4. Create channels and distribute users according to perChannel constraints
-  const totalUsersPerChannel =
-    config.activeUsers.perChannel + config.passiveUsers.perChannel;
-  const requiredChannels = Math.max(
-    Math.ceil(allActiveUsers.length / config.activeUsers.perChannel),
-    Math.ceil(allPassiveUsers.length / config.passiveUsers.perChannel)
-  );
+  // 4. Create channels and distribute users WITHOUT reuse
+  const requiredChannels = validation.channelsNeeded;
 
   console.log(
-    `Creating ${requiredChannels} channels with ${config.activeUsers.perChannel} active and ${config.passiveUsers.perChannel} passive users per channel...`
+    `Creating ${requiredChannels} channels with ${config.activeUsers.perChannel} active and ${config.passiveUsers.perChannel} passive users per channel (NO USER REUSE)...`
   );
 
   // Prepare channel creation configurations
@@ -217,20 +295,31 @@ export function setupTestEnvironment() {
   for (let i = 0; i < requiredChannels; i++) {
     const channelName = `channel-${i}`;
 
-    // Select active users for this channel (allowing reuse)
-    const activeMembers = [];
-    for (let j = 0; j < config.activeUsers.perChannel; j++) {
-      const userIndex =
-        (i * config.activeUsers.perChannel + j) % allActiveUsers.length;
-      activeMembers.push(allActiveUsers[userIndex]);
+    // Select active users for this channel (NO REUSE - sequential assignment)
+    const activeStartIndex = i * config.activeUsers.perChannel;
+    const activeMembers = allActiveUsers.slice(
+      activeStartIndex,
+      activeStartIndex + config.activeUsers.perChannel
+    );
+
+    // Select passive users for this channel (NO REUSE - sequential assignment)
+    const passiveStartIndex = i * config.passiveUsers.perChannel;
+    const passiveMembers = allPassiveUsers.slice(
+      passiveStartIndex,
+      passiveStartIndex + config.passiveUsers.perChannel
+    );
+
+    // Validate that we have enough users for this channel
+    if (activeMembers.length < config.activeUsers.perChannel) {
+      throw new Error(
+        `Insufficient active users for channel ${i}: need ${config.activeUsers.perChannel}, but only have ${activeMembers.length} available starting from index ${activeStartIndex}`
+      );
     }
 
-    // Select passive users for this channel (allowing reuse)
-    const passiveMembers = [];
-    for (let j = 0; j < config.passiveUsers.perChannel; j++) {
-      const userIndex =
-        (i * config.passiveUsers.perChannel + j) % allPassiveUsers.length;
-      passiveMembers.push(allPassiveUsers[userIndex]);
+    if (passiveMembers.length < config.passiveUsers.perChannel) {
+      throw new Error(
+        `Insufficient passive users for channel ${i}: need ${config.passiveUsers.perChannel}, but only have ${passiveMembers.length} available starting from index ${passiveStartIndex}`
+      );
     }
 
     // Combine members for this channel
@@ -260,6 +349,19 @@ export function setupTestEnvironment() {
   createChannelsInBatch(channelConfigs, 10); // Process 10 channels at a time
 
   console.log("Setup complete!");
+  console.log(`Summary:`);
+  console.log(`- Created ${channelConfigs.length} channels`);
+  console.log(
+    `- Distributed ${allActiveUsers.length} active users across ${Math.ceil(
+      allActiveUsers.length / config.activeUsers.perChannel
+    )} channels`
+  );
+  console.log(
+    `- Distributed ${allPassiveUsers.length} passive users across ${Math.ceil(
+      allPassiveUsers.length / config.passiveUsers.perChannel
+    )} channels`
+  );
+  console.log(`- No user reuse: Each user belongs to exactly one channel`);
 
   return {
     activeUsers: allActiveUsers,

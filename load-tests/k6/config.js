@@ -12,9 +12,9 @@ function getEnv(name, defaultValue) {
 export const config = {
   // SUI Configuration
   // rpcUrl: getEnv('SUI_RPC_URL', 'https://fullnode.testnet.sui.io:443'),
-  rpcUrl: getEnv("SUI_RPC_URL", "http://127.0.0.1:9000"),
+  // rpcUrl: getEnv("SUI_RPC_URL", "http://127.0.0.1:9000"),
   gasBudget: getEnv("GAS_BUDGET", "100000000"), // 0.1 SUI
-  packageId: getEnv("PACKAGE_ID"), // throw if not in ENV
+  // packageId: getEnv("PACKAGE_ID"), // throw if not in ENV
 
   // User Provisioning Configuration
   provisioningApiUrl: getEnv("PROVISIONING_API_URL", "http://localhost:4321"),
@@ -25,28 +25,32 @@ export const config = {
   },
 
   // Test Load Configuration
-  channelCount: parseInt(getEnv("CHANNEL_COUNT", "100")),
   activeUsers: {
-    total: parseInt(getEnv("ACTIVE_USERS_TOTAL", "200")),
+    total: parseInt(getEnv("ACTIVE_USERS_TOTAL", "16")),
     perChannel: parseInt(getEnv("ACTIVE_USERS_PER_CHANNEL", "2")),
-    thinkTimeSecMin: parseInt(getEnv("ACTIVE_USERS_THINK_TIME_SEC_MIN", "2")),
-    thinkTimeSecMax: parseInt(getEnv("ACTIVE_USERS_THINK_TIME_SEC_MAX", "5")),
+    thinkTimeSecMin: parseInt(getEnv("ACTIVE_USERS_THINK_TIME_SEC_MIN", "4")),
+    thinkTimeSecMax: parseInt(getEnv("ACTIVE_USERS_THINK_TIME_SEC_MAX", "10")),
     messagesPerSession: parseInt(
-      getEnv("ACTIVE_USERS_MESSAGES_PER_SESSION", "10")
+      getEnv("ACTIVE_USERS_MESSAGES_PER_SESSION", "5")
     ),
   },
   passiveUsers: {
-    total: parseInt(getEnv("PASSIVE_USERS_TOTAL", "2000")),
+    total: parseInt(getEnv("PASSIVE_USERS_TOTAL", "64")),
     perChannel: parseInt(getEnv("PASSIVE_USERS_PER_CHANNEL", "8")),
-    pollingInterval: parseInt(getEnv("PASSIVE_USERS_POLLING_INTERVAL", "2")),
+    pollingInterval: parseInt(getEnv("PASSIVE_USERS_POLLING_INTERVAL", "6")),
   },
 
   // Test Duration & VUs
-  duration: getEnv("DURATION", "10m"),
+  duration: getEnv("DURATION", "1m"),
   testThresholds: {
     // 95% of requests must finish within 4 seconds.
     http_req_duration: ["p(95)<4000"],
     // No more than 1% of requests should fail.
     http_req_failed: ["rate<0.01"],
+  },
+
+  // HTTP Client Configuration for better connection handling
+  httpClient: {
+    timeout: "45s", // Match server timeout
   },
 };
