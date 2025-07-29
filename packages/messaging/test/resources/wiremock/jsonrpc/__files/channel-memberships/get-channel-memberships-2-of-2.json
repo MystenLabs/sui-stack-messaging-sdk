@@ -1,0 +1,28 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "data": [
+      {
+        "data": {
+          "objectId": "0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f",
+          "version": "493136496",
+          "digest": "FjsAVnYrASuz6B9X3q4stzxsNnznqoKRVZ8XxvuD66uD",
+          "type": "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
+          "owner": {
+            "AddressOwner": "0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6"
+          },
+          "bcs": {
+            "dataType": "moveObject",
+            "type": "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
+            "hasPublicTransfer": false,
+            "version": 493136496,
+            "bcsBytes": "e89A+kOJwKmdTOCygaS6LG4FhD668OE+6DGji1ommj+Mi7jHEVL2NbFAssDBKFP4jm4KY1KPWpIRkWUI+SmLcA=="
+          }
+        }
+      }
+    ],
+    "nextCursor": "0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f",
+    "hasNextPage": false
+  }
+}

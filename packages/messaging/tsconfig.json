@@ -1,0 +1,10 @@
+{
+	"extends": "../build-scripts/tsconfig.shared.json",
+	"include": ["src", "genversion.mjs"],
+	"compilerOptions": {
+		"module": "CommonJS",
+		"outDir": "dist/cjs",
+		"isolatedModules": true,
+		"rootDir": "src"
+	}
+}
