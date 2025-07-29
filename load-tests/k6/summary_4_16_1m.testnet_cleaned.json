@@ -1,0 +1,204 @@
+{
+  "metrics": {
+    "fetchChannelMessagesByTableId_latency": {
+      "p(95)": 780.3,
+      "avg": 458.67875647668393,
+      "min": 397,
+      "med": 424,
+      "max": 1048,
+      "p(90)": 523.4000000000001,
+      "thresholds": {
+        "p(95)<1000": false
+      }
+    },
+    "http_req_connecting": {
+      "med": 0,
+      "max": 0.981,
+      "p(90)": 0,
+      "p(95)": 0.5722499999999996,
+      "avg": 0.045370870870870876,
+      "min": 0
+    },
+    "createChannel_latency": {
+      "avg": 3266,
+      "min": 2877,
+      "med": 3266,
+      "max": 3655,
+      "p(90)": 3577.2,
+      "p(95)": 3616.1,
+      "thresholds": {
+        "p(95)<5000": false
+      }
+    },
+    "http_req_failed": {
+      "passes": 6,
+      "fails": 660,
+      "thresholds": {
+        "rate<0.01": false
+      },
+      "value": 0.009009009009009009
+    },
+    "http_req_blocked": {
+      "avg": 0.07077927927927967,
+      "min": 0.001,
+      "med": 0.012,
+      "max": 1.204,
+      "p(90)": 0.018,
+      "p(95)": 0.7049999999999998
+    },
+    "sendMessage_gas": {
+      "value": 3881008,
+      "min": 3881008,
+      "max": 4911796
+    },
+    "errorRate_fetchMemberships": {
+      "fails": 6,
+      "passes": 0,
+      "value": 0
+    },
+    "http_reqs": {
+      "count": 666,
+      "rate": 5.224543874766334
+    },
+    "errorRate_createChannel": {
+      "passes": 0,
+      "fails": 2,
+      "value": 0
+    },
+    "errorRate_fetchMessagesByTableId": {
+      "passes": 0,
+      "fails": 579,
+      "value": 0
+    },
+    "sendMessage_latency": {
+      "med": 2191.5,
+      "max": 4054,
+      "p(90)": 3072.3,
+      "p(95)": 3618.9499999999994,
+      "avg": 2138.4285714285716,
+      "min": 0,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    },
+    "createChannel_gas": {
+      "value": 52431480,
+      "min": 52431480,
+      "max": 52431480
+    },
+    "http_req_tls_handshaking": {
+      "max": 0,
+      "p(90)": 0,
+      "p(95)": 0,
+      "avg": 0,
+      "min": 0,
+      "med": 0
+    },
+    "http_req_sending": {
+      "avg": 0.05409309309309306,
+      "min": 0.005,
+      "med": 0.04,
+      "max": 5.185,
+      "p(90)": 0.057500000000000016,
+      "p(95)": 0.081
+    },
+    "fetchChannelMemberships_latency": {
+      "avg": 366.6666666666667,
+      "min": 199,
+      "med": 220.5,
+      "max": 737,
+      "p(90)": 678.5,
+      "p(95)": 707.75
+    },
+    "http_req_duration{expected_response:true}": {
+      "p(95)": 2082.23305,
+      "avg": 584.0223454545454,
+      "min": 0.784,
+      "med": 426.83500000000004,
+      "max": 4094.6,
+      "p(90)": 794.4416
+    },
+    "http_req_waiting": {
+      "med": 426.5365,
+      "max": 4094.436,
+      "p(90)": 791.2235000000001,
+      "p(95)": 2078.2014999999997,
+      "avg": 578.5904354354351,
+      "min": 0.139
+    },
+    "data_sent": {
+      "count": 128494,
+      "rate": 1007.991802769107
+    },
+    "http_req_receiving": {
+      "avg": 0.11966966966966952,
+      "min": 0,
+      "med": 0.116,
+      "max": 0.57,
+      "p(90)": 0.16700000000000004,
+      "p(95)": 0.18574999999999997
+    },
+    "data_received": {
+      "count": 1918991,
+      "rate": 15053.8328450176
+    },
+    "errorRate_sendMessage": {
+      "passes": 6,
+      "fails": 36,
+      "value": 0.14285714285714285
+    },
+    "vus_max": {
+      "max": 20,
+      "value": 20,
+      "min": 20
+    },
+    "errorRate_fetchMembershipsWithMetadata": {
+      "passes": 0,
+      "fails": 29,
+      "value": 0
+    },
+    "iteration_duration": {
+      "med": 62219.054021,
+      "max": 66966.9415,
+      "p(90)": 65269.1565378,
+      "p(95)": 65830.019975,
+      "avg": 62772.86395009999,
+      "min": 60814.392584
+    },
+    "vus": {
+      "value": 15,
+      "min": 0,
+      "max": 20
+    },
+    "fetchChannelMembershipsWithMetadata_latency": {
+      "avg": 549.2068965517242,
+      "min": 402,
+      "med": 427,
+      "max": 1225,
+      "p(90)": 742.2,
+      "p(95)": 1033.9999999999995
+    },
+    "iterations": {
+      "count": 20,
+      "rate": 0.15689320945244245
+    },
+    "http_req_duration": {
+      "p(90)": 791.364,
+      "p(95)": 2078.3904999999995,
+      "avg": 578.7641981981981,
+      "min": 0.19,
+      "med": 426.67949999999996,
+      "max": 4094.6,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    }
+  },
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": {},
+    "checks": {}
+  }
+}

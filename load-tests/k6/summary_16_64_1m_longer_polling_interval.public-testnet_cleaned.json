@@ -1,0 +1,204 @@
+{
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": {},
+    "checks": {}
+  },
+  "metrics": {
+    "http_reqs": {
+      "count": 1472,
+      "rate": 11.916712445219451
+    },
+    "fetchChannelMemberships_latency": {
+      "p(90)": 240,
+      "p(95)": 327.5999999999997,
+      "avg": 210.23076923076923,
+      "min": 122,
+      "med": 216,
+      "max": 380
+    },
+    "http_req_connecting": {
+      "avg": 0.34196535326086963,
+      "min": 0,
+      "med": 0.367,
+      "max": 2.567,
+      "p(90)": 0.723,
+      "p(95)": 0.8079
+    },
+    "http_req_waiting": {
+      "avg": 414.25376019021786,
+      "min": 0.09,
+      "med": 267.3245,
+      "max": 3387.955,
+      "p(90)": 754.2923000000002,
+      "p(95)": 1532.39835
+    },
+    "vus": {
+      "value": 47,
+      "min": 0,
+      "max": 80
+    },
+    "createChannel_gas": {
+      "value": 52431480,
+      "min": 52431480,
+      "max": 52431480
+    },
+    "http_req_duration{expected_response:true}": {
+      "max": 3388.202,
+      "p(90)": 1506.8065,
+      "p(95)": 1752.4478999999992,
+      "avg": 569.423835839598,
+      "min": 0.741,
+      "med": 324.517
+    },
+    "http_req_receiving": {
+      "max": 1.658,
+      "p(90)": 0.182,
+      "p(95)": 0.23089999999999988,
+      "avg": 0.11713586956521707,
+      "min": 0,
+      "med": 0.1
+    },
+    "sendMessage_latency": {
+      "min": 0,
+      "med": 1404,
+      "max": 3378,
+      "p(90)": 2024.8,
+      "p(95)": 2184.8999999999996,
+      "avg": 1003.5296803652968,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    },
+    "fetchChannelMessagesByTableId_latency": {
+      "avg": 320.79952267303105,
+      "min": 211,
+      "med": 288,
+      "max": 1398,
+      "p(90)": 531.1000000000001,
+      "p(95)": 615.4499999999999,
+      "thresholds": {
+        "p(95)<1000": false
+      }
+    },
+    "http_req_blocked": {
+      "p(90)": 0.8779,
+      "p(95)": 0.9972499999999996,
+      "avg": 0.5132683423913044,
+      "min": 0.001,
+      "med": 0.637,
+      "max": 3.109
+    },
+    "createChannel_latency": {
+      "p(90)": 2460.3,
+      "p(95)": 2513.15,
+      "avg": 1954.5,
+      "min": 1525,
+      "med": 1903,
+      "max": 2566,
+      "thresholds": {
+        "p(95)<5000": false
+      }
+    },
+    "errorRate_fetchMessagesByTableId": {
+      "fails": 543,
+      "passes": 295,
+      "value": 0.3520286396181384
+    },
+    "http_req_tls_handshaking": {
+      "min": 0,
+      "med": 0,
+      "max": 0,
+      "p(90)": 0,
+      "p(95)": 0,
+      "avg": 0
+    },
+    "errorRate_sendMessage": {
+      "fails": 115,
+      "passes": 104,
+      "value": 0.4748858447488584
+    },
+    "fetchChannelMembershipsWithMetadata_latency": {
+      "avg": 260.8635014836795,
+      "min": 211,
+      "med": 225,
+      "max": 698,
+      "p(90)": 333.40000000000003,
+      "p(95)": 366.2
+    },
+    "iteration_duration": {
+      "avg": 14451.160863411273,
+      "min": 212.370375,
+      "med": 226.180125,
+      "max": 67462.884666,
+      "p(90)": 63213.3000668,
+      "p(95)": 63520.4871461
+    },
+    "errorRate_fetchMembershipsWithMetadata": {
+      "passes": 239,
+      "fails": 98,
+      "value": 0.7091988130563798
+    },
+    "iterations": {
+      "count": 355,
+      "rate": 2.8739354062859412
+    },
+    "http_req_duration": {
+      "med": 267.4485,
+      "max": 3388.202,
+      "p(90)": 754.5207,
+      "p(95)": 1532.55835,
+      "avg": 414.594097826087,
+      "min": 0.109,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    },
+    "data_sent": {
+      "count": 364129,
+      "rate": 2947.8400719873057
+    },
+    "data_received": {
+      "count": 2015465,
+      "rate": 16316.383728535477
+    },
+    "errorRate_fetchMemberships": {
+      "fails": 29,
+      "passes": 36,
+      "value": 0.5538461538461539
+    },
+    "http_req_sending": {
+      "avg": 0.22320176630434768,
+      "min": 0.004,
+      "med": 0.061,
+      "max": 6.607,
+      "p(90)": 0.942,
+      "p(95)": 1.1930499999999995
+    },
+    "errorRate_createChannel": {
+      "passes": 0,
+      "fails": 8,
+      "value": 0
+    },
+    "vus_max": {
+      "value": 80,
+      "min": 80,
+      "max": 80
+    },
+    "sendMessage_gas": {
+      "value": 3881008,
+      "min": 3881008,
+      "max": 4911796
+    },
+    "http_req_failed": {
+      "fails": 798,
+      "passes": 674,
+      "thresholds": {
+        "rate<0.01": true
+      },
+      "value": 0.4578804347826087
+    }
+  }
+}

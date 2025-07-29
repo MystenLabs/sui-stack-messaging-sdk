@@ -1,0 +1,204 @@
+{
+  "root_group": {
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": {},
+    "checks": {},
+    "name": "",
+    "path": ""
+  },
+  "metrics": {
+    "sendMessage_gas": {
+      "min": 2902888,
+      "max": 4911796,
+      "value": 3881008
+    },
+    "http_req_blocked": {
+      "avg": 0.06510397601974598,
+      "min": 0,
+      "med": 0.001,
+      "max": 12.379,
+      "p(90)": 0.21,
+      "p(95)": 0.37
+    },
+    "http_req_duration": {
+      "med": 254.226,
+      "max": 18216.064,
+      "p(90)": 530.741,
+      "p(95)": 689.3891999999994,
+      "avg": 328.28270245216606,
+      "min": 0,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    },
+    "iterations": {
+      "count": 59264,
+      "rate": 272.7532931229945
+    },
+    "vus": {
+      "value": 1002,
+      "min": 0,
+      "max": 1250
+    },
+    "createChannel_gas": {
+      "value": 51453360,
+      "min": 51453360,
+      "max": 52431480
+    },
+    "fetchChannelMemberships_latency": {
+      "p(90)": 297,
+      "p(95)": 322,
+      "avg": 264.9285480706344,
+      "min": 208,
+      "med": 250,
+      "max": 2580
+    },
+    "errorRate_fetchMembershipsWithMetadata": {
+      "passes": 52683,
+      "fails": 1417,
+      "value": 0.9738077634011091
+    },
+    "http_req_tls_handshaking": {
+      "med": 0,
+      "max": 0,
+      "p(90)": 0,
+      "p(95)": 0,
+      "avg": 0,
+      "min": 0
+    },
+    "data_received": {
+      "count": 25921773,
+      "rate": 119300.90694750143
+    },
+    "errorRate_sendMessage": {
+      "passes": 3070,
+      "fails": 375,
+      "value": 0.8911465892597968
+    },
+    "http_reqs": {
+      "count": 75729,
+      "rate": 348.53088105614285
+    },
+    "http_req_duration{expected_response:true}": {
+      "p(90)": 1716.622,
+      "p(95)": 2594.2945,
+      "avg": 897.9500536298243,
+      "min": 0.942,
+      "med": 619.418,
+      "max": 18216.064
+    },
+    "errorRate_fetchMemberships": {
+      "passes": 5685,
+      "fails": 431,
+      "value": 0.9295291039895357
+    },
+    "data_sent": {
+      "count": 15707457,
+      "rate": 72291.11472964754
+    },
+    "iteration_duration": {
+      "p(90)": 299.3294043,
+      "p(95)": 331.7551330499999,
+      "avg": 1230.0251966743865,
+      "min": 205.964625,
+      "med": 249.68737499999997,
+      "max": 69054.206416
+    },
+    "sendMessage_latency": {
+      "p(95)": 2593.1999999999994,
+      "avg": 643.1747460087083,
+      "min": 0,
+      "med": 264,
+      "max": 5549,
+      "p(90)": 2339.6,
+      "thresholds": {
+        "p(95)<4000": false
+      }
+    },
+    "http_req_connecting": {
+      "med": 0,
+      "max": 12.335,
+      "p(90)": 0.133,
+      "p(95)": 0.222,
+      "avg": 0.03592974950151196,
+      "min": 0
+    },
+    "errorRate_createChannel": {
+      "passes": 0,
+      "fails": 125,
+      "value": 0
+    },
+    "http_req_failed": {
+      "passes": 69613,
+      "fails": 6116,
+      "thresholds": {
+        "rate<0.01": true
+      },
+      "value": 0.9192383367006035
+    },
+    "errorRate_fetchMessagesByTableId": {
+      "passes": 8175,
+      "fails": 3760,
+      "value": 0.6849602010892334
+    },
+    "createChannel_latency": {
+      "p(90)": 4008,
+      "p(95)": 4386.399999999999,
+      "avg": 3066.672,
+      "min": 2512,
+      "med": 2843,
+      "max": 5141,
+      "thresholds": {
+        "p(95)<5000": false
+      }
+    },
+    "http_req_waiting": {
+      "p(90)": 530.6448000000001,
+      "p(95)": 689.1701999999992,
+      "avg": 328.2109459652152,
+      "min": 0,
+      "med": 254.162,
+      "max": 18215.771
+    },
+    "vus_max": {
+      "value": 1250,
+      "min": 1250,
+      "max": 1250
+    },
+    "http_req_receiving": {
+      "p(95)": 0.028,
+      "avg": 0.013436596284116434,
+      "min": 0,
+      "med": 0.01,
+      "max": 1.335,
+      "p(90)": 0.019
+    },
+    "fetchChannelMembershipsWithMetadata_latency": {
+      "p(95)": 354,
+      "avg": 270.2524584103512,
+      "min": 205,
+      "med": 249,
+      "max": 1785,
+      "p(90)": 302
+    },
+    "http_req_sending": {
+      "avg": 0.058319890662758264,
+      "min": 0,
+      "med": 0.003,
+      "max": 12.277,
+      "p(90)": 0.015,
+      "p(95)": 0.101
+    },
+    "fetchChannelMessagesByTableId_latency": {
+      "avg": 497.39011311269377,
+      "min": 206,
+      "med": 483,
+      "max": 2688,
+      "p(90)": 887,
+      "p(95)": 1169.2999999999995,
+      "thresholds": {
+        "p(95)<1000": true
+      }
+    }
+  }
+}
