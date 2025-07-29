@@ -1,0 +1,3210 @@
+{
+    "root_group": {
+        "checks": {},
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {}
+    },
+    "metrics": {
+        "errorRate_fetchMemberships": {
+            "passes": 0,
+            "fails": 89,
+            "value": 0
+        },
+        "errorRate_sendMessage": {
+            "passes": 120,
+            "fails": 460,
+            "value": 0.20689655172413793
+        },
+        "iteration_duration": {
+            "max": 68905.048708,
+            "p(90)": 67087.1840506,
+            "p(95)": 67227.18003185,
+            "avg": 65541.86153548598,
+            "min": 60388.123708,
+            "med": 66241.69372899999
+        },
+        "vus": {
+            "value": 199,
+            "min": 0,
+            "max": 500
+        },
+        "createChannel_gas": {
+            "value": 52431480,
+            "min": 52431480,
+            "max": 52431480
+        },
+        "errorRate_fetchMembershipsWithMetadata": {
+            "passes": 0,
+            "fails": 610,
+            "value": 0
+        },
+        "errorRate_fetchMessagesByTableId": {
+            "passes": 0,
+            "fails": 5280,
+            "value": 0
+        },
+        "http_req_connecting": {
+            "avg": 0.26733504609339614,
+            "min": 0,
+            "med": 0.204,
+            "max": 4.242,
+            "p(90)": 0.654,
+            "p(95)": 0.7591999999999998
+        },
+        "http_req_waiting": {
+            "min": 0,
+            "med": 571.439,
+            "max": 5580.074,
+            "p(90)": 1025.5104000000001,
+            "p(95)": 2454.018,
+            "avg": 749.0810101254308
+        },
+        "fetchChannelMessagesByTableId_latency": {
+            "avg": 595.3223484848485,
+            "min": 466,
+            "med": 569.5,
+            "max": 1528,
+            "p(90)": 775,
+            "p(95)": 865.0499999999997,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_duration": {
+            "med": 571.658,
+            "max": 5580.474,
+            "p(90)": 1026.1218000000001,
+            "p(95)": 2454.2308,
+            "avg": 749.3726781018603,
+            "min": 0,
+            "thresholds": {
+                "p(95)<4000": false
+            }
+        },
+        "fetchChannelMemberships_latency": {
+            "p(95)": 506.6,
+            "avg": 293.7415730337079,
+            "min": 238,
+            "med": 252,
+            "max": 781,
+            "p(90)": 492
+        },
+        "http_req_receiving": {
+            "min": 0,
+            "med": 0.047,
+            "max": 2.604,
+            "p(90)": 0.115,
+            "p(95)": 0.139,
+            "avg": 0.06072328849931988
+        },
+        "http_req_failed": {
+            "passes": 120,
+            "fails": 6497,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.018135106543750945
+        },
+        "createChannel_latency": {
+            "med": 3037.5,
+            "max": 4485,
+            "p(90)": 4019.6,
+            "p(95)": 4153.2,
+            "avg": 3175.42,
+            "min": 2659,
+            "thresholds": {
+                "p(95)<5000": false
+            }
+        },
+        "data_received": {
+            "count": 11844590,
+            "rate": 74622.60837365461
+        },
+        "http_reqs": {
+            "count": 6617,
+            "rate": 41.688044888719034
+        },
+        "errorRate_createChannel": {
+            "passes": 0,
+            "fails": 50,
+            "value": 0
+        },
+        "sendMessage_gas": {
+            "value": 3881008,
+            "min": 3881008,
+            "max": 4911796
+        },
+        "fetchChannelMembershipsWithMetadata_latency": {
+            "med": 545,
+            "max": 1667,
+            "p(90)": 816.5000000000001,
+            "p(95)": 1013.6499999999999,
+            "avg": 612.072131147541,
+            "min": 482
+        },
+        "http_req_sending": {
+            "max": 10.446,
+            "p(90)": 0.869,
+            "p(95)": 1.1773999999999996,
+            "avg": 0.23094468792504072,
+            "min": 0,
+            "med": 0.037
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 762.1056723102986,
+            "min": 0.671,
+            "med": 573.393,
+            "max": 5580.474,
+            "p(90)": 1030.2692,
+            "p(95)": 2455.9058
+        },
+        "vus_max": {
+            "value": 500,
+            "min": 500,
+            "max": 500
+        },
+        "iterations": {
+            "rate": 3.1500713985732984,
+            "count": 500
+        },
+        "data_sent": {
+            "count": 1577482,
+            "rate": 9938.36185992841
+        },
+        "http_req_blocked": {
+            "max": 4.293,
+            "p(90)": 0.806,
+            "p(95)": 0.9331999999999998,
+            "avg": 0.41754133293032947,
+            "min": 0.001,
+            "med": 0.358
+        },
+        "sendMessage_latency": {
+            "p(95)": 3562.35,
+            "avg": 2136.4206896551723,
+            "min": 0,
+            "med": 2441.5,
+            "max": 5083,
+            "p(90)": 3118,
+            "thresholds": {
+                "p(95)<4000": false
+            }
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        }
+    },
+    "setup_data": {
+        "activeUsers": [
+            {
+                "secret_key": "suiprivkey1qr3n9hgrzunjde0jqg2eye3jw94qex2tc25zz7g42sdwxu9agh8w67eskyn",
+                "sui_address": "0x34576bf481d301ac624666a087fa6e36c99717b06947ace23ba0f7e4c94c51bf",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqmjpphy35d263xtvv4z5ej3k3tnf0j3tlr0q5f5d28qh8enmf092yfrcp6",
+                "sui_address": "0x1d0935e580641c406a93302d980d6569aac5f49d31d10e1758788c38289bffba",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqu4dkzpz6gq6cm8279pjqg5rsaztchgjstu84v0k58zk4zfk6k9ua4d2za",
+                "sui_address": "0x9c8091a982c1a1d23e66551c6d7a4404e6fb77f4a576c5fe8f844d1004bd306f",
+                "user_variant": "active"
+            },
+            {
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qz6pl3jvpy0u7cylu8q4t3laqthl67kdyn628dhpxx0gemz0jmz7y4pftuw",
+                "sui_address": "0x39d329e3e09f8f710f141abc971e9375bde25f53a8d56178f3fce240298e88b1"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqw9e6xcg9hufk2qrx8uknr65pl0sj5hfdr0egylyn6l4uhemrkz7x4xmsq",
+                "sui_address": "0xe2e56a37b6f8b433d43f6dedb12ef6e0907782bdf43478f6a9d4f88d05879852",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qq5jr2ntaclgl788vcnyra2x9y0hfz9434rvq2esulf7srvkg0u66jqtm6u",
+                "sui_address": "0x49f63287461418dd0d86c2c0a4249a19b527690de4d864a1ed09b6d96e8bcc69",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qzvhysh9w2cc34mmctdauua06yv7f8rvtktqavlecxqmm5jgzncy58zl84f",
+                "sui_address": "0x24956ba83291e52abe6dd1057ecc11528489cbdb07de8fe21a7116546c035b93",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0x243a6f77872fc0b2a02c5d0b3d8f6f8f84611635ba86605792789755e2b72934",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qp5kzrxvfwxwu96fd77z5pk8jv62gua0ym834u9qh6s2mgfgmep6w5r3hrw"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpuxj2vh76gsra6emg32233aywg3lt2k22xy2ztn7md6xuju7cwnqsazrha",
+                "sui_address": "0xc9c7cbeabfb0f081bac3769f1af174f3c7c1023a5af4e90b9a64d4f82e45d6f3",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qr6qz2jn7j4ztfqtkd5c9zft5u2wrj8lyc3e2jhgw0qndqxqvkr2z4krpf3",
+                "sui_address": "0x6d025ac2e74fa2cef6f61a481bad8b59452643d25ed299227785142de5839911",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qppgj56d5zputu7kyxl8mre327ggtrf35y8jlsludrkenjg3x9t573ezxvy",
+                "sui_address": "0x9b507ac960e3f4cebd0b340786600571949a47d66225a2a577d2641f122714b3",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qphsfr4rgq6krsqxp3lu759upqzjw4kwa4nlfmqtmvh044mkk4cnj2rvgkk",
+                "sui_address": "0x58ee23aae225015aabbaa0c9cc3ee8e2360ef8983108bf89301fa830260ff80e",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrmefj8w62k5awfp5jylcteuzll7xqye5th9gztplts7u4c339fmwfx7nej",
+                "sui_address": "0xb1cad357517297f51e3ed500453e4db09b0c39788757dd8196254e070b34f9bb",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrcjghllj5vs9m28mz2muxdkwc08ax7gvl4fccrhu0uh9fvw9n0wjunqhzr",
+                "sui_address": "0xe9ead94affb29ded7a35e5bbb75f80c851870f5e35561cb44cc7fc664d8b3fa5",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qp07uyrwc8veluhd8n3wh2hhylhjm5jtakv6v4rumdlwus8yz8r5zzeq6ly",
+                "sui_address": "0x0a398ef2092104f4a9f76037b42d3b85841cbb8a10a846f0b1437144ad498baf",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqsns8ew4vqcveqefzfdtd9lwft4f9xvl0mqy7vdqgwpdwvmpm3gu8xhm2a",
+                "sui_address": "0xd75fb0cbd0879b54e38f9f593b8c83f83d6ae124752f95b921919dd97afc73b1",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qreflpu3mm8cj9s3pfv0es6zs8j9hfwyafxcr46ys45zrldqkvrl5lpdxxq",
+                "sui_address": "0xfdfab7764675a04930c358a822aaff9ad59dacd58d3736ed752020bc737a9062",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqrul3ew4r5d7yc8yyxx30lc4v8eau5a02ecfw0s23gy7sztruxvgl6ua60",
+                "sui_address": "0x3bcebcb606a63b4b19728add3a7c36cddb79dd29208b6b6ac78ebdc27a5be59b",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qryqmpwvr5rzjgg7ygsxawvdnh5cc89708q67r40hj59levrnwr67w0p38e",
+                "sui_address": "0x27be95330ec862019b9fb9b36ebfe93c01a3c4236bf25dddceaa86bbd1f446fc",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qp695wllrgh3cfnl95dctzsuz2mjd5zqw4f6p4d5yej87qtnq0jnsgzf5rd",
+                "sui_address": "0xfe3a5f6545b9658ac1158023775782b3904337e5cfc59907c72d7972dcde5d1d",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qz277sx00r5sdezf4fqsajwsxckdv7ltn86cmqrjkfwgpq02cuuk5zshv6k",
+                "sui_address": "0x0f1269c6ce2f36a99371bbbfb735839ea2143bd00ce31c60296c9474febcfb2e",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqgg04hak65kzhxrnyxfugzlwxmeyamv5hdqjse8ngf4faa3896zzahmq4p",
+                "sui_address": "0xb6f8e3587789601bd752ba4e46b5ff0d813098e02cabf0fe13abef1fcd8de9f2",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qz3lpacj9f5528tljyvp9gj4vz8wdrj0wm6gkvshxhs950enjnvzvlamhtj",
+                "sui_address": "0x9390dcad697b756689650b1ccf91b242826b76c2dcb3889caa00e8f1cda5f002",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0xe87021511d5e45c0cf60da9775442e066ab65e18fd8dc8e3fd2954d701f869f2",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpy8d7tgsnk5j9sgl66v3lj5uqj3rvh0dcucpwwu2apgdrs9ls5vk8zawl6"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qr8qcn74mm7k6uu60nhqt3y9tzfsfsfaytkvwa6zgnj3twl27695sad3acy",
+                "sui_address": "0x8b21e68f7a97a265d084a01f7b24b9b9859a509db6170b31d485f65a34819818",
+                "user_variant": "active"
+            },
+            {
+                "secret_key": "suiprivkey1qzf5lq05v026k4p2hxhm9clcetlktxa7tcjj84anave33cmjd4ck63lp70g",
+                "sui_address": "0x2566b220e5ff014c1337e05d73550cea1a856111f54f0b35bc67b107e08a014b",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqesz8vyvnzt84fjny305u4czc4jk8qdx28u4z4tskja8j6rtxekwa0j45r",
+                "sui_address": "0xac3d2a1c8013526a950bce92171466a08469637170a223c2d9061d61a22c8b86",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0xcd0e7e848c406987b632f24b3682aa2199ff29e9e80c59624283766d16dccad0",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qppy9q9vnne52ysty3pnaxyal04wxach0m9p7ehx5z5glyzzqdmpu3yz6ua"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrm9qsm9dkwhzvenxyttm9xmq4av27sfc5ryh4545m0xrfk2pnjnuttc3jq",
+                "sui_address": "0x37ce75e34924016ce44359ed00ef1d43be15a47c04722741118bd2ce99a8973c",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpdshw2xjvfgg5e78kj3ca87gx7t0f5saarvm7sdvvlmy7sus8zd50r6mrx",
+                "sui_address": "0x8de26d3d437d77494f1442ee690b1020df52b5d6722125c23a177a79df0ea691",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0xd40d230e5e75d72f27e64a977740e9d17feb42ecad03091d10fbfe9bb305ba74",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qp65cxyyga2yzuykq02jct8aaqg4khv0tszlna0cu5rvts5vlrf3kmumaw8"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qq90tu2yurw3na7nxfrfgchs3f3cc77xalet0acl25x8gn5rt7hzxdx6xf6",
+                "sui_address": "0x5a329bb3bb5337d4b5f4ef7059e5c92c88770c88d57087f4a59ad649e412dada",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qps78tyht762syl6r0459lpekjw0egmexn9patzv543rslnlj0y75d63qww",
+                "sui_address": "0xab0f40db5d2d3a6fc3ff3146e73b39aee67e209d77a4cc0f72117e54ddefe4f3",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpx25m3y0gdl4sm8n4g855ahjk22khjm2snggwlw7zhud6ppa6h8uwwxdfw",
+                "sui_address": "0x847e422740a5c052a91ba7af87ebbb0f3f0b69f0af9008b9925d55ebee920e05",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0x7aaa4f7e3a9ac098aea813f1efddc80359302f54c6cf7d87de9d8b3b451c5035",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qp0ec22h7ws9lelyys8fhqw7ke82f20exmh6e6nura7gg968m36zx9qgf0h"
+            },
+            {
+                "sui_address": "0x52afeaa2927b17d4ac205cc3903e5532db9b5a03ca63ae7c3923ca6fe60b791a",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qz0cac7h0luk0hy0palh2glvaqx37rdy8aky2l8rcjzrlyg2ctk3vuf06fu"
+            },
+            {
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qzd4l2w6xc65yfnfwuuj2fvjqej90txqhm9ntfn23ghhpt8rcnac60um8s8",
+                "sui_address": "0xe934f6b46097ce93fbd8b1d198e5d7e437efa66c96835a365bdb63caf60de074"
+            },
+            {
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qznt3mh0slc3c9q0ukljjrpjp0t8qmpttst6jr5g9gmp0l0yq0a268hhtwz",
+                "sui_address": "0xf2df2e9ae02c3c62ed124f40649904b7aface9bbf50fbc848cbfa843d97c6288"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qq4j0tl43vrzke92ldgv6cx87w7rcjxmrgtswk9fnd04heqpz22xkrjuq0v",
+                "sui_address": "0xd6e68ed825725a3cb7df087ab4c3ca89cb9303e598744e3bccfbc5984bd9ed7c",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qzw3zdpd8sacm84fxgv97r4qwcsunvucd0stxy5qm3p8kfwwrsqa5k5wxr7",
+                "sui_address": "0x952a614b7b57c3ee8fdcdef1f2fb9684b91e188015292912f9b287388a753f1d",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrzzzjtkkhuar7jfpyj788swwp3nlccpexcyhkqah06h0zxawrzlwml0cva",
+                "sui_address": "0x90b1d84e83de60e9dc8aed23a90e335a8ee1fa5e46c18d393640447b6826e8f1",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qqzdm4r6zjg7sgqdjjp8dgsex5d8wdzs4gdadxrdpl5g8vzl4hsegqerjt5",
+                "sui_address": "0x0878ae3c8b016a3a382c0a8d67229c66dc143e63746670e795b49246543d1003",
+                "user_variant": "active"
+            },
+            {
+                "sui_address": "0x4e4a403a9b633a31343bd7bef48bd5165bb6d2f107799d1d8c042b49fda5d88d",
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qr349wvhetth0d5qxvc26uaawujuexyyjjudhjeed53mqqt2rzgmwgw3j6v"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrh35w5v02uhn49glh6rwfhhtk37x6m5235jdfa8ap577jsrtqvkvu9hz5g",
+                "sui_address": "0x0e02b5f4d87fc1e3c47178c279acf1c7917c1a78bfd8a48a32f23824b33f88ab",
+                "user_variant": "active"
+            },
+            {
+                "secret_key": "suiprivkey1qz9jq5y548gue3233x72pv4rewv4rhfsf4mnf4sam8ze6sfprhx7x5ggqwa",
+                "sui_address": "0x362c1264e2c7c8852c581926c624a22b1d225cbc449976d073e95b60eec596dc",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpe32gc4f3xyl23fhsd8hmd3jl00agzkup7yptj4mkg69f8dl7pg6cqwj7d",
+                "sui_address": "0x4130cf1822a075c04af13824ae5b9f06e937f0c523f63f5e469f516353fa8c2a"
+            },
+            {
+                "secret_key": "suiprivkey1qrqjmgertw3vg79xdj8vlzqt9egmuccdd26hv3uhjcsj3gf89h0j27hezjh",
+                "sui_address": "0x864a08a19598d88917815b24f19f58ea89e9a5bfb367df6f668b136071582134",
+                "user_variant": "active",
+                "is_funded": 1
+            },
+            {
+                "user_variant": "active",
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qpmscpfp75r67avgcysxg34vzrzl93m242xekurzxhnp3a5ju6gw54sac4l",
+                "sui_address": "0x1045cd08f406f6e8051d4addf161bd6a49d59a6674bce40cf8c9c9cf7fac393d"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qzyxs05fx5vjn5asrgtey4ae8r4mfdmyjkqurtf70uu6ghw2kakyg8qreh3",
+                "sui_address": "0x80c39ed752f85673fcf73532100432deb67e57e4ae7d9a344b7125f9bcc36aab",
+                "user_variant": "active"
+            },
+            {
+                "is_funded": 1,
+                "secret_key": "suiprivkey1qrz60q6n7g2pxcmhvjalc27ts6xyf24z8ks6urprecftpy8lr5zhkvgpq5d",
+                "sui_address": "0x7ae7f336777f4adf9d217b7d7cd29072b502c604b9868c043f4ab8f1c0d31c0b",
+                "user_variant": "active"
+            }
+        ],
+        "passiveUsers": [
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpcw33x6fss3w7v0flnw20zdcpqfd0mrfffwjg3gez45yuhks3k8547yd5u",
+                "sui_address": "0xe5fa3b2037218358edb5e3d7784afede9cc487ffae960d6b1d3a950dd6d4b634",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzwutzrmffmrh96y4a672trd0exgwkk6z3qn22n063txr6d7387eyek44c0",
+                "sui_address": "0x7b55422a005621660103b09167bfa468e370b574bc97d590bf2a4b00403fae7a",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz8r9h8ncmkg84dx62kekjnafmkuxptevmdsraur0c7e72keh8dpz9zlsvp",
+                "sui_address": "0x31ef580580aa57ea61c944dc47e344ba066d71cd2e402215fba1ad0177bd9134",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz7aflnlq37nspglqjnfm8jc6ytwg86jzslnhwgsx40x4m6g4hsvjptmnnn",
+                "sui_address": "0x80d70b6f7a6b2f0272ea03d12e42536869b7f5d00d0300ef075b271a140d0473"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzrp6pm536xrmgcs52qj2egef2wc8ykdcuuwuxnelextxqa32lkd7lc7mx2",
+                "sui_address": "0x1d64ca0439b0337160034b0c93b06699b3879d1d6bb2fa6c8af6ef4e136108b1",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpr5gyx0720u0qdkrpd5ux8yctn7eup37dx3h8delf5nhmwtwptawngkw5s",
+                "sui_address": "0x5568c2311e8e6e2ec0a88228175d4b91153819f9dfb689c924ed15c8b4244617",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qze56leyh47ysxxlnyj500gvcacs8n8dxpm7x4xdt5swlv6hjaaj6gyv5su",
+                "sui_address": "0x7146fda09f8c43e5e28f1efbaecf7e519bd95fdbcc35ce10472d0bf1bdedde3e",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpeqt754m0uedktjcq5z8l3ura40s3nzd8c8hza0um2aalcsqwwv6lyc3ke",
+                "sui_address": "0x54d6d3142dd859e09af129e86f5818878d2cbbf9e5e1635135ba62b147dac7b8"
+            },
+            {
+                "secret_key": "suiprivkey1qrm5mwdjwfckvu2ldekdj06dpttg7gs3nd0slkm28k0qv3kzehnzjp2ueqx",
+                "sui_address": "0x80476c26e7ef6170f8da91140726e9a3c10989b95afabbf74d771fad14cf80c6",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqrwxtnpysv50qhvtts6twc8r4ewp5qtg7apfqwsvavlv84kpcyesffy947",
+                "sui_address": "0x8d8528b9d8c9a50f4b014c8e6def90c89c780f653c9b9fea83fd86e3612001f7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp9utlt60m834qachd3qaxx9zryemt6tfaustp35akufxjtfnrnxuckhhxa",
+                "sui_address": "0x32606f708fbd1ef2a2ce35e5eee8b25bd21c827d51ce182816644ce543f0596d",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq7d3042klz5gsyk44q86umy3he5t8y85z29kzc3up4x4lhmusfw6h6dpht",
+                "sui_address": "0xb9a5e24061c7c490a3708ea4886e8b9c1f660dab3805c8cf4fb996c262d2641f"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqe4ylheawd9aentk840t699qmgpfnqwzjymgu08ke34myv7relkj7s0trs",
+                "sui_address": "0xf5e94d7237c686cd6c2d365a413cc21665aabd5fecd31f2198720a0e14c5dc77",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qre7er6l9m4uexx48megyssgzvprxjhh34r944cne5pkhc6k2cqa5vvf4s6",
+                "sui_address": "0xdd3132399caf038fa3b16ea75d0efdfa396faa0828fe9e492109e7d867e331d1",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpqe5vs0stwreqmm92tgd5ee68qs8mczdhvz4v7fvg0ar2re660gkxsa355",
+                "sui_address": "0x2013daadb3979740852f74f0e91559945889cc65f4791211ab1ab93950a9bb11",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp3wyu84gmw3ccpd0pnk23wkhmjw6dexgm0d4zq6smzjmztjn9hz6t6z6c5",
+                "sui_address": "0x0e5364aaaae410b4c43a9bde815d08cf1f5e024823b34d9f31fb5b96d46b30d2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzqwl70v79u6l8ar7llx2ac0m3mcyqnamdnnrjqptkzupvawawv05pzwv43",
+                "sui_address": "0x0dc0c2411e00c23a74e04c537b5dafe6cdbad72c2b01ed018f25c14d50b14f7e",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x7f032d1e5176bc95e411de5f885933361def10fc39e9ac16daa56e2127a150bc",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq0gcd4lj2a6akpp73x4veqqqv70hvxk8cpxt7xe9ffjvemy856y54jmfwk"
+            },
+            {
+                "secret_key": "suiprivkey1qp0chamnnh7v4xm7zj702j7rcr34kq4kar2672d6kezcrefmxslaz5w5a64",
+                "sui_address": "0x520b8a7fad9bce8f05f0e13a9afdd78635e4c31b93fe047d27e1c4552520abba",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0xc5154e3c937b5d47326cdb8972e471d735531d6fc9fba0df2544bb5c333c6c8f",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpw92d9tk3h5py4j85u2eq9fuy8ysjlvn3macjtq7ls3uhpzuhxvx6lufza"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrnm8lkgzxjhmcds0kkmmw9hptd8ynyvg0nqkvcsz7swqju6lwvjckflzz5",
+                "sui_address": "0xd2aa31f5f1344fa31a123b1aa0d1a0f487ed6ed2a9fd6d2280e5282ec54c449c",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqvrz509t6nt2ah2tz7yf360p6nsn3n4764q4xk2epvs0apkh60kvddv7j9",
+                "sui_address": "0xf44105cb774c1ac6b94b7e8efb8b270bacc0f9b97652fd3f01d6cc33b6408b24",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzt0ffrggc7t2llp8zm7jq3e6yzts0vpj9tx0xqrd9zw9wjzprqmu8p7nqj",
+                "sui_address": "0x3e73120fc94704a6a366b2996ae690d4ff65d27be9f35d3b53b0a010ec1fd30a",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x99768b91a0c41d57a2064335b2ab9a6ddf0ba5c976a24c453a5fda4ef898bf12",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp2knqscjvr5l0t3wr7crmwxcmmnz9906gfytyygft8dv2vxs5v3g3djxfm"
+            },
+            {
+                "sui_address": "0xbf3dd443c04476d724844bc4e43f425ccd3eaec224706a8278aa8dc6ea92b664",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqhvrcsewqn5u9qceyaq6ex8v7ky7xxkm85u245ytk5tmx228yn256mu9fe"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp5xxzt0c8vdjgea59ev8zqe5t5zaygdhfvz42usd9ysaes6wmt7up2lezj",
+                "sui_address": "0xb457f8974b2e7fdb0663fcd86febf366b9c2d34b2cff7f34dfede0387e69a497",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzzvsyf2rfxzh4hgzc5f6rsg39yzualepjrcmupa6hh22sh8dxhpyv794rw",
+                "sui_address": "0x1b378e229f965758ca34d04cd870b09dfaee4ac5712bd1efe9a4d0b7bc4068a2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpp2hvyr7x74dg2ac6z7kvd6zea23rpktj36hg0ka7tu5qsuy9fscuqccac",
+                "sui_address": "0x682ab3c920869b412d627be729598f49973c849b4288cc507aec3cf369ccdb2a",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqfjsc5euqk637flel0nwmcmpu7dvg7cpn0l0nxhj6uaz09nqngp5l2ee5t",
+                "sui_address": "0x529f5918fd7034a5d75b5a23c63832d6100d6ea5f5b71b0ae78e64ef04760a43"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpykx55cev5twvteevhphfy6qlwu5vmjkjtyl6f3a2tnag3an3re7sp5n5p",
+                "sui_address": "0xef0be1d068376f1b7439fcb5aa61a9b88939d861d403890ec1f95af5ac421fae",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrls3ggap9w9utz8g0uttzwmuw26uz2k8hqhtun5xl4w66wqfkr07apwmyl",
+                "sui_address": "0x23bf9691847e278269cf5e99ebd4aac424e934dd4ff5e44461bb7b28547e04d4",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qr6wvntlyvthmsaekg66f6cxu398t7552vx043f2knu9227darf6qfa8m5j",
+                "sui_address": "0x4577b0bfe775dafa3093415d0721a661fd7bfbe1438d44d3be1eb84321f3732d",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzz8r3jl72jy0t604xceja9h6qm4u9kuszuqfyhphggvekqgm6pmy3lsd2z",
+                "sui_address": "0x46040bd94cf076715c854391a5a99ee3d2fd61e3b2bdeaa3968148f0b3a037e2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrhsuhz4rlcs5ac4j0k205f5vx3dcqnz5a77nlku2qjkmnyjut2uvagmc35",
+                "sui_address": "0x368cb16366af6eef6a2356196b22376176cd5dcfe9377302c387ad1372f93638",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzwme2d86kpfuxejswl7s88dppn8plx7dxxmycacjkxugadml6nmkjzv5gs",
+                "sui_address": "0xfa555fd5b7004ef1788af497b992ac722591290432291b1cc58e0acb4eff0ecd"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr8ltr6qqka7rxaftvctep466n66g2kz9vldwpqxm0meclrgnp4uws46kqh",
+                "sui_address": "0x9cf5e18c2bdd9cf664446e1f73fc8fcbf6e351a48a33a464ea141ed6acdf6b70",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtk9r339fgvxgg7xurc0wxelh85m8tnvrk6xzw0ymahal3mhefpjdvce23",
+                "sui_address": "0xc9cf640fa53aafd91bd12a4cd050d725d716ad832f70c25f0be8a28b0ad2fb6d",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzlrpxecewlnhgh920mgqd6j4vgnwryhwn4uq4scvv3svyktryn5yytcpq6",
+                "sui_address": "0x228f1c6862c7871356d3d1f2c53505f152687f16f2d3d33f80d5746371732117"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpp9zpn2x5d7ns5tzu9y964mfff3e4zstf658frypzmhfgfwr4ld6jghvmv",
+                "sui_address": "0xfbaf7c91b0302357ea7021fd8182d6c2abc3e3f1ac85181ee1f854032d6e05a7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq3hufkr2m4z2jzlru6sggxa05anypcqlm3jr2jccxxuhaszu922k4hl505",
+                "sui_address": "0xa3b40630fd75bc753c80666265b34099f99eb05eb62034ad2bda6cdf5358f0c5",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzf49gv3xt8xuyts22xxqqs2cp8hrquxm7jdfhh2q5p6p8rt8dtwjrlclrv",
+                "sui_address": "0xdb46672b42408675318d4338f36e6aa58e701af78a6492476a14f2c6c04124ef",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qra22p2s76720l4f27lyxp7yj5gr5fnt22k4gpq49k3xm57eqjzz5jc7y94",
+                "sui_address": "0xe4db540a1160c653c9afbb5e7b5cd68df83275d703245c9afe0a0984a693a3ad"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqa8essvs9pessw4u2ejgsg4vakzz7p49hklpfe790zhvzezuyjk6589tfd",
+                "sui_address": "0x2f23546ab062a4b48e9a432152d88bce64f7402bc306620a296ad023cea3e603",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz05ag9yj45xfv64jvydmvxrtmpwzk3ygh2gr693lu0u97du2svt2hrzzyl",
+                "sui_address": "0xcd8cbf1685b58f363780232d429c0d994709187ae8094d3a72d1750ec596e898",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqjh2frf00aszytfqhw88j6dy6jl08facwt2f5dtdys9arjsypnv5s0uztc",
+                "sui_address": "0x33d2efcb076eb80b6f8506011eb6f86d216666b34d86c7db217a038435a8ce92",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrv9nmg9qh9e7qqetvjm6rev9jufm8efc4mvv3mtfjr9nhysmnc7275zw33",
+                "sui_address": "0xadcfe6e0692858e07bad851e2da0b691c14cd8922e81b70b045ca8707becd52d",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpgygu5q8ep32ecjv47jy30vvftfepgvulu7hc8d7pn39lqpqmfhud7jrp4",
+                "sui_address": "0xe455a147c78855459cda8cd485a2fed1495415907c23f16b1166da7625b3b5d9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpattv87mphkjuxe3pehxw6n5ucehpaz4qh9xtdzshwsjvuhvc58zme4f5k",
+                "sui_address": "0x82b8cd79ce98705ce0a88c34a7213a80828f8e1a2bf0c6f3093f0ea221eaf5f4",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpsy63qam0mvttl4k7tnfke6zfkur3ajlra764t65vxy8k34tvlxw2dz52r",
+                "sui_address": "0xe5f8da3d86c1edee874e6aa285214f0025634c6555fb9d98326acb1384f37b50"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp0epe6wcqmexj9x9754j6kv9kwtd5zlg8zfn56psz3y78hwmmyvs3y99dx",
+                "sui_address": "0xa54fb5eb9b2778f952ca9bed60560c672bebc0e34cb7a469c28a7a6812d44eb5",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzf7qj69l7p2w3f2nvap7u50ejdcvqvztdnl57scs2q37exsj9mcu8s2cry",
+                "sui_address": "0x43380238d3bad290d1abdb98b868b2bcf62faad5eeb06bae4e3850f5d7b7e831",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqt425rnfm2dlt08dmgqj974fnsxgacv9au6tp5t74sxaj3p0du0xwdxhdl",
+                "sui_address": "0xa1a6de33ca762d7e00371082bb5f8b0fd31c51a4e7548b8345a06bc244373b94",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrefg4d3g6y8247v659d829pyvedr3hf6vuy9wa5cv22zq5euznsvmau9g0",
+                "sui_address": "0xc422c1edac8fbe550a320718c511074477e9404535b270cae8001e9bb3178d4f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqkekgukffc25dwt0h2ll8waa0u8kfy4v7vmulez6n458vknz75w2y0xkx3",
+                "sui_address": "0x5109b64667a46bbe69a0271dbc6e284cfb34eec22814422e1f6875752363031e",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq4apf8t73czwdxug30t36r0khs7fv736vf75xa383fr4hmvgsk07y4d4pq",
+                "sui_address": "0x493e1b3f72fb885f4637f2f04955ca558669f74d3762e4f3c4cb3a0ab090d790",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq7v0dx96xua953a8ufaz8wg80hgq2w53xz3vv5tkmzshphk82uwx3yy2sa",
+                "sui_address": "0x1bd58fbdd05e863046b11fecdbc6fe86b743ca40cd37fc6d03b0c5c24c986d14",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qppl58gs0sfnr7fp9hj68r44y8n5nc98zgmt80g6w5zcwq0x0qydqxpk9uj",
+                "sui_address": "0xd0d564552cbfb1f9d833e6b2e2aa38869b43d0bf141b9fcc1b6c0a2f3c578c95",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzgdn64sxhr3qrzdsk65rtj0ate34f0wydzrxpynqpmmhctwkmvpsfhxx0x",
+                "sui_address": "0x754a280ae30de8bf6896d4a16e8240befedaf137f284c1571149472e5afb4a70"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqxl5n39ux9pmwkddth3jpy0ltnpl3alqckn0hf4huktpx0733pew8f3fe2",
+                "sui_address": "0xfdba1e93eaa45437bd0922d79fa4fcfca4a37898d7bb4d85a9d0fa282f2856fd",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qr4upg60wex9pdlvp62td9ganeehw2c9zku372606eds5hnhpedt2yw24uj",
+                "sui_address": "0xb9861cd98c9a8df9225ecd81914d2fbc899e03ca1d90cf4d2eb3714d4b352d20",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz23yq6kcfjh377avnxv93n3t9rlnm2crf6q3u2t6lya5hxls78hslfr4m0",
+                "sui_address": "0x99867912eefc1db22a7e2a1c661654c33416a2f127315b0c66bbd78e2425c693",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq0xp05gn4k5ta496vypcu5tpvrv5lfwxjxxh26gxg49mgcxpq00g0m2cfx",
+                "sui_address": "0xf9849bc9952dda7c01b95e08201e57f2602d09e37762added541f90357caef03"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp37wl6jg3yyhjwxmd8n0e6p7t6ldg3aya7g332qzk4cjmwzet2y584tmt9",
+                "sui_address": "0x7648ae35f6e02bde2e64174dc18da89449e7024eefd2db10656fb6169e7143de",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzngh49gm9h4jz8efq4z6gxldh0eqd33u3ugkg7qv3cj9r4wwjgn722yp4y",
+                "sui_address": "0xca453d3baefb32539a0828386f9389d9381a64ec13454d46e7db1286a47976de",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0x235eeb7d2e9b7088bc601e665ec2872aa9c8f92fc27e271e40747176386a2f4c",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpwtupy5klevjamwkl3lyg0ch9ac8cx3wjqwzkehvtpw3h8x8su7zelgvmy"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrd7an5aczlhx3rkaqmn0zfr2mq2zh3p5e5lgy485x9qrp904wgd7r3sxwa",
+                "sui_address": "0xc43fbe60ce9a0bdf5345f273819a4dd63587f1f0aa056d9466b622fa72a962e0",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xf52543d1f58785d40533f7f57c0607e236f4194ab5742ae5026631abc437bb87",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrdgfqlazjpkk59vavaut9trxavh9nt4zx7mahfanjh262f7vyujs8k078x"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrg7w9savatrst97zy5k6pa9fafe0uh9zfmlsv32gdzluuxfmy7l50aq4ew",
+                "sui_address": "0x41073411b629c5e8774bad5276e2b5e58cd45af3331304c3433897c4ad02e45c",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrnc96d0l0lms35hszjwd8dtjq5x8w8zd3phts0qhlm9gy2x76vjsm6n00q",
+                "sui_address": "0x89041f7044d9a35fe0b5597ffc29fe55011f5f84262956249e35f807ef94b9ac",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xef9be891743bd150192ecc6957cdb2dab5a57684e2372e22482bb518234a023b",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfyjlu7h0w259dp3fgngjsykzuxxltn3mufe8v28a372p8ah6afxuujtzl"
+            },
+            {
+                "secret_key": "suiprivkey1qrjln23lenfdlfv9qk43ywpvjlw8juh3cz6kuyncznucp8e94j46kp4d97m",
+                "sui_address": "0xc70736e22f4a1fa104565a28f59ab38cf163763535f6a9d8c8094357f2d8f9ff",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqw659gc6fumfxfen5jzdsaah22qmfvw8yxgqcn4w75xzrp9cgr2ycvu6md",
+                "sui_address": "0x7b4432485fe90d32acd97f5cac94839e627c172d043d19c4713b2b616a6deb36",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrsu6u3zegf4xxpend9ycfaxg6a9xfhsw5hzqsppvk50987du33jw29j7nm",
+                "sui_address": "0x489635944d67fafbbad7505efc60aeb105c3738b7ac093a364ee6254b1990e09",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz9rjzhw02utjgu27mzffehjmxvulrdyahddewyusn7cxleeyvjgx8z47ad",
+                "sui_address": "0xd3c9f3fd73c4c7a3d93507c2c03d2746b908667d40a1c8e23c38bb4ca0b7a867",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qpcmlgv69gp8wq96z5ert7eajysxrj7thr8jp8h2aq8khqtz2tercefr4g2",
+                "sui_address": "0xfa29e592b71dfb88a46cd39bf3fbf403e4080da850922223932389a75c0a3dcc",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr497qj87dafj9t0pg27f29fezkfxkka9wcql6h2qq9deeztukmz7qrkzg3",
+                "sui_address": "0xcbf579f31bcd94364179a2f638aefa0ac8c2f42bd35f25cd0ac2478bb9196bbe",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqsft2n5p4q4zvu6w2u27rk3fryc3lm2cnpnecrxupgqnkc3y6v3u0jtmeu",
+                "sui_address": "0x69a961a57c618ad7430cfefa53afa55a9b44d795031e77e09e2ca0d57841fe99",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x5ae0ae2faac20ee48c07f9b1af76a7e749e4dff2e775fa0dad84fa5afc08a481",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrpps5dd0qwsxjrcr9hygrvr8jv7hqn3zjyt7s4jm7k23e4cqsux69falrr"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzd0246257havmlxcdfskvqzj9cyxkf7t9wr67ygdgazezhda3h8xgwfzdk",
+                "sui_address": "0xf975d0599252fc8971fc0dbb88752a76e6790520b673b2cc3672cec97def819b"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzgaf5uec775qsdl7a4uclcg2r8udpwwl5hhpkwglvxmchy64s4gkv7p4xv",
+                "sui_address": "0x51a759152899f9e0a15f83bce6e418c2b9e647d5354cd2fcf32bbb808e65213b",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrzqdfh9mrh6634j60984dl4ueypmu6ml6e08t39lzm68prs3yqm5c76tgv",
+                "sui_address": "0xbdfac53209ea725dcda6e446a1e706d9de6e6a4ff0453c48bbade597b40e61fd",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqfzqxfutu6yclpz6h8xrlhv4x3xx7gw6mcspfa532tz36l6nyvk26sqvmp",
+                "sui_address": "0xc4e965d89df34b1fe2778f1a0c404041fe45defbbeb272a7e2527659890d2b09",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzzsxtywfu7nv9e8xs4qx3ww7k20fz6ce2saemaeyl6awkelk0n0g7z44lh",
+                "sui_address": "0xaa0ac1c45500c14957294d02cc3cc5b48462d3e39d65a6ec6c18e0c353f90775"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp0l4ws508lxxtrl5fegkegk82hgv2mald9ydswzt3tgvtkwpperqjw36jm",
+                "sui_address": "0x0a9df2971dcf8d5cd90f57befa1a214dd1100660cfa276b5cf168f4d3bd77ad6",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qz43ds8586jlfxf4zz64eurekk3y6k6vs0mk7a9f89d008p9w9qewgz4wcr",
+                "sui_address": "0xced36a87a993991b5c56a9f3d830c68b6d0c5520053ddfbb128c694c9ba94ac8",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrdhqfnp39qa00y9rn4aw99tw973jaszmszvgrv9763m383ac2uswg70vfc",
+                "sui_address": "0x92ca1f053b40f8e7d6ab56e67a3de98d40b589cb89e5f0bfe95fc34c9c48a16a",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qpdt50tjl5cczyfg4tha7hcmf9ln0q7xzyjhhyxqgfz7a7jxqzkqzzppx4d",
+                "sui_address": "0x05df6d841cade49b5f3219e92312489e7a25b834f308299667eedc71388d1bcb",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpx3pghnwcleavwf72z84r7vpnry2arwyf5el8p5050r74qk7yvqjr8e2ht",
+                "sui_address": "0x4724f8b686722e3205328086a28775223b6d190f0d4acf41f71c04c400dc9b58",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qze4l9avt2c7sdcnpr8z5wfdgekzp3e3cdp3cc3tcnfggkwkus0k7a2jkzt",
+                "sui_address": "0xbe9d36064924eb0524124bd03b2fb5f7867cdeb09f38b81db9c2edbd0fd86ae5"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpj44u3egzf3wlrxvr23vga5hk03wvwv5m9h64tuc4nmql05gd0rcq2gqqz",
+                "sui_address": "0x41acff17cd5b6022323e1cf9b5ac0692ed012f64c0ec8777b04e65da40ab5961",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x0501858c5f529868bf967104dacc442e9c894b8e0d37df98b3642748cdd089c0",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrvfq6uzmvqhy27tel36n60gvd6ldac6pfxl0vpx63w42uz6hwzrk4pn4wk"
+            },
+            {
+                "secret_key": "suiprivkey1qrecq0tr52a54634krt59rs0qhgze46kx8ph2lkhh7qgh5hjvvgxyqpmss8",
+                "sui_address": "0x5d7a307051608574ef5e5e47c4971653dc61d56f627b3f802d75d5201c9a1185",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz2fyhj3rkjn5hvj4ccas43rqxg0fkcgdxcd0utx3anvemh20zrx2esy357",
+                "sui_address": "0xabdff0eb96b025e8184bd031dafeed884a76eb0682824a0929da14ee3fd7eb77"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrw0r0ttztpt39jftjvg8u45nz2c0c37gg3scqyu8e9r0gt7k4msx2c66ec",
+                "sui_address": "0x172b154a0f71a4d84a610756e1de6520c79acece27745f8ce396468f60d36de0",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrsjm9dh78mekwqdw2cqdss9tt4h8jaa2vkmle827padh5w6jtncqj2qx6f",
+                "sui_address": "0x8e97e740ee1e3162a1d171793414f423ffd142ad8211522d0c64566bc55a09aa",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpe63znukl0y9aykdvlt5curaehzvdjwhfv4djf583yznedp2parztx533g",
+                "sui_address": "0xc3504bce8a3c9108a4abf49262e208a886e08ef9346e944ebb0c7805b2bce63b",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xc0318e3d9e3459b76c0481e4e382c861884c925713c5435552f230507b230e7c",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpsm4p33eakdwwl4c4qf0ktu9z5k73yjmtzjtvku49p9mf0zsma4xk9f3cy"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpsf6qh7j9ekw595yqhqyse0y3q0805ccfqjhsym363q74l5aj2sgs24evv",
+                "sui_address": "0x420b15e3f155d6132ee54878b177acf97c2608aac82e925c2e49f06b8c95aeef",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qztkjp9zvcxrq4r6uvxhfk9ndvf8vs57tfnkuul4satwzzzhfdtn7h5u77u",
+                "sui_address": "0x41de31209f1a18c96a976f2df3cf6364123d1e9c58905ebe4c3ba13d2ed3f74c",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzpe7x5sqjkcjhz96rqyuuxsvxmmt033xch4c2y9xc4gg2g87de25z0adcg",
+                "sui_address": "0xdbb2f955e5c49cbcb4268fd42bae96f298c0612ae7a374a5c7776c9a0a7d51d4",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpskplrnwczn3vnrfz9t9uexnmurjlujk3hzrkcujlj692nx904qjnyrm3g",
+                "sui_address": "0x8163d64b02c180bc9515a437f31fd439d7564a33d7815dfa32489514ade802e7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzzyhg89e0p4k774rrrvjnhj80k4gwqpctsc09pyuutwnumvdgmcghhv7z6",
+                "sui_address": "0x1d1b6ac68310e140e0563da280c9f90486b35f1a815d0ebff093f8e42b54c12a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq9g63sh6paqu3x262a2q83g5zatq362gxs5sz5h4wgxudamhesyqqrgmy6",
+                "sui_address": "0x69ecff34cc35ae5722323ed3c3c5e5bc11fa3477789e1527b04dd9f638ffd7ac",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqhda9rv8fkeju8tp9wa8g8vyduk9fvxu9shae4twywlky9mmct5z9dqyzl",
+                "sui_address": "0x95c161b0511fff2369a8500e1c5ad4c87f5766d7b39afddeea0d16baa8f12b1d"
+            },
+            {
+                "sui_address": "0xee0be88ed1be38488cf678423c4073e516f22151365aec1080072aeea7ebe115",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qptsk3zpzdkfzp66dws3kr5n9zedycvzk9x8lyah6tl2gqg36al9j4mh3tv"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqflgfjnnmvn24w0ygrmla0wwfh4q7fzrv0sfrsgmass5yx3c9grk6tc24v",
+                "sui_address": "0x97213ad980d6513c027f91ef1f0a2f45a33b2e5503f61a35018094c3315ad08f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzahe0uy8duvydxt2k98azxk03znw94qp3fty47jq7pn93z6lw9as37n3uf",
+                "sui_address": "0x3248e02eb4b28f076d088450833310d64812fea275ac29e2931512224460f92e",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqq3q0s8h6ule929klve7mnkl7lup3uhtxqgnl2pfqmx5md8z4s9xffgma0",
+                "sui_address": "0x341a1a78bfb2b1c503d6ed21c436b98435cb005423b08ca987926bb63f08ad16",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "secret_key": "suiprivkey1qqshvypnvnq02h4h7j3dgj2zlk2wv4mrkdr957pqrt3xrugs2n3gkzvkhkn",
+                "sui_address": "0x1f5b17698dbb36e7cb04e99364e06790a2a307c9727b926f33d453bc6c43565b",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfgdpaf5z3mh3uqecl5m8wtn0w29s4kvkzn8fpr8txwh2nehqs0u5gp3h0",
+                "sui_address": "0x1e6325ad4c139d924b954d2f901dcee51a8924634517fafc565dffdbdbb09d70",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqf7xqajk2tzyrv5gv6acy4mtdpnxjszfh8hpkf7naqy933hkdng52nz5mj",
+                "sui_address": "0xc1b5c4cda89fbe1c0859e0423327a92aa7ad6681ee478ee9a4763521de4e643f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzeljwkaak035cktva3ywmefwc8vd3jevm6nx7a85ntgga2lsf75uqafqnh",
+                "sui_address": "0xf1ef7890350ae6c9cc0519b3b8f86c932ccd5ad88c3e289602251d99666db206",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qpmthl8a4akyq6ck5x7hdw34rvlm609qgh09caf4hcpvjdqk7f4w7gatrl2",
+                "sui_address": "0x58742961b0c7d5b8717b65a0acb416024c1d5f4f8bc76581e012bdc89b5616da",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0x2064733b34cf77352299161c910a448ed4f8666841e6c5052d377572051fdc86",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq5wslqjwvlnrqm44wwkpxnuctm6su20gk2wxatgdaa9qwpxzurjzlfv200"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzzgl6gxeh30x64f4k4gvngwmdpvmjl733n3dramggyaa9rhtnxlye4j9tx",
+                "sui_address": "0x8f520c2d5ec78e602fb56fe544ea3afd693b9b83d62e4860991b79a256bc3d8e",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrnqzupmyqsn5nc9p7qrl38agnc8p9ag65q304tj0f34d38p8tlssq9frfc",
+                "sui_address": "0xb4b7526e13456a36f64c1591b916ce8a680f09f80272d29bef87b8ffbddb7a37",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfyew98x8j9w85ncwvk82nz8vxypuvf6hncdngzcr8mneac2dj46d4u6wz",
+                "sui_address": "0x4f9ec4e608ea82a08f1013b74b84398054586ecfca309c037e495eed3ad5b7ae"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrys90rluxx6258w9plkd083yzl6rd24s35scrtnekjfrjqeuh6tg9r0dk3",
+                "sui_address": "0x9d0d5c94cb680e3d8129090c5d5b895df43ac6569911eb975eb344d9e2a751bf"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqjfdmc4q8a5drkzevpn0gfj7x5jwlrljl4shnc4qf8llwpyvue6jqrpzwk",
+                "sui_address": "0xd98781a8cdc49a850ed90bcf284bf4e2dc8089651d9d7e6ea738587a2e1da4dc",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr9gqng7l4q99m3uxc7yra5uqkvvlettr5yfzvvmkyhu7c9uv97ksmyfpfp",
+                "sui_address": "0x5e150fb29468b0ed855e37a0250dab81121122d67121e946c78dc5a0034b0022"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrf894z84m0s9z2n3yt7ufek384nfzkw23qx4y6yuz0pavyczxreuw6ervq",
+                "sui_address": "0x5c00b4ef724f59e610458a6e6ac46976c75c40342b4097d47ff5c645f09a3cee",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzn9mj0k5lqlk50zzmx5q9x5dzppsyfky8f45pgcsez9vjmy8lzw7tmmpct",
+                "sui_address": "0x31d88586b57522890b02e674e3203a8a8b0112e749107226b763073eb56d57bc",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x3e4f7ca9daa8a3895da2aea8f904427418574e60b3eadb4ef019bfaf93d9594b",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpuw4tqctyuk8y0t3yc4pjm4teaq0mq56cru520cfhzjlj05x9xggjly5lw"
+            },
+            {
+                "secret_key": "suiprivkey1qze64z7sjz4wlh0pyh6yjft478mxqyrct0lkl27yt0qzr7rmnk39x7t0r77",
+                "sui_address": "0x4815bba62009381192e25ef253b2d04da60279d64d5aeddb7cfb3745b12abc20",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzssjxq4yu9hnf8cduu6ldvd5umedtsmwttkt8h6u7lxenmyczfxkq0q9z4",
+                "sui_address": "0x819a8c758935331f3e23da73dd0fcb2083878fd3ad32493109d472ca257596b7",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpquyxe7zzkecrfhjwz8wrzx99tkuhgxa6gelnukknuy7gvzlk3zzncj5s4",
+                "sui_address": "0xda74460239e1d2cb8288c72af741a959a5657bed436667ec013f9a08f2f43942"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrm9urlzuucdetyrc8qnz78lpxvfnpl0wdmn3tagsa59fr6p3plhvk9edjl",
+                "sui_address": "0xaf78c200159927143ba40c133c35ae48c2dce1b11536dffafe7dae364d100b8f"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrg0627893gg7atfdlc6f4vanuu0u74j3zc4qvvmpzpw8vpdj2hwjjp9472",
+                "sui_address": "0xf9cfa51f431dbe7ed6fb870bbb14dbd9c2af28421f63b0afe068cef55416f9f8",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz67rx6lm6r0jsk4fy75kprt0n7s92cewtfmasxc9k28d2ltxdf6g6hpkf0",
+                "sui_address": "0x4b45f84f19c5b6dcda00ae997928dccdb4f8253c331deaa2c9fade1cac7d72ec"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrtwcnqzjx7xh528fsk02kxs2su450klrfn9g08lky5zhmzsgwjagzc8yzq",
+                "sui_address": "0x10e7e1939b06d78f17c5f9e7c74f1ace4143099907bebb47e9f3a99f75e73f33",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqnyv7aw5l80akgy8qq7jxvp6xq0gflnsxs744g6nf2s79hcy398v9pfdjd",
+                "sui_address": "0xd31c5e2d5f4624289aa3e2e84b0a117b402cfb36045cdb39f7dd679d10a359a4",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x54922fb4debc9e22463934ea0ae9af3c023abc675383cd14f1097636a0084d1f",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq5fkphesjqs344ux6ce02r0tnf9y8p8gs80fp7x0et42zrxnrecczwe7av"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzcewun9l64c7r2evzmd3qpgffr8ns6xpnxva8gcse32yr35wzslwuavanx",
+                "sui_address": "0x198d106c00dedf363f57e426a20ebb0e67cb7fda58ce9bf67fe05829e00f32e7",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrypzw8qz4kh4633uclsafvxgxw9e02me9hnzlqt0zhv4mu378h2zxf2sv9",
+                "sui_address": "0xf78e3bcc928d5afc2e9d206a8b0b4fefbb931dbd636302df3a50a68f16be3678"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqxx2q8gzry7nlq8ztu7ew8r5pww3nc83ghc9grdcfel80ye6rnus59nvmx",
+                "sui_address": "0x7919eac2b40be2e72a2361335889c5a6f6fd89504ea4aa934b5ded18ddea0aaf",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qz94vhg0uv6h4d2cecjjxv8u0gc6ps8y0u2jduzvxg366eu98dgkun0szts",
+                "sui_address": "0x6ef148d4ace8b677d70f571f1dbcdc566f5a8d92254590aa57a897f83094354d",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0xc87781d71cde9f881b032f16b0a2c371f97b8085cd2c49f321b5e674d98ad373",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpgkl997d096ufj0pqhq9udghcy5ec8g0lmc4wtkpem02v3403nyczd6s4h"
+            },
+            {
+                "secret_key": "suiprivkey1qr408auz9za9tslx9hzyp6xyer6w30kemvyrchjsce0at48mn6atgcnmzzy",
+                "sui_address": "0xa835e3c6add1aa6e2bc2187160a4425740b64cb06e5b5e66267689998d96e356",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrp8vjlnjrpufdcezdfr6y5c4hjep5n5n8usfyuary8wwuvj88wv6ad0r96",
+                "sui_address": "0x6462a40bdcecf40e9fa1aa6b230eb8e536f71e0158e22b663539ce327ea77cd3"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtnxgy4zle5tk0hfl4nenv8d3rpprlh9mz44cmup3ypw7pfhsazk62u7gt",
+                "sui_address": "0xae46d91722b849a2c24c1079df9fd853ce85946cc336a28d8459b4d3191c5987",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqhdwjhuf559vc7xk6s5lf9uw4qxn6mx28pgzrzrzs7wkmasdd8hckp38jm",
+                "sui_address": "0x464fccb4e44584be14d7161629edf3804aeef18e46cde257c2ff35183e7256ec",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqce5qguymewajntyc9nk36uemw033a2ucph8jfk4f08zkr9pgkvxw4xayu",
+                "sui_address": "0xf2aad8f8d745bd40c5670381fb94ed9c6adbf055dc750d291ead530062322ae6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp7jtpyndtzx9qkyx27m2ssz634k6snusluqwj7mfh3n608y9kzq72ad8xe",
+                "sui_address": "0x60ec0f2851306d2fc814e8a1c4e2efa8cc1e5367113e7fb65cde3376ecc813b6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrvc23pgk7pljhxwkwm4t4jqjzr92zweqwfqfp23rjzh8sjv63vygmlmuma",
+                "sui_address": "0x99c8d5917be574545fab2e0bb21d474d07d7d577095449f4ebc7ceddfc007171",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xf2d099a41816f8d3af5c20d44c6995e054e6b02f7aedc58e4ed076010d57ac45",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qptusees5cc78rv3lf6xtcuxtnr59z6nl82dk9rw7u6gm4r7k85h5sh86l4"
+            },
+            {
+                "sui_address": "0xe8fda138deeca00287b02243d51ca49706f3e19123d6cc048dfd2a29780261b6",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz7j5k3v4kedwnfre898vxx4zzzc434aty2sm0nttyszmvppq49rgxnuj0l"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqvepe2pdcgr9g2rnmq4jz3244ydtyssml88z60r96equy4ygc8nyyusp7e",
+                "sui_address": "0x22c07dc61faeb59f41e1a1362e5b2b503c9b8c6f36c7330bb7d2342c0a33b5a2",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrptnacw2zukss5j8csd0sajwg5wpks7af74cnhalu447gf45jv7qc5lqzg",
+                "sui_address": "0xfddf098caebaeee89af0b0b371415e50d58dc2c398537c40c02876a85c6b47f3"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqqxg3t0kyl3qq9em0rqw4sg74pfaeyl7xlnzyewlj5cmjhpsclwjv63unn",
+                "sui_address": "0xd7ff1341bd7d59b92553b748964cba3a81a9385ed7145285ac3bd745d920e2c2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzljugnfdrnp3nj5jhfwq943t98vf944gglezuh3564qf7c7c56mgzeq0au",
+                "sui_address": "0x3e4c357075998ca894f6cba3ca04bc06365403e198403c193660346519c228a4",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqf7n7m0jn4tlujzwj5avm6s5y9lskyuj55dwly0s7u9kfvqprl3w0zs858",
+                "sui_address": "0x10311910302521ab5c285317a7364f195be736bcea4d0afeedd6d80a3cef3459",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzhth4u3jdqznj8wyuw86amwpkumky4xvtwu4happslwu68xv33l256c8tc",
+                "sui_address": "0xa92ee82d281a27fb32e9b0251a6aba1ace4a06e5988e4bee7498045439e17378",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqfp9az7zel58twv8l3ar9lkg2g9uguqws63r9rsn2vlvll92pl9676l74z",
+                "sui_address": "0x5095ec46c000c8778aed5b27256db216f3385b8a622f6c6d9d6ac40b6df2a267",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrj35fj8fz2q2fxsyrm4hr53qyyr28nzm3gxxctt0ek784ms6tq3xhfk8k8",
+                "sui_address": "0xbac2ae79230d3ed32ad43e561e8c0721c9ec4cb18640213a9fefd9e1b1b1c82f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzg5mj4eg78eu3405x895sfn8yft78wr389qntlffseum3rm4sefyttp7jp",
+                "sui_address": "0xbaf46f06ba91c19f1fe2204e7e7cc1b48231cec91c4be4ff6ec8a944f026ccbb",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr0vwqf34sv0gqytm8c7msnhdravkpdpfejppdhqxv4xcum8d5gc7hpg3sw",
+                "sui_address": "0xe1d1ec48f0fb87350b044729ce6b9b158cd875b8257f95f31e985b449873f1b6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrtx2a5mfsh40nlkpxha5qzfhwx0wp044sv3y9ynqyajkz5900ufc35ajgs",
+                "sui_address": "0x81268070f6c369e3f35083c417c2aebf8421a87b680c704869a9c1cd065258b9",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xaa0c934ed6ab7bd8d0f075f28f3f8af22d3d3134da21e6851781d6002ebf8cf5",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzt00znpd827vxh9qlgd95v5ag6fuv68uywa4sl8y6m5xj857sqacfqw0mr"
+            },
+            {
+                "sui_address": "0x39975bb5ce3a22f5b6b2ac9e43b787ceaec4c84728400e939f5dddbbe323c903",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzfezuxkz678sndude4ul6qjlnwu9naf0r0kvez7rdnppypndl0rqmkq04p"
+            },
+            {
+                "secret_key": "suiprivkey1qpgtats8asdrcglxu6uf7uaq8x9esqghcxj70e6wqca9jfrqecwc5ctdj7g",
+                "sui_address": "0x753007cd632d27257d41f1da29a46df85631dd3462568b24bd23b586e484c0fc",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqppv6emdwdfcgdtp9w7wcnqgcn9uf5tdf763z8t0qne7rfffmgjcsvz35x",
+                "sui_address": "0x880ce3f535b40fbe6196fbb0090a862bc3c875b9a46ea9eacdc7918306df07e8",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqf5rjwtj7s7k6k94ce5dma00ea6k4s9av3r3zctf2ud0uqffk24g897y8p",
+                "sui_address": "0x70beabc574c7a1130474a9e8364b09bceef6cafff90e0c14da1c9ad71614a7f8"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq9ggxqcflk5af4zj97ywgkky4qhljesdw4tx5v48y5kud677xmnserxfly",
+                "sui_address": "0x2936ce3973a29892c1ade62c95f371877d8e074a5c27935b3c9bf392ddc8ff92",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqesxqaq889mw9ulrx8pkj8r5un78c9phkf3cr5ecc5ygkggqyjlg9htdzu",
+                "sui_address": "0xfff1285f5d24cc063af78a4c9f583ab1fd12b7d6a7f2a7210d79f5571f281631",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x6aea3d7bb8070c6402c174b90f349d1f4296e3b8be609d927bf69657f40f941e",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpl4vnu8hqddzze3vdgj5ya8fqy55ur4qycv46wc302k0j6t7qm77mc60gw"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp2xtszckjlc7rkpnwj7hr0859aa0g2s6j95kdjmaq9arxlzfjsujts22yx",
+                "sui_address": "0xc6ebcbb35ffc61699ebc3a0f2e046468b1e44817c6a0d8ff14fc23b361431c7e",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x94d48d9a255d6562f053bf2f056439f3ac654cb5962dc903c9964c74c79cfb45",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz96a2s0p6rp5mjsz9amyq9hquftylytkevqrrx2nznjluxcvl2ewfyq4ce"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzwkn85n6xhcun9mdnf0pwkssynus0886u6gc9ealss80g5aepusumxgyre",
+                "sui_address": "0x4d3db733f379e61d568892b5113730b021888f13f455f91c434fb151e385c7f4",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpdhe2cfnqcfpuzt3e77e30krszha5xs2ldt2ua8rzp0q2ldyxv4wlqedpd",
+                "sui_address": "0x3efb4626421d3c529d413851e85767198d51d98e99fbbb6794010576fdc4177d",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qphkyln037pgrnczw72rej7qar6s35xh23u8wzjraqfm5d93ucyf5ve3xgl",
+                "sui_address": "0x0a30f2a50f6077a9ea999e0fd6b1ba8a79d9d7759efc74936d0f92b5317c81fd",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0xc89f7c33a460dd6eeaeb57196611fdba2d326c871dc42e05f753ebf12b7b3047",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq35a2at3yvvwkm6dugk5cau20slss9x966tjgqcmvf3yu66ets7yjyalxh"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpymh5jr8m4ejt7dw3gya9qp5zh58d4x6fgr9g2mxj62patmjvxn7vqgh9c",
+                "sui_address": "0x0ca7e93ab14a6de1a2dd1e9b4f02845dabedc81659af68e0c6280c5888087dd8"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzknnecd4tp845npmy544ymxfh729c94e0v6z9khsnprzv4rfx4dv77dlhj",
+                "sui_address": "0x66c6ea7e31ae0fbc1b9270c5c6d4a9291bd25516b029987ab06ddf1d08476221",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzrfglkzs3zs62d25mc389x6jphnecwrg74ys59zf89fke2w3v5cqmj2a9u",
+                "sui_address": "0xd69b98e1ebd43745f6378c774b5e7bf7a2c63628da5885b6dfbe2228fa6705c8",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqmwu2gdyn7klvfag89q22zlpawhgs07nq6l7d2twqpncwfcmggrgqla54n",
+                "sui_address": "0xeae447e1a4415997c008a61940708a50b2b5170b58e9ac7fce6ed89244747ec9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz345g27p9hs5r9n2mw3hygqmn02jjj23prfwqveevz6hmdsact8vwdgqh3",
+                "sui_address": "0xbf163b3eb5c6785c36db460202109e81f0102b404c4a49af8fca62ab59736ef8",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq9qluccefrfqe879qxf3snrf5pm38y9x39satgjxl5hhtltcjs4vzkcqdq",
+                "sui_address": "0x615051a1077f02115fc98b66e1a6b66ec378a664c9d477596a2a81df31c05174"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr73j955cfrue53lcj9yqt7ncwflze77f25xtdglv805lzj8nxafkutvkuh",
+                "sui_address": "0x7685a3eceffb006dde2c5f41f50f6d7541734baa7879ef1946a2ecb0f4063013",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x30938545b574abc9205120afebf5e0020af45e108d7d57304d43b33ea48f51ff",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr0p2gvh736ne9zumr4eyt8z0ex4tn2plj36qyd6dyevhqun5hkm68hadjd"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz5e4j5vy8ul85sm220llgtf33p2cj2ttn3l7475vkzdx93z95rs7l47v4m",
+                "sui_address": "0xa50b7e9f9c82d7cf6bbe9ab822302c999ee0bfad19be4c81cda989480474f42b",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpv26clf9k4zepyay3655d9dzvlxe7uktlmy4ujna8wlqemzxx5xshp2356",
+                "sui_address": "0x6c3c12c54d5d7616d82ab9c30840a3e6455a3120fb445b7146d5eab68a9cc0a2"
+            },
+            {
+                "secret_key": "suiprivkey1qzcvmfnvwpcg3zmzlrafvc33hq5qzuxvl7qfhlyvh3lda8yhu73ty0geh4c",
+                "sui_address": "0x0b840752b8e519b4be73202060ce7f065e5b5a185737e249965972fc1e393c21",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzlst0wufcudwmt2ayy9kya7n55hn9vvgcs6qxa7q29ztkr5kc0hy6g9s89",
+                "sui_address": "0x0ed4805cdc198943f94ec00a39ff34230f00edf7866c5f9a77f2e8c1e909a150",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtrqv6mnhwpy2hpqfeyt9z9ptrhzcq57tw9v685ytff2qnajfxp5z4753g",
+                "sui_address": "0x03bba2988c20dfd065577be28b9a7714baeebdc44fe06a834d7ba56a7052996d",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqkyx0yywkjxuvdjcwl38wpuszwwc4vgaa4mlgsckvjvpqd6naer2lmds3t",
+                "sui_address": "0xaad9ee6d54fde2a69ad18d9ac85b41f2722ee63bdd7d45bdc3b39f1ee91875ed"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzpkp8k34jtj2hkm4hzd7m986kgug8jr3dtsh4fluy5x8mf0334xz6qzzpl",
+                "sui_address": "0x3f68fc4ff2957c339f24331c2ce8a2e574fd4a40adb068962428a967cac1bbf1"
+            },
+            {
+                "sui_address": "0x2dd0b059ef31b2f325b2185b664b7e7b0e65c6cb4c2af9983e7ff8de941529ea",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qru0hj00wwqhk7m5zzfjlgctlewxx2tl396w0ppuugcsrnfea888qy8nwgr"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq3c2rk04x7hcwg6nevqp7hsymdhm8ct27myhet7mp2l4f9g86zw6psw8zp",
+                "sui_address": "0x57e218978df56a5d1c17bf09ea143fcc72226d42a40ecc597305b14063cc9012",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrsj5j2rhqvwrlwaaex9ee9h8s2exv0mectgvud6ku0c4y0eu8k7kwcf922",
+                "sui_address": "0x10fa1ad26ded3b047fa41a154c5b6e7d09140776aaf0761fcd564cfe200d1019",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xd801a4b33ec5263d23fac58915942dfc0ad7605a6b1f33d5acfe02d747609561",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzknqvwxy9gg3pfyx50zxlaqpfnawzm3yajfaxuzhne3y2z5xxp8ul7pdxq"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqzn3z2fm7w4l0vggxg4rzn0tx9tkeknsr8rwhm8gcpv3ydx2jjewyysw38",
+                "sui_address": "0xe699deba8c2cc428650949e188738e8b4a9fd5ccc6e5989711d0564f5d31ee6a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrazcglkh5jjx0ht5ruj6xm5adz0uw6a7lpjnvvh47tsml87x97rw5wwl7j",
+                "sui_address": "0x5c7d75824ff37cfc1528e0ef39f2dc1f7fdcf3d099a793d1ec517c5bc9b092d2",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqzjqz79ttw4qsgwzw84jlffvwvnpqjjce35yen4twtqshtxvpmwzw64ug9",
+                "sui_address": "0xdf306629c6d6924d9871a1453f6367a68d034015b31791285d916a95a8a44b70",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr6uf94ptc9xvs4hq36e6j8vzekjnaeyt3udfttvkgqu7mqqe7cjc5mctpd",
+                "sui_address": "0x0424e51fb815f366703fe2630a42df98296b7da32921f87e8de633587940d47a",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x7de0975266bd26b7decd90693f17633b1ff9f91fd1a39108f5c8df70c5ab9a76",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrr26z84vcfyhrn82nf9y7vapn6rfhvl2ej4zludzgns8pl9cza5jc8guza"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr260064hulrd0mrkrr4l7pd2df80ct5wd6xh56hajvcjx64c2u3j5kp35p",
+                "sui_address": "0xb428203cc2749fbb566d659b13bd2f8228ef01479a17242b8a4c9a6ea4911246",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp67aj5cvnspw9akl04w37mlhna4sfulm5s4gj5ym9ztlvdvqwqd77f5e7y",
+                "sui_address": "0xda27afda916c0980f9058a90d31b35d71c87e44657a53b34856d40155f93cd05"
+            },
+            {
+                "sui_address": "0xdf0ce98bc8e4ca8e54427dd72d29e5497628543f5f7f558e2e6345e2d37256e5",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp5mpux4ka3n3rlw77myus0cstu0xetr7d4uyeng58uvtras046zgxvgny3"
+            },
+            {
+                "sui_address": "0x91c5ccc0f9f9cdc2f7caf39f3ddb8d04af3d2d4f39610322c4819a133e6da2f2",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqfh2ymwrmjv8gl4853pyyfej6vrlvn8wqcs0f5c34sh2fsp8cxku4y2y65"
+            },
+            {
+                "sui_address": "0x370f9b12cf99d3e2dea24d49979cea5daf052952760ba3c028d6e461c90e9e75",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz4ress6g5we8td6e6v4j80tlpanr33z5zupg7jg3r4ltcvfxxze6saftz3"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrnusg3rksqsuvekfcf8lx4mhgg9e3xzqmx443w4d2kycg7cmkv35htqta3",
+                "sui_address": "0x4fa8ab8203c84b00c44cb0cf1130350e91980d4481212f6a5f147a6963dbb88a",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xdabfc91ace91c11654701998349c3fb93a45a2b5211c7434b2e7c7e739ab5bed",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzqz5qc8lps9ejx7tqacpwr8ypz460sjvh3yexe4ewv37rzsym65j5nnv4e"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz7cz8gs2t46t53z99gsefsp2r9zcgv29r2prls7764d9udps0mu6825gva",
+                "sui_address": "0x960594d8d7f82869ae4a0054b58437340328e159d5626bb4a3dd573ac4d1372b",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzx3e3jspkwut64awse98h8cx8ncs26e9jm54ds9w2hcj5zaza2cwudlxaq",
+                "sui_address": "0x40d5786b8f54273f0ceaa81bd62b7b417bbd705513ad62e23113a2d386d5f002"
+            },
+            {
+                "secret_key": "suiprivkey1qr8wenarzpqzqlx655lhxmzc3f58ulwtdcj0lhgzkqnw3lyhcwp72negshv",
+                "sui_address": "0xa33ab99b09412de8190623c9ad5241f5d48df9269ebebd4d1350f9f0f1ce9d55",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qplvdv4tu33c7h04u46sxh0evr9zzpc840z6kpc02efpvgs852p05k4vrft",
+                "sui_address": "0x9cf1ed94265837287910aae28ca06976f48ae23954bb39917fc3f8bb293ac699",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq8dqd09erp5uye7ulc8nrn08cs2u5j4jft8pd2q42cnrcghn8g9yq35rcr",
+                "sui_address": "0x819ddd1ae7039634ad0a7d3d0aac730129d0df43ec1360e1ee0e76e3b116420a",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x95c8a07be303c7af7837bb98c35b5668901e3172c9d6f5028afafeee420838b0",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzc2pctadfm24jykuwvted70t8f72zlvd0qveec8n2fkuhzfm4t9z8mzujp"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpnpf2fvs9s8xtdpz2060w4umr2xl4l66tlw2v33dzjlf4fdreqmunnu2u3",
+                "sui_address": "0x17141c7cb96d3e91bbad63c5cf5db91e9eb0f480e4ee407b3af7f52480c40df5",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xb83a499016691bcd41de82b7e2a6ce712cd01788910ffe6bf5917fa881037638",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrpa3n745mxjp8907eqpmqafcf22thxjamhqmafjnjm224syxk4zs7h42qw"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpfzzaqtjn0f7npsqe0pj42hnyy3j69nh74e0vrmjh3e0pxsaqtccg0fep2",
+                "sui_address": "0x7eac01f6322738830251f5ccd8c7c79803dd779ea99daf9c865f71996a5051c9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrf8xky03g6ljqz2twvuucleznaxhad6x5tla06gs8h8e5q39tmd2l2qqmr",
+                "sui_address": "0xfab653392af16aed35b29cf0dfd93c735d03bf57f1f083b6c41d96d170677103",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpcrtqz6cp3fqqmg8r7dxdjl3cjc338sz6ekmxj5clnh9ym42m667l38zsd",
+                "sui_address": "0xf41c21b5e131a6667fee684ffed0ddbd93aca7ac66946304b8ab273ac14042c0",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrrk0fs6d7xq9mpdfd3ktwl67jrpvrgn3qamnsk0kxfr4ca75e3eqxsju7e",
+                "sui_address": "0xdade054fad9db6bc454a57b74657d571d9dc686fcd52aa15ed4fccc0183f12e8",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqahrqzvjvwjlz6xyzjpvn8t3hxcx2vdxtlztwzfz274erm5clf8c658ylf",
+                "sui_address": "0xdd317ad822e25c70d9092e93e9dfbb1afcdd316289ab92c5dc2d9d6210f576e3",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqe7vwpxeflvsqte8e6hrzhu67gqd0flwg4uqgt0ncxkrd77sn8w7hlz5q4",
+                "sui_address": "0x15adf619ddce26a0a8c12ef5616d4eca790d89dc8a05528fd0dd838a2a85d709",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz6m2ea945r0t6ca2zdt4u7tse6c38ljpcqhv2z74h4r05ud82nfkxn5unc",
+                "sui_address": "0xfcdfe431b2b868535a1c3c54810456b3b4f31c8d962f966b1c2adf8e7be89540"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqf07kx3jka2k4uaxc7dtcdd0na5h4zpp3yuwqra6su7mlpemdg25wd7duj",
+                "sui_address": "0x974983078773a90df3b38f88aca5c487741b2dde9c86d1cdfaa61ed65ab26c39",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqg4w5vmcq5ju7f9jvzdljm9sslryulg3l69hervhs6jtj3e3ehtx2dsjag",
+                "sui_address": "0x8e3a85eae2da3f047e368c511e5ec1b60ed4cd080d5d2f41f1319a26cb2b57a5",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrstpn2cdau0pnwl88kssjexufc28vwjukxwd6zkxd5rk7pnhahwknce3yj",
+                "sui_address": "0x1c0e041e95776c5d4033e69cdd24f949346b812497e00d79b9b93d78b30bb716",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrj4pp4kahnkan8udscy5yyu252pv705ekrl56r974cm2t6hrgav2z5x6mt",
+                "sui_address": "0xbcc341c82198382fa2734dbdd8761c85fb07f9a4d5d5fa9bc47f6089ca52127f",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr63g4xp37anh9lt8urcqjxrx5srtjt8crv3fdxw44f32uxs4lmxk54g4p9",
+                "sui_address": "0xf93633f09efdb5d98fdb8e6d5bed2fed19135f8f036f60dad0eb4e5e247ed8cc",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr7ew99h5uy5a7laauc8sq52cfldu0jljlazum9nvejuf78vam2cvz859yl",
+                "sui_address": "0xf81d77ae6208f78c35dfe0b4fa2105a5b88d5520f09d24f067e53687ac0edc00",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpfqz9e24hhr2juwu5yavh5ch0qwla9g8ual3y2cjnyqw72ryayqwyfj3qq",
+                "sui_address": "0xf399c7c7a0aeaac993f017f5d510ece2ae9278326780bb5988c72f270e45ee08",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtuzx2yrfep9c7mdld52wwx7svza7f3a48x5nhfp0qdmrxucvq2620nyc4",
+                "sui_address": "0x909c14258ee8e48c6aad30e4619ad2e601aa77b83c5fcf065b584ecc3379682d",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzv2djrehzdtg9fwdf20qlntec7qv5zx0gra725pu5e7t83nypmqqzzh504",
+                "sui_address": "0x497f0ab9d46b8548daa5dc720c02f5dc249266b48fdbc8575069fc6f9a87fcaf",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzkwfly66ac6z8x5fx9kps49pkhapupsfsry6prskluu6vuxs0z7yy9y8cn",
+                "sui_address": "0x9240a89e6ed4b6e1561137e9a8a28b4f7daf96f98ea44f4438248ddfc60aeca6",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqyepf4avhf4vwpnmcazvzhky9gjfhylpy0juyjkd98qqxdgf4apw0nr490",
+                "sui_address": "0x7ce8e39006db5b89defedb98ab3a575ebfa9563d5aff5016eec1128873bf05d0",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzs39j6c2uw8cvph7m3a4scc5knax7ngcfk0cwl32chyej8dwznpy245gpz",
+                "sui_address": "0xcb4c67b47cc076e83693118f4f1fbcd4db013c8fb2923e8fe5450ce61a6ae22b"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqrv8ptakdakcx7t3gwc7u27ejl9e6zek0rhzt3y0pprxr96m4qsxfvckqm",
+                "sui_address": "0xda65a5dad408a606040fc6b30f6a42c6764016d31efe2308f1a579bb5a29c828"
+            },
+            {
+                "sui_address": "0x80fb7b0087ccab008f51022f35031b5cc5564500cc5d37b055fbe25b06c2ba79",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp0chgd5vxrg043fzmawuncy44j56czja8l2zdy0ujee6f23y9uhychmt5g"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpv7fqtd6nssuhwpj2cqgpahwzywhughawx59826p06v5x8rs3wq5p4fet3",
+                "sui_address": "0x08abde46c1fb3f92dc95e07951e0c1bc3b087260811a7aa635fddb18cc07bfd9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrqvtdvry7dwcqcfalywlqud47p6nfjg63x0wmfyhk0yl8q4se0ysefsvwh",
+                "sui_address": "0xa22a5ca63b2e99887ec5d77fe87e7624e92d6ed35c25418d2d18fce9dd5766c4",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqts4wwmnzz8rrg9maly4kqgxva82qds37gr2mhas47wnvs97lx4jm63r26",
+                "sui_address": "0x295e0d73d4003ba6784f7560aa4088d7193d5873516fbabc7d1240cf7cb23cb9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpkr3cz268f8mnxc2h2ugc3k82rrz9wdmkr80za2xerpdjujmwh3kvdx9hl",
+                "sui_address": "0xe75f6e4ae24e53a1d20e0d05d7ae8457914923914c545e8cee811c0454b93493",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr8n7dwnl4eea9l073k3s5vqk2x38y45272jw2lyumgj9yatascdkae67w4",
+                "sui_address": "0x7f9a193568c71ae1cda2704f8c3373551a22434c1f162ec3b38ecccae00efbe9"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpv8k0xpkcttl00q285k644adr5kjr87vhpvqadvure5tlpee39962m0zyq",
+                "sui_address": "0xa1ac8341cf8c48599d960d25a5a5d570e75de52b1877df133cc337f55619da50",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzxvjpv9gn0y77njhyagpfuh8wuzqf203yaf6eklrxv29lzlpd29ve8yhw2",
+                "sui_address": "0x49d945b9fcfe01190fe67916daa3875eee758bc29c3947ddb66d3200dc18c6e3",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrst62et88pnp8rjkrs254k4pdfrh8v090fxl5u65j748k5fxtgkqlawz8l",
+                "sui_address": "0x0d74d294498eaecaf3d3f0b01031fb7f431673e3539e643c771cdac85b43ac92",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqu5p2krqa2udms8slxlh6wlhevqdd9wxqqp6qurlet4vnvsdcy9zsadqre",
+                "sui_address": "0xa511d7f2ce939f4e0c9dd8f39a016ad8dbf874f048693a33798bfb7b2385d198",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpxcrdzdn9t802w52396nk4ke7pdctdkxzm2mafuf95cdaarh5hlq9d34z8",
+                "sui_address": "0xef0fbf83f88567b2a98e7a3e66d53cf8f4cc40c631eac208629b144b70111655"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq6k7nn8z095rjxn2m08sujtkhhfstce752hwqda0eadnuhfcat750vktvz",
+                "sui_address": "0x223cd43cbcc20001974eadd37f1a306dd8dc3eaa75f46569190699de9778e451",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzgfvlha7lvxcurcxk9v65rtuh47jdle02xgz0kg09ud24ek9ya3gjdy458",
+                "sui_address": "0xb033112f818fbb101660d35346608767d900bb3575610522932f77e006a45ede",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzw2d5vgmaxmua8qla0cr8ytq5uws384nv2tzdw6duvqaw4yrx5hwrq2jv2",
+                "sui_address": "0xf40858d154a9d4ca7061f61d841b119739a803068ba92d36810fad760e561c01",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzt8des2aavsckfjdpgd5ep083raknycpehut9dcs0dgnzzqs0ngv984d2a",
+                "sui_address": "0xb5b6448d9c24d72433d2d0717c01ffdb197871c615dc44e183f281f1f05a39ab",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr2f3vnm5rtad7xtextgvegw80qm5dk56x4mjltl42ak8n8vpeu85twsl6s",
+                "sui_address": "0x3a71bebb83daf1936e2154a2a9d21d7e7ecabb741c455134360912320a61dcb3",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqfaqvzr6tea98h633ymft4w9chnes2yxrfa5l4v8uhn84tnnzux64dfqp3",
+                "sui_address": "0xcd5879990ef0189791de1ee3b96863622fb9703c5406ab20accca9b3910c5996",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzryv2wdp0u9uaeg9kjafau2g9sqqep4hfe49x950xrrnsvgprhh55gjjwv",
+                "sui_address": "0x02752753eea139cac9e1844cdac36c9ec1899f7f2109f77ddf55120121dd6c5b",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr9aeryjxkzta5yjgrv5qcpa9038mlpm8d43pg6px6nmm2sg0mwxjxup5ad",
+                "sui_address": "0x019cf4e6c71037c37d5c5421cabab22eaccff873f321994118762ec57b937fdb"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrmghm3ueh8css5ds76k637jykefswk6yzvz7h0er42wevgvhu4t6p0asfl",
+                "sui_address": "0xc293dab9834cf12062c5e9c3b6dc8d2e90098e4764b7a4088ae73b5156947d27",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrwfrhyntum994ya2n5we3ws0f8a5m42la6we83j4cw0h0xzqg83qt6rqv8",
+                "sui_address": "0x17c6ce1f73600e65218d560253dd282681d48e6f124b707a018b96ac479d35df",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qprnlj4emmkx7tj293prnq2wtdvf9dy5rdpwzrj8vu5ecxhry7rny4p3nym",
+                "sui_address": "0x13229c7d1c83459c1ccb582468de906dc3819df78a61921c86ebf6d32299c707",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqlumvlpecsdudc39sqju8u2zkf86ewf08ray2vrq60de5t7j432kxmmkaw",
+                "sui_address": "0x39e0065fe0965b38031a4719f9559a7a3bcd37980aa46220ea585fed11aa0db8",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfuxgpag0llnf55pekdcsk77mz878aaa5hsg6nq5yvv4wp0c0tlq6dhjf5",
+                "sui_address": "0xcbfdd5cad56c14e4c6f71f70faf21b742cb1db58b25e9a6ef81c08b8449385b6",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x0ccec3d2a821c71912cee3b9c82c963b86a6d937f9a158baa0eb83c6c5f05e7d",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzsyg7da30unms06vwz0x8h6mw2xhncwjwhe7v73ve9wef7hukz2jlztc94"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrmmyc57pdp7ey8sqw885r0j25dyk0pxj8j3eyul6c4pdr95qj3cgne7dv6",
+                "sui_address": "0x272c8a8055de72bcf3cd605c50a8826359058be62aa4939cc82c45bee66cae88",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xd811cb21749ecffd311cd9828bc80177041152dcb99cc36530d3b0da8781308d",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp2pddftmdleudz9ehdn3kxsn2g584dyumrwlgjsu20ap8l6x9hyu576p6m"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp84jc236rmswqq9qd8ak5wtxllt3304uxqnq4xrc5hvsayv0c4fz4xg0cf",
+                "sui_address": "0xfd85d07503fae9f56117c7a8db2b3798851fa14f11ab9ff504d2ccc3bce1698b",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x47203273e8a5d20939209c118ab3a677cd47531427658b55062a5b5f53696af0",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq86gppp9d8zrquw3zljm6y2zwqtgn4l2tfkr8jchs9q57n2d780u57nz2s"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz5wd023klnxdh69lunsnysfv04aq04jx6sxzjgxjvhsg6y6nzs2xqcsvgx",
+                "sui_address": "0x524a02745a122c1d9bd3ddadcd415d91192aaf2553c227828bd224cf13ab4398",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz5g877nzvk7ntk84t4z54aah7d959z76m487rxvvjqa3qalm6352hcyzl9",
+                "sui_address": "0x74f278570ebe06d21626aef773df5255aad761dcb775a08ef24fb3a45abdc5f2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr07m46p98qh5ma25ejrge2yyjzyqlnehpyvsculjsxu4qkkvk6mv5ces5q",
+                "sui_address": "0xbb6fe45d611bfed622d9298f7df3fbc02c14e9b5d39f09977f78e1eb66d7c5ca",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrkwly8nlmuu7n7suk73gg6yrnq4cejx308ksmw99l6ydgwf86reywwzvfl",
+                "sui_address": "0x46e8f4ef077dac7ddc3d1557eb2b07144c4b2e253e641d40140f681539a2a018",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrwd92qgqvn27wp2v4jztz2z93dy0zg4jcc4m6ex326qmdxqq6aju23urp0",
+                "sui_address": "0xb9d182708f56a61e4797f1ba890cb17e78ef31498f3488ecd981e84b7476f9d7",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp590c2cydagen4qzn7pz4nzpwhaw7jghy6uvsft6anwczv8uf7twk25734",
+                "sui_address": "0xc860a17c37684ac1e6dc6a89950ef85b31714d5e8b7ca76558e079b00070db67",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qpzg46u6pdfr2dmr9m9efht93vkhlvk5exlpn7xj4kejd003zrknylzjslv",
+                "sui_address": "0xc4588a3e89da3701239926ed23e7494270120415161f4c6117e4463c5310a5e1",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqudhu54g6tyege6hquru2lpmjr2elwpp9d0fpm34hfqg7tjmg7dut3d9p7",
+                "sui_address": "0xdd09f54ac2aea6693bba40209e9279507370698f80a603162ce207da51a6c57b",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x25c9b437c2569432cea3abbe16a5bb3a1c31b7149efb92a6ac50bdb0431a9f17",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp7mlkpurdyyuwnnsnzefjv9rsks4590w5g2enww30709cyl9tva2gyvalm"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzeazr6vfxhefw0l32899luxlz52av3nfxtd33w2zghxfuaxu3ftgrxy8az",
+                "sui_address": "0x2ecc505b87f4d17b4ffb2f1011023b3cd90e5f60567b2a0297ae14e89b0c05bf",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qq355mf4n5j0j8ze7sut4taq90q7trz95qzcwytkumtm9rppsaays4388m8",
+                "sui_address": "0xd86b2a657c3745e3fb94f745a80727a4894c68df5b0fcce6b01066c94c473a6b",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz6mheg6kud9666u6va5t0cvgfyqcqfm6wlc5avw4998ts8460qq2r6s8yx",
+                "sui_address": "0x874e43b04ebe777247a725b18cd08f2d264cb93ae9438ac265c11c8d14f9cfd9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqrk5cqlfhl320fpq8qfk424m3jt75g5cfr2kn0ktum34egkf5ctvypc7pf",
+                "sui_address": "0xb5c998c63488487784e96f52a5ad0f297b2a6e21981efbfc6eaf5c5aac932adc",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrgfxm8yj64mme7e5jdyzlv9kjhs2m73tqgwujc6936ahfgdcwxpwcah7qw",
+                "sui_address": "0x0857546a8c4daac305b80caffb6050546866c0e43b131af710c8b9b69d5e80e1",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpuwju9vykv43jvq8dz8nyfx22nlth3m4z8defhz67t37aug2y5ek8vgxq5",
+                "sui_address": "0xf7e4bd4229dadb7e3f793b524d06cb59c63f08f92053a9a3a6d04f39d5384e72",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qq0tg4l7t335ppxqa2fvvzzjpls3lh3wzfvqk244frl90j420mnfu9vk8xd",
+                "sui_address": "0xfd1f279fb2256d1406f344eade63bbfe804930e4e60fcfe565d2fa6eeefb5a97",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "secret_key": "suiprivkey1qpzsuc8xqlhmjc9cgtz5zcpy477yquljtqzsm4m8ry7r5mzgwcp75wgyghn",
+                "sui_address": "0x0acecc0363150b36fda9628d836562937211808a1f7c172940ff449a8b72adb5",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzhdzfxu2034jnr45dk5e5fxeddalqs7mghhhzk9f5jlngsgtj6jzapslvz",
+                "sui_address": "0x02463dd4e3157a2d55e0389c61fbbaf6f3b5c4579c3fa0377035c582be33905f",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr630jyj6y6lt53sj27pfrhq2jkaadlkp26dldn85n5g6asnw79u78d8ksn",
+                "sui_address": "0xd05611409550fc4ddf772a31f9625990a3965965de81ac3bf51aed98b4514904"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrekkzmsceyg66xuwppj7sdthsmxu5x3txv48tlel3s7weg6j6dpg89f4d3",
+                "sui_address": "0xdccb4755a4b9e59b0393eba0c245f6fadbec621450c2c22735d7894515b6cb12",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrnt0dmgftkt9788urg6yxm7u5r8e64dkemmg7e8puexlsjexkqvuvy23lr",
+                "sui_address": "0x373fdc4193195aec0aca20bb4ad066005a4d642b797fde37eca3e794fc135aae"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzk7ucmkl623fml367gsl37gwn5ktlx8mejgvznhdmxy9udsd02zj4q5jys",
+                "sui_address": "0x1602ee8bf69e89eef5a95f48adac463b56865692e06a59331aa4e1c50e37b5d0",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtyk7u8glp7wfysqer5cmqw6v77uwnpszhu2k4ld8zcex2sp3zswfrpdkh",
+                "sui_address": "0x04de8d248f7211663245d797293167bf60a541925100d18037398e3bdc57ed13",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqs4vuw6hfxz38htt78q0d209k9a9fk78ksrdfz2rw3wl8xd3hl3kkdczez",
+                "sui_address": "0x84028a6f42c3f34ed653e7f2b1bfeb13da4ea9cf7e2519b87d3ae1a07dfd38af"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp33uald2ypzj05jctn3j88m4ascxk7pk75k7xulmqmfk0qc2sk5gpw0wvr",
+                "sui_address": "0x9aee49fc0ec9a621bbfa5a80d734bb98ba25568a5f5496e95b3d27a236d8734a"
+            },
+            {
+                "sui_address": "0x0d84d8eecf6e2404b532f59c47a986fe1bef409f75783483e737a6cfdf6aca33",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpxf234c2w0x5hfnqjzj9hw9s3va9p900e4mpmjc852rdvvhceutqkmmx3u"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpw895zapxl5529thql99z4yrc8849vncyz0xd6rjm6g9dp3ltmfzrnyacs",
+                "sui_address": "0x5cf1c0decc22f49cb85bf6db7659017ef594a4467a36d6e70a49d653900f933a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpyvc8tuny5g0t8l6nuhnu49q38kt37rqw3haf9h9txezlvuw0jkkacss3n",
+                "sui_address": "0xa04dd1875213a89dc26a73cb42ec83fe3ab76d68de582a5cb67033175fa58c90",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqlnd3v7m8rrkd20ckh0vku4rn8pq34z4at2p9v7arhsx5a60zagqug0t8f",
+                "sui_address": "0x3c9fe150328b9cb5d49ecf43bc42e56a14886c6bd79da730a9d8af5b08ddc540",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzmgytjpwg7qjkwke4qaszqtk8dy5wl5sz4grasjp7snvc84vzkevnalhdq",
+                "sui_address": "0xe58abc25ea724d3de6dbc039f6a09e2976f21df436d81d239c0e1a0a3ba46d41"
+            },
+            {
+                "sui_address": "0x63bb49b09798c1d7a5c6fb56b49b20dbf46474cbe05478b44b93e07ab76f8209",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrha8v25mt28hh3y59v67fkm0nj0dazjc6n53g4tzd0wk4zznlglg7tyhmu"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qplf8eq6c5h0ynq8e55lpdvxqdlc8zt4jfhhv63s3639j9zxa5n4kyqa68q",
+                "sui_address": "0x411ad9f5096d2791827db3b8b2956be4cb52801183d6776e5ad5404d71db72e9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrpkqaql8rpdfhh59jt0jx7929hrrwdefxa24p79t5wsg2cs94llvjcjrw8",
+                "sui_address": "0xc2f48772442e31aa9cc20bc8ea21204c43c82ea614f441c31b1eb144e775a9e0",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz3kl8ez2dp5ewavt99nqf5c366a3jfr62msaevx6tdytc666x276uv3yet",
+                "sui_address": "0x93993e75b13fd132dd0d5ed0d515ab1a0b65f0d91c4f5c85fb04412de8b8e50f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzt54re0cvad93knpth6xz7hkj7cp7yk7y99nx75e09s95cdl5zwk5tdvhd",
+                "sui_address": "0x3a32adfaa775239193fc8344e3a8bf5aca62a4630ab76cf2484bf87e822766fe",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x0136138bd9983f163d5f3acfc97da6037f92c3272bf755f5ab9f55618bea858b",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpd38a7mrmz6ylxv2w3ykqsuwpgj8cg48skhdpakq4v45574yywm2eq64ye"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqenfanjszgpnftarwraftwt25wwqet0z2h3a5usq0u6uffecsa3jm07t95",
+                "sui_address": "0xceb3380f429b2f6406192dc3786395c7c088074cee5d03bd18136607acbbf221",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqrrzas6l2cm0xc35hj60v2uzyf6nvsm9249l6g4ex5k6vcgzmtk6fsymgu",
+                "sui_address": "0x8bd907a20e20ea7d4d0cdecfe5f8752640196b9ed2c403cb7af2b3da7bd4521b",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x510c36bb1168ac25182e0a24a97e3745467bcfe8254c45355458ade4b780c8e1",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqhwfstqlw6nvh2fdywxrfj25kmah4vnndvqwm5qrd2muk5y8q32z4d5688"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpx0lj96dr72p6h8jsmv6d7y5nqdlry65l3xyacr6q5q6rk8mz6hcxyn35q",
+                "sui_address": "0x2aa0f5f73b4338f60397dc00c7bbd642c7e09ed409e06f56c3e175fcadb689d4",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xc1f18cc083be22e4636abf698e5a3086feb72011b54d5433435c089990a8d82d",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqjn5rr5s6qhhksl95e5k56eedwhfjgyhw002aqwuytd3pcwgkx22s3qpme"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpkmg0vhea9xfxh0jve5xk89gu8jx67wul3zlr5lnurfsxemfj9uwma4vjc",
+                "sui_address": "0x46988e9d5cbee00a238d7f86970abfd3362e387482d0ac23fc3ca8471abc282e",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpp4yqvypglkaug4yjrny89wzv455n73kg6mtdqs83m70umfj7jqjxcd37n",
+                "sui_address": "0xda9499d963a57db5ea47f911faeefabb7b4e650ceabd5805331a538f53571211",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzrftz2nk8kk4uxpzydtu7r7h24jyenr4qfl5e0m68sycp0svsxguwx4yae",
+                "sui_address": "0xdb5df1a892c254fc8b80764f27e8da3d676662093baf0648b8d94c39c1d820b2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqmu0wqt3tzawgrygwfmh0jsm6066suwafawpsc2cpw3csjgp07yjv3cz5t",
+                "sui_address": "0x5a34a159972cb6f5616111b3b7ab4eb585ca92ef2e7206ca6625e610f5e7d64f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqyrjra4qmcdyyqm62pwsnt8uqsz9jnh6y75vjca7aamtq04r0utswvmlhh",
+                "sui_address": "0x5d5030211cbfa13e0d9a7a0d7c43d8e1b614d081b0d8f220e9ac35c24a0259fc",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq3kvmpzsdt46xz9vklrwq3hajftxvs00c330ges4r5yjl7gnrhmzza8y5j",
+                "sui_address": "0x051507fa62e9afc85810b3e3dab5525f783c8e8b1f7c28902dafcfb2e801e034",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq0jmy0el0cyt7mm9lfu06d3use2fcammfnx9xmc9gtqqt8q5a5cq2dd9uz",
+                "sui_address": "0x9c4912a519f8aaa2982e8cd743590c71e20fff3f0fcbcac885cc59ee18026ea4"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpaquax4dt2ey0939c623tc2dzedee2dhk9xyxsz23zaph3frr3vgjc4lnw",
+                "sui_address": "0xbd818278e309e339228f76df8a470edfd59eb25eb581e287105e01a2f90cab4a",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xe936f5cb1d2775164383648158ff27a6253863f9fc0c345bfb76def5f829364c",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp0h5wyeh99yvfsum2gpr0zgwhj50ws57f6crddc78tsrxfq7mjrzj05g5z"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qql06d3ku8julygny99zhmrgxll0zmtpnwqw7rluv98mkwkhxunf2sukhth",
+                "sui_address": "0xd0aac133cbd3aa895cd3d7d273021bdf4a65c0855f362334edcbcb6936ac37c9"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqc7x3qy83stn9hrhjhu8wdeszkphu7kklwjk6jtnp55re72yhj8vkjmzxr",
+                "sui_address": "0x3eb4798237988afe2d395b5247245af57efcf4436237949bdcf8b4e1e99f1c1d",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpn27aregxm6jgqn8fwp0hgz6qshllsqvrcap430dkwtgcnx5thwc05h33l",
+                "sui_address": "0xd81ac3bde93625b849bb16d70f7bb1eef0b17c0616e6e9dd7bf9444139b18451",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrr4ejyqw77kveptcwlqhq8mcyxc27vdx5p2w4s46277feunq62sku6xs4a",
+                "sui_address": "0x60956829d40d3ef29d3653366cbed16e2ba5bf5e0b176c722fe7c1973a8db665",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp747v4v0d7ucax3zywq6x786aj2v3vvr7cy4njtyeu8cljd7g2m5sy78de",
+                "sui_address": "0xe1807675f49eacfc3fb5e8462f169e18f585f2b87801bc6611a7018bfbed9b9c",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x8b0ee5a1c27cf12cf342848461d266c3dd22ff4af70d09bb775521a8fa0566f3",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqsv7rxxzadfm3fxfgx72q6r4dtrdd70mr4exavm5xml7tgkdw8sxft42k5"
+            },
+            {
+                "secret_key": "suiprivkey1qz04884rq9h6qgpzefdr796yd9g2a3wg73lcpwxq9sfw90fcxpst7ejg3v2",
+                "sui_address": "0x507d1aa3896f2c4365c10b13ae442e37662d27958dfd7575b6840864648c9504",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzf5gq92kquw2m9mj7d5jdsyf5424sh6zv63ttkckth7lltx4ahgcvwyxca",
+                "sui_address": "0xa4ce816a84ab21f5ee3f9e22bb68b326529fd59d2919a37585d53f17451ea897",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x846942fa069a8713021c3f7fbd1de56711c3f8c3003932bf6be9c01a7797d552",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz7njfs0lpnhgdtharszj2hnraxze8crjpdaefa2qmeax7u4f8ywvzsdjrf"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzfc2rvdywpkke8hyehepteuusffym2aqa03exrw0y9cnag67qpequ2psr6",
+                "sui_address": "0x25fd378a3a0abaae831931d8a19da2baacbff49f070acf4e8c04293df4075e15"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpfld5uy077mltwhpuvzyl4nv32ww8ewu3lje06rvdmm3akqkgcjquheh6p",
+                "sui_address": "0xb73491d8b551d72da32864601dcf5c3e5d67af1bb86d9131ad20a1371e914c6a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpggtzrltm4ndgejrq5058f9s5xc7d7m4sxtllhun948qdw3yvnawak2r53",
+                "sui_address": "0x7865f6cce50dd0f5243e95a2021baec9915bf5bf426f7a90a3501df47a28dfcd",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qps2nmcls4anj3wzh4zfey9emj9590wtc3eck6hnwx7n6ttk32cuuve3jjx",
+                "sui_address": "0xb9602cce33d7ad031ca251ddd5fd3807bfa3874ed48662e7dc22b084960c1384",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qztm0dgzsmjthvhcuzf808uhcmmlr22zwqgt2l46582hyx5ld5cywmmxnle",
+                "sui_address": "0xa4788720d1aa4b43217a5fffd272cf346e3dc38f1aa6d7d9f1ebaaed8e99cb08",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqxedal2cgcu5nyd7aedczlkvdsw86kjagtrup4x4al4klpv2hd0kuvx92a",
+                "sui_address": "0x3086b9ada1c921a676756b8f1ff0770647043347060cddf43a3a67eb042398c5",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq4n65mu24nv5gute0f3758uv7pfjtzre3twsz0qn6vv6z67t5mdse3x20z",
+                "sui_address": "0x8d68afa5cc0bc0e5df5992d88f356b5d02873e254f9ac7b404ebe6a9ae8418e8",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz0avzqeem7ju5vrnrtmjvhwhxav0d9ckq468xdn4cap6e928eg7yflsrcm",
+                "sui_address": "0x2f546a5cc41165b05fc24f2a345d31a86b6e4cdc9ff80244b53c2be3c306357d",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq0cqay6ujfel49zhvumzlyv4tqdlf4qvucqtr5kc46x39fkp3m3z0hnyuv",
+                "sui_address": "0xccba838a19221e8e48dbbdc851ca85071405745cc9c955e7ea1d0a73b5150ece",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfrm0eyz0y939an47ak4z9q6a7dzrmsdfqggagt3uhu6yfw7y2gwpls6g0",
+                "sui_address": "0xa85801c9b261d7e616f832ee0708740133b49771718f69bfff7e8ec29d8fcaaf",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qrsd2jaee3v36nt0q2rnfwp9l3dtpsfkafsmh9ntpqy7rt884wd8zche675",
+                "sui_address": "0xd5348133345043fbe6903984efc1b369999aa1701989b2bbd4be1c635ccab19b",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzky2yacgd6fvxmwp7xdyfvvwgq9ahkphde97ngdd06cn2xjy3gu6g2pu30",
+                "sui_address": "0x3960ff8507e70f5546519d5062d4c4a0c347d079a96ce8c5c21b1a3b24a48621",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpvt64e8pz4vakf7wvyetvgmpvq7tspkt6kecd0qqks8wrwa8ay3g0zhez9",
+                "sui_address": "0xc564b7e458412bf83f0a12c6ee488f454cfe9d42807480f2fedde76ce335cee2",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x91912dc786aeed429d54a64dd7e911cf6257edc68beef7ac03366aa615199d6e",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq6m2yz3slk39v4p7n566n6uv3fnu254psdat9c5q4cpemvp27kvucxx8xe"
+            },
+            {
+                "sui_address": "0xc39eb6f0c1f36d8d9ef3eaf66283237105c2f5d064d7948fad25557517f95e4e",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq8gqul2vw48jn8dut22nhxstpyv93nndgdx45axu4088hf37klcy49pvxa"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr3gzmwmp260uf9q0eyzxcg909j9kh8gjpsajl9lrudzqxccc2tf2s72ymf",
+                "sui_address": "0x6156bf3e35b09f95e1d8bb55b2e25aa9f01f292ff1da307ac33124cad481945f",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzyf6n7eushk0qkxlx5qla9vxzcu6rgukj3r966k3728j5xut2m6cvcwl5j",
+                "sui_address": "0x3164448e4710e79c2f6ce48588e78a2b76bab791f1b75aaeebd73902a3490a61",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq0nn6euxesem6lelxyt0vpxmtvvnfqpxx09rfkk8y3n9n7a7r6k7azcq2v",
+                "sui_address": "0x152bc8df3bedd05f268595f0efdcfe9b51fb536c0eba4d9bf84ab3284a4f0e23"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr690mdxmclnt9zx5alnxpmdtkjr3zqvea69s9j3q7ymfdshauq36kx24hk",
+                "sui_address": "0x081a070184489d2e5ac3d97e80226daee91483ee72b25fd94b76b370dc2fafe7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqad9pkrnyu6mxk2au2tsqyy492hhanhmlmgwdraqq0xhacew6j9u7jeqkp",
+                "sui_address": "0xf97156977d68d0aa0e41c24e7b9f3f5b23aefe69101f38a4a41b87f799cbedc9",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x10052c4092abf1dd4015258a5b370bed93db4ddd1a20a6ef927e76bd29079181",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrg6plw77lnwxcnqdenyphlwfkrt2x0jt9lrlh2hl0g8y7gm7x0s66lalkp"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqu097hzlvmj4m9jue62dm6h8alyuk9yjeatgj5jx8an35cqxx45zqtwhnr",
+                "sui_address": "0x53d97e482a2ac2c60c7cbe635046da7d65dea194b458919e8ed5a90c85959639",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpg4jfqxyavvhaq7rxdrm2k4zlq0tqu0xyjkrwcxfee8682fg2rkxh6c8fy",
+                "sui_address": "0x2db95e2a8749bd9a9ef1e2d4e3f7dc5dcbb7037abf6bb0c6620bacd3fe7b4456",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq58k6hv336geft8mpwg0h0pka2s5darasdq5fyjw7lwdh8h7e4dkrd4fhh",
+                "sui_address": "0xeba0b1f24b8c9323fad6f9abfc5ceb8bfb488a8ad85a17ccd2a54c7b4d1d0779",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpllgquw8tq76y7cj77anewu9rm3lggxgz3uwttz56xu3al4z0rawvqh83l",
+                "sui_address": "0xc3aca380e0ba7fc1afc2e4529079b839208a8e692d7ea755845d3dd90911d691",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qznee0xerdq8j4e6dnluyn0vz7ftzh4ekuxrpacngwh09lweyj4eg9dmukm",
+                "sui_address": "0x98d50ad1c53029705a75c7ad501917cf6be2f500c8103e003be87b0890b6b111",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzpktjfv73376upawx0l7lnecdklpcmr959m5g9zkaudxuzypxa66qmaxhx",
+                "sui_address": "0xc503fd4c75655bbc0a66031b72190d2d67b534dd5d1aea739e07d5848de122c1",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzxm6m45gfz9kg2dfrlq27g8gjqu35edk2gq600mmls04utedn5xze9s4zm",
+                "sui_address": "0xb452bf06e4065d4e2d48dbc7e3918e4ff66d222ff99c21e93ae3ea64ded19e48"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp99graynrp644r4zulfacvx2hjwvwxwr6h9n23vdehdgxxpjv0kvzalmrt",
+                "sui_address": "0x2fccfd689bb82c4cc19e488bbb1d5ca5b9154ea249a5fabe8278106ddfe54a06",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x39ffb33e2da641e3820d73c4d441cf3e2ff42b7be9b7d1f2c0c4bf580651327a",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz0fcynxy96hpc72ky9ejvnecr7xylhuypdv7ne2rrpmzrslr8zc7tzaydt"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qramvsachjx85mr9az0spjwpasmzg76p8uvd2mc939n7q5gk7q0f746fy73",
+                "sui_address": "0x2f5861ee52acffdf5a500b38b446a587afbdd753fc20a23f29cdb0ce1b5f7d5e",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrazex728rq4u3xzz2a8yynd4w8anvwtekt5l86r4372ze7qqumxwx2frkt",
+                "sui_address": "0x16bc0a7f750b8cf374fa9d4091feaa862e62438dcda17c23bff90db5ed7e68bc",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtm0r3rza3gexwku59qgxgxhstsprv5wrpv8lu6p8z95zhw2weeclr784e",
+                "sui_address": "0x772e960f8325c7ac68e717e8fadb14c09a0c745dc36b5d1b5e38cdb1ce385f9e",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x5a896bf9893d800558514c1fcc2cf45681862d55ba4d31a91be334cbe2dc4f49",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqvjvyxm9f5em5mn68lgay9g8rrx3f76kca82l28a3kx344swp396k3puv8"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqwg0vwt98kmwns7md3qdrqzkq5du27lfm4a4mf8sg5rvwkujjr8ku3z8dz",
+                "sui_address": "0xe02f6c72f5f6a09d01e8fb9f96392dbe0d0ce741dc9f2b2b04d312d2ccfbe21d",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrfpcx2eny5xjerpwawaxvt4fpgytllqgszunqptw8v9ke9gsffmksg5nlc",
+                "sui_address": "0xd1679651a93b61c8c40d7d1718df75cc5343b2e125d367b8315a2b2506e5277d",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qpa7v5rrv8dqspx0w54d090g2hsdvt297lz2q9yqleem6d6g76k3jlr29h5",
+                "sui_address": "0xd84236e1e7883d146c7a696f64afbfc0896cde66965abaa2abc4915ea9cdfd11",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq7dl2snn84q5t6rpmvgsv0xsuw69v4npg6uweq0jx586sku7gxzx3vnyy8",
+                "sui_address": "0xf18cc5679c0081c34dd4d7c99ab26fd72c657921c88e6630d6c8d25e35f94d26",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x4bd75f30cfd502f2925f0b92bfb0fd50a82d542c6ceda15b595b300952b95719",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqv4vcswujha2c73ye30gvpsqh8as3s8s464xdhzs8f0rh72gussgeh2w9n"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp9s5mq5zdrpkgtdjvfs4udjrppam6ula8e9hu2qwv7ujme37tscw8mm0dx",
+                "sui_address": "0xde3990209d1b52553e97a7a1bd38f5199265e18193033d0889529e664418ee91",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x50e4346c9e5e5c46fcd4f17885796a3e86cceb4d7fcfd9507976bc94fe306767",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrlmmxyy5ujfpyq47f57ggm2ha66mxsdkpp42xn8kygurv8ank3c5jgqjf0"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz86ll86ltj3g4ghtcv49l6u57ffhcp0233n5wy0mqmspc87cm7pzvp6f9e",
+                "sui_address": "0xb293739590a2ab1c35160aa7b959b8f55a851cc86858e23bcc7bbdef8eadf646",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzvc9593nynkxatl79e7n43leaze8xhgcpfx3ux2x3py9h8eukhu5w3uyq3",
+                "sui_address": "0x3372f7b2194f8197e18a4d4c9bb6a5f3b19854e7d5abe15dfa3772ce6b84a3df",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrp9p0480qfmdzlnldpk2r8j0n0qr74sg7y9hpvhjascd87f9ggfxqc4tcs",
+                "sui_address": "0x71b7b29da256f014f581022eadf840110842d8ad67371383e5c20ca2ba99406b",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xab916f32557808376a7640ac6a735484d1f34146643a82fbbfdaca183aec2569",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp58t6rmpv5aq2jwgdyswt74c39t3e3z4ftpnm4rgwy82xhh0tamg5kcd5v"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzrjkhz7yje56dzhrwjv0fy38t0xcg9d2ktnp4w0m7xhhkvandyyscxca9j",
+                "sui_address": "0xfd6e1e69519d16bf53634e3f7fbb2fd9ae86316dd223e898df4ea74c48c81c78"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz7junnc4ksdxgu7jwrkmafgtp9c3y2xvneskmkgv03f69swe4m6jmjzpa2",
+                "sui_address": "0x7493770e33e80941ce450943f581485f1128a7440c4606fb48466162955bcf4a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzc0rjpvfhnrecztmljp7msqeuv2t93re5n22rpdmu396nwfkrh4jsd3m28",
+                "sui_address": "0xe8e8ad4ed67a85d331ed35838b68296b412563358402622821f5e27ee6d2e7f4",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqk063eqxfyrvhx6ynsnqqkryqn5h5p6fjpssgj2dstyrrtpgsr9xwqllpx",
+                "sui_address": "0xb4e185138f788da302d48e6740f2a6367f5dec1edf635629e45ee5120b1cf5ac",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qza02f8p4fwc7742n2uqd4gskkggfwednn66d54medhugx37t96vss62sku",
+                "sui_address": "0x7e7e13246858dc1c104ef245237ea461355356b95af86be98cfa514138b20333",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x37b655ef79ec57ab6132c87acc8896ddbb57cb7a332e78ab3e7b0b693071f4cb",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr2dy2sjshuj8xdz3klpfemp3g83w3hxmuteaxhzluqe9mlug940jjael0m"
+            },
+            {
+                "secret_key": "suiprivkey1qpu6xzryryrpvajmq4t00fd0unnn0zwwjte33x0jql2wu33j9fq5qgk7eqh",
+                "sui_address": "0xddc470ab5b7f3dda5fe0e672151685ba6c8fd4a651fd55fee69e8c4f5e8d56f5",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz26syn6qy2qjz3tjsluwd89a2vnt6r2vytmu6k3j4y8uq0rrey6xem7c9f",
+                "sui_address": "0xb07dd04b564239bb7aecbee04ceff41c8068539b771edfbfa05aa5d62b44ba08"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr8psgf5hed4c2fs5vz7mp6kphd2gd7svhkx2na4ppy8zljf96ywgdxjctk",
+                "sui_address": "0x55f755d49f764fa0024d944c68d5e9c2561e083d3a4e3959f3a1e4850a7251a1",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qzp6h79dqs7emlc584vylquryllle3m2hdkg59hvc4nvs2540qnh5cs6d6g",
+                "sui_address": "0xc64f75240618ffe3e0659b80e1ca47ed8a63d9ba7252e0495847acdd21bdd069",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz95llkw6jsquqcj47uw5xu6tevrtfdmc0caju65wa5366m5s8tywda38u4",
+                "sui_address": "0x57bcf1bd0e4556165b5eef27dc8b9ae0eafdbc667434450d5d3ee52f6b7c5feb",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzqk73prxfg9j5zlyr8xqnw24whll2jaer58kwnfekk2pcwasqvryr4a94q",
+                "sui_address": "0x1a2194197c7a4d75a3667567be551f5f2bfd1bc3dd744ea26b33522f705017e6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrursagjlzflgk3czy4875l36vdax0pj6mrz2cykgx2x387m5mpgvjmpsn0",
+                "sui_address": "0x0db8b8571dd7e05df87687855b70b47228d5450f59d037e573023bcf9047abf2",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqwe2lm7lp2d5czhhdps956ewlav909nwfkkzyve7slmh3zj4ang7e2r3ep",
+                "sui_address": "0x5a1af02c54e9915117697eb51de9abdb128634d655d70255a32f23f4291acf1a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqj7gzg5ccy4gkwl0a95m72kqq5nytqp77pka7l20swdfdky8qr3qcnrjjk",
+                "sui_address": "0x62febe5b31fd3f6a9494941a143dd3d33c8705f225314955a00600e5b350c4f9",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr8f46tx3k4nulsyhrw9c94cyw97g9cmq76ra4e3x5rqyu50qsde7j722e4",
+                "sui_address": "0x5639bd041880ede772f702d7c179d3f7b0b587a07b642f6a9fbec9e7346c7cab",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrr79jky4fm9utk958ur383n8nwwy5natc4gmvdxdtedqse289hhk63ppjk",
+                "sui_address": "0xe6e8f283db32fe365e004d35c2a315a3a0e0ae320f03f3292478f6e2dc4804e6"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzg4g7pftfcj768t3fsud23lq8ad77u8supy9hk5qazd5e0kt7cfs4ymjmq",
+                "sui_address": "0x3871f10fe951f7bb8cead35576833be8efe1de03d59962174e96dccb6e011fa9"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qre4f8mnjhs772v6gd9dzaltdkkrwk2qp8suggqmwlzsx3h62nmazld0ya8",
+                "sui_address": "0x5667e98babe11aae0bfa2f80dd8b1a1d24ffb6381d579b9d14bf441cd645f034"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzf9hvayngcldln2c0ren2r9d8wcshdl0ann8l0kdzwcqwhytcazu7ft7ld",
+                "sui_address": "0x4def884e3cab112fb8a6687bef8f63b951917a678a4724f09cd8f1521004e61f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr5vpd5y8yvhr89p34pghn6whkjtcfm9aet6d6ejmshuy9qrp8clwveygry",
+                "sui_address": "0x7315f93e748c874da09af375bf83e21c1eeb8a97234b4b674aac61b0586fa1b9",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqs89547au7ppk4z86yw4qem3dmly2m9gcmzcwn3scn3uph8x2ttgkp8dpe",
+                "sui_address": "0xe962c79d2603d6add89e4161692ab61f43cad6711c203ee46bf4f078275b8e73",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqtzexvc4kfrcqcljwfrgku6fser7gnvpq7tpag0lg525yq0u3yxyjf4fe2",
+                "sui_address": "0xd00f3de3c02dc576b1b1343726cc0a25989df48feab8edc1250660da2e8bc163"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqzsq3kprqlxgryvy53grlad8709k8f8zw2cdy2xyn9cy7w3nn7f5vy4rfk",
+                "sui_address": "0x7eccea4ec9234558d9826d58efb4c5980901fd50722a122ec9785dffca5f35c3",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzfxfuncevg6qc6sa8vn4nzfc0jll7wfhlxd43gynx7rkqra7klqzwh7fyp",
+                "sui_address": "0x18dfa46034e75fc030a288ae6e7564d1c5cc4c5c724d263898f29b6683a905b0",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqcfj5ymdlm9teu5lsvtk7qma8c8lz8c9l7zmz5qrvc5uy2qsle8ycctjlk",
+                "sui_address": "0x484533218d1095586c2c1e2b4f0276e974702a89bd4310458522844737a6f16d",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzmx96udn30pp9jkn7pljpqyyj3d78wdee8lk7gnhhqjy720ukwvvvzj30g",
+                "sui_address": "0x4e3cfa49135fb59e7b572becbfd2dc97ae458c38917a1d645227fcd76813ec9c"
+            },
+            {
+                "sui_address": "0xe468bb391ef574a0090c16106a54816debef23a50b5d2a0b35c8e410809fb371",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzegcqhl7jwul3ux2cjp6z65976expwjzjw9p8e3533ragjm5lulznt5cp3"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpaq6s66yhqz3x7qsptfh5k4pmjtqekjah93q7ndxz4vqfrsg2cj642z960",
+                "sui_address": "0x8b6eee64cd6082c6e88f03374d52f1ca0e876dba557785293f0642580926722a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzwhwhl9cd2vlnzgtgapnzdvkmtxfpfmk4gcgkdpgmhw35m4r68rzfxahd4",
+                "sui_address": "0xddcab842773d5c9cd7f8718efbbeb71c216434c6db4304115b74137ea626b55b",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq6fud2h8cg9058ys0n3nshgyutpk5rcyw3dwczspk4hc8xm5tutwt2s5f2",
+                "sui_address": "0xc2e10336813c6144c1f6936a7e36a2c4c90e98c733c8a10c66f364e8332d42e1"
+            },
+            {
+                "secret_key": "suiprivkey1qrspxg7sc3tzvqqptn9adlas9u537fl5an2ldk00d86mewd82r0ky6n69ve",
+                "sui_address": "0xb73d226e7d4ee3119d557d73b50f2e361c63f1e0135b4ac160ff4e27a8b3936f",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz227nrmxvfv7g4zucgr6dj0ke6xw9edfzquacg5nfyylrznqx5dq32cchq",
+                "sui_address": "0xa52b2edc8d99a486538432162ac37cfdc85bcac319a85a7ad35e89344df849f9"
+            },
+            {
+                "secret_key": "suiprivkey1qz0p0gmn6xlqyc9appswucwsy3jgxtq2kj47m6rakavv5c366pwhj8auy4p",
+                "sui_address": "0xe1a799b8e33045c20ec066cc40971b44e615a791a5e43f88defef185a2ee4c16",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qza7phshcxeswdnckkvu6kgqslc25jlxv5h5xdau8sj9hsduq623v2uezph",
+                "sui_address": "0x0b6e7127d19c9c57d7c1c72ca8198d19257e8d0d1eef41fa54bcba1ef8947423",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrah3n7llvaf7wnj85d2hha25hwwr5s68saxve239kru0hfwwtzcyuh4hk7",
+                "sui_address": "0x10b0578fcf972eeaa0e22b355e941e4c1516f14ab84bdfcfc611e610990b014f",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xefaf57b86896e251de069488cacba5d057d594ffdddacf4385b8ab61fd0366b7",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq87tqv5ae27r4tyxsh583mk8zcp3jj342zdeqdvu8qc5u7zfj3vjsrvxrs"
+            },
+            {
+                "sui_address": "0xa4ac830a1b485c49527a38506c31506f90975a9792124533a59d5d330f7bd189",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzztgt8yfwew29cvlnhypvhh8yv3vpl8n0l4gmsf39a3zm47nv5lxnv9v48"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrjfyu0trw8gy4ajkcy0sjgz6mnh44dhzl7dm6kfsa0zzhdr694t2rxj7fh",
+                "sui_address": "0xf0b0c89bbb7685dc7f461c82f2c0c8c981ddcd87d48d511896db64614b5e07f7"
+            },
+            {
+                "secret_key": "suiprivkey1qq20zsfu8dejujzj7z56n82cweq62yxjwf3yfr4adlfxa65fch2e5kljgcn",
+                "sui_address": "0x4d792c29fd0461f58fbbebb39d3342525e8c55ec26fb878694c8ba4d21466816",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpq9px35684wkdp2np0nx9p7mlfukead4n3cyl2dsx52c2gl2y50z3uqk38",
+                "sui_address": "0x38da1988cf81272f49924c35d6f5671dfd948c1a2f68a6427bc556530b6105f8",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr7w694pk4v8pp7fwqkkd5260zlmh04yn9698fwuad9mlwhn0qm8gxavupp",
+                "sui_address": "0x8eecc16206869ceeecfe57a9eff2e027cef6823d3bba503cc6183b63abe40c7b",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpatla9hjlt2asxzj3layk33w4pulfsz4p5g6wkzutzp3dapaancu5t5kxe",
+                "sui_address": "0x40b2a8170412371599293a607621cf4a605106f7d90a874f1dcd14a4f9f5d9a6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz0kh0ux3sry9lke0p7ufgvtx2jk4jqmxaw7l4s7fyj9pmlcy7e46z7eg80",
+                "sui_address": "0x5cbda2fb1159d6275aebdef95f27425f58bdd5023fa6929b9de6ab085d05a755",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp7tej9ckpytt35szlmcfkzn4g0tfx59xmkm3pjckc03spzdjqkzzsdz3w0",
+                "sui_address": "0xebfc9dd2b50914d1d9cb302e582bc18e6391bb0192310a397254c9f1aff1d540",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qqyl5gv3h8kmr440kyglf98dlmjpujg504ghmvcwxgykr5j45q3mglcydz4",
+                "sui_address": "0x9f97b6dcb89689917371d6d493fbf80c69a944d5ccd5cc3c146b677d1b423c0e",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpuel27x2qtgfyes7m755syz5g6j7rjmrsfvpr2pn0wnthwwadp6s38fnmz",
+                "sui_address": "0x1c08d2b77e097a1571575111233477afc8e9104aee84f4f3a5717970c59c009f",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzesm73480h23felxvpwt9m0n3qdxnjma0xarlqekqqe0zctzn8dcslhuh8",
+                "sui_address": "0x787f35fd1d3d1d6f8e17a75ff85b63d4dfef6bcd2dad60da880d9e04900b7217",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qq0p58qsxlv4esq0hj7jfrs6a70phx5asvhhy9zktelmpl59eu74gh37qhv",
+                "sui_address": "0xaf33683872f507f66ebafbd37eb3f3b87db8678d9a94a051a405d1cb19d79b26",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqlu2lnef8qtxrpwqm9tuvv7zg4wgwweh7x6dfkvjk4vznj77e0uvtheh7k",
+                "sui_address": "0x91342b76c01ee5036e9691f13bc6868e99d8cc1bab88a6b03bb55f627c1f007e",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq8xfgz7mttzrm3u3gu70d6428kc7068agd5xu90w62zcr8ser6qxfxxwve",
+                "sui_address": "0x72cdc6ed7541e25e60c160f2b0919cc79d1cb4506d6f69e78817867ff12aab6a",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qze0x7gcuyedfwsng23tzej4n5pkttzrmf0ftqfu75p0pju65ctq7h59jnj",
+                "sui_address": "0x3ebc15c74f20012e64e3a5a20bf8b0ddea38727028980caed92018b5656d9481",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz85qzwyygnkr4l9f7tln056wejys9mn28yxk2muxu753addwtw6zc42uht",
+                "sui_address": "0x87fde4c517583415670822108ce6942d23108605095dd3e5caf64a7ab7362b85",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qr2qpmvzt2259atea3qkruyq0xa7xdn6xttx337z0vu2kmp54qpv5tmrht4",
+                "sui_address": "0xd1f2ce3c18837b78fc926d876420e509b13704ded9f5cc487ad6bc391b476849"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpvupjt980d0yvgnt6r8qn3jj3c22p34af7ukn7smkrmefr3535duynagwx",
+                "sui_address": "0xafef09fbbcb0bf200286d8b3a2b0ba5f57540f878a569b1469d4ad54824a1c30",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qr0wl90chhn3gpy250dhhetxyf0ydmhwgxrveqzmkejvy7ukvv09v80kmcw",
+                "sui_address": "0x6444ccc7908daad60ba3057ab471fe7ca4eecd4089054d2a6cadc8d0bdda8819",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "secret_key": "suiprivkey1qqjl5zhunnqn4enck0s5wqkh8gkgxc9u455ntuythm47t8rumuv8wydn4yt",
+                "sui_address": "0x0a8e7fab49e7dbfe9ff0e4e9b92e222c3918915069c13e8ac0b2c09158abcea4",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "sui_address": "0x194a62f32ef977b5ba1275a61dbb98e3c3295872fbf9602cd19b10e0ba16e145",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz5fcqkfvlhyqh0lyym0fky7jzh4ypfjtrzuhp6h2gr4v8y8xt2724rah6e"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzh6q696q95sq3wj23x2dfj3c28y5hhf23nv3zd5qxq5l5l9sc5n2xtxuu3",
+                "sui_address": "0xee917c18d99f9eb19a5ee65c72704bc546c28465ec8cee50983e8d9194a48b57",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x142999bf245b04548b3911aa8c9d81079b03dc540fdbe7eb01db584337248891",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzmm5kehuzsmtg09y8nh8g4fa4tpvvadz374ssk7m39nk5nx3djjc3xsv7l"
+            },
+            {
+                "sui_address": "0xaddea8326d8e97802d36f565f1b8f75265238f11ec0aa4a172d5166658a01fe3",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq95jcm9l8wdhqkwdzkwfv34f4zgq60shh5sd6uwyp4yn5037smrsvp207r"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qram4gl5geexjzly96gvfw4mxanumnk00y4pefz46jnw4spv265cja40ell",
+                "sui_address": "0x46d5e958d932d1ea5672313c3fcdc480fb00f8f51bb1d5f3dff7980f83b8abe5",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp725k5puse24j2ar5lazvz8a7c6dqe4scqj3lfve5uwh7xmx8hezpeh0fq",
+                "sui_address": "0x9894fb2568022291344f8cf2f30d1ff1ce155a0e8add434b36127dfbf3743986",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrvjvsvj8smhzfgajqw7xtrjpkek7sxxfpc4zl5kpuxrrnsf3eaj5nsp2rm",
+                "sui_address": "0x5aedf46b2c74fc05a58f7968c1ebf6ab02b9d2f8e6189294cfa5eeba17330f39"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrapu4zwv0e378hst8ahqfuc28tdtlf32lkg34tw5lwqqandpsuxj7udh80",
+                "sui_address": "0x0ceeb9d6b66eb19c787f43d4fbedafe46efb11eb44cc3bd2402debb6fff23d0c",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqgkpe7sxuc0yrlyw7m8lrhcmp2ut7kjvc54zfc26h8mej8pm07gxen8qzd",
+                "sui_address": "0xcf45f0d3f002feda6b5ba80fd0242fc4bb19ebd2bda2fd25b6503c731b252e8b",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpvp7zzmhnm8nlj3sh48hfkjeln5hxg6s6tv6ajh25xds4pnpg5lsfzdy9k",
+                "sui_address": "0x10d92a7d0407b1d88fdc47573c818b6cb6aa4e9550cb942e29a82d72856f6a69",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qz32xq3dkepm9yzuj7wa7h0lh7jdly3hwlc79f4p9c2v8pyfc57mqw94dsr",
+                "sui_address": "0xab22be3f7ebf5b283935f899da32856fb0b976e97cff77b1f1f2746d1678d611",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzlxj08rg3x06lcw4gvgulzhzf5863sntueh2qtfaekava0d6n6zy2sn9gz",
+                "sui_address": "0xb5486883379fc512f4508156d216d34150c50a9c481072004a1cd403753524e7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qph2j2j09pyrczr9hf6d5wmlsjaulwzzpm6kvcc2lk9ehwcptx56zh0588d",
+                "sui_address": "0x041ebbf2230672768dc4617679c260d75c513d7c3e05410a956a7b6cc0a49886",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqzg0z5l0r2la0l6pkj5lwqgptf2wcs2alre328gc8mmefaj6dw2vx3ar3k",
+                "sui_address": "0x3e17d05311d08555fab702fadddcd698e08ebf573012efcf6d0a596b393307bc",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpanna2xpnlqyrgg8cnrgnug43kxctuq8g5v9skwkmv8zmuel5k7v6r4j02",
+                "sui_address": "0xd89d82965bb99f6769bd7b3baef32ff0eaabe35a86bf7dc1b3a1aef6de363200",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzmqf8uukzqg8d6jdpyd2627rahmvxt20sq68ks8gkkfxhqn4pd5vgckp7c",
+                "sui_address": "0xa3d5fc2ea3477943364986bbd6423cba035c77d04323cf905be0317e60c12717",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0xb24361e18acef447a35309eabb30bc59019a80ae6e3728350095b64660240dbc",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qpklwu68smk3cydmucs55amr4rcjjm9ktlz3uqkwm86dvndlht7f65jasmq"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp2dr8fwz68yexaptyw5ks7ulynwxuzhkkfdpa8w8u4xrwq987e7cz07zln",
+                "sui_address": "0x691964c09230d09a9dce383219bb23d50afc9a14b1d930007fb05ab5b94f528b"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrdht078r630ftvxa9ll67yklgty4xg7rw80prh56mmcqzuz29xw50vjw3a",
+                "sui_address": "0x3a71b2b6757e7f9e079f646be7e7d44dbaf6ef07445bf3e304b62a131d67e9e6",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzexjlpgpz99t99y7fljfyv9zx6axtk74p9v8y6493nd7a2cv44e5wrmeu5",
+                "sui_address": "0xe3f9146e52b3f7e0f6821a993adaa04f329b7117be68a49228669867a1831e53",
+                "user_variant": "passive"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrv36mgavc57rnlhfq82efxz6gademj9jyty58wd5hse0vfwwnply5m07av",
+                "sui_address": "0xa99dfd1674b1f48bfe9bd7be3bc3af7310d705926f30fda714fa6ffaedd6b376"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzlhvdj3rfres4dt48ld46xj6l9gwfjw4c5sk8y4cqt2saf37src5h6q8w5",
+                "sui_address": "0xd3d244e2ddca7743d4cac463e0fcf80e15b0a3ea27a1629175382d35b016542e",
+                "user_variant": "passive"
+            },
+            {
+                "secret_key": "suiprivkey1qz68zgplkgt2mfy87yrvnkauwprep7p4cyghk7cr0l8f5q5y7ga7gy7pt3q",
+                "sui_address": "0x257786a2addb1ff7777a71914b3658f77221406985a35070ab48531b856914d3",
+                "user_variant": "passive",
+                "is_funded": 0
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrcslnceud0xls8genmz3cj5cu656rxjxj335ezk4pfcw3803560vqrts8c",
+                "sui_address": "0x8ea817f59f3fba3bb778601712456298bbf1ffaf6230dab4d88024073814a279",
+                "user_variant": "passive"
+            },
+            {
+                "sui_address": "0x91e20e9bf241fa105cee9b4a542a7ff6e22c1a0759c2d81e4a6a4c11485f83ff",
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qzatty8mrznpe43040e6xfm4kuugmxvj3d66z52akth3z9mafwpkzkw8y2k"
+            },
+            {
+                "user_variant": "passive",
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq363rdcdfkk0j35s0y28wckrx8gk79l4xlwnnua6qywj4c7thzyyy4f5f2",
+                "sui_address": "0x66c456f1112ad214612884553740c95ffce35f8798e5ee774a4a608832d49783"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qp5aakrp8s5gnsx3u40de6sh8hk7tqwezjvha8m99s86gk2yvx3fz0wtppt",
+                "sui_address": "0xb9e20ef4d28c6b526f0eca10595daadca66299bb9c5cbb3ec2d8e5e93f0780ed",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qqhhzktdkhvpp03zk23cp4dfqzlyruu2etpf070qg4680nzxsemh5lnlzc6",
+                "sui_address": "0x23de977a993fcf9eda80cf6553adf1b2636bef78a78f3910cba80cc184d111f7",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qq675rhf0wa4h0z4f9sfeq8pjgfk5juhyhr3pfwxuhw3qzp94jflzgs5ue2",
+                "sui_address": "0xd57fd629b2487e7f4d61f0d456dc7ed4efbaf6f165c3aead2692ee2744135682",
+                "user_variant": "passive"
+            },
+            {
+                "is_funded": 0,
+                "secret_key": "suiprivkey1qrkcl8f0pzrgxfnpw46xnmcndlk3se07l6tq2mt3ccuxvsrj908autv8ecs",
+                "sui_address": "0x2608980a0e58b329d08bf3400ff5e80aa2bc1d6bfa637e47ffbee83fee27780d",
+                "user_variant": "passive"
+            }
+        ]
+    }
+}

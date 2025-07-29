@@ -1,0 +1,178 @@
+# Sui Messaging API Design
+
+## API Endpoints
+
+### Channel Management
+
+#### 1. Create Channel
+
+```
+POST /contract/channel
+```
+
+Creates a new channel with default settings.
+
+**Request Body:**
+
+```json
+{
+  "secret_key": "string",
+  "channel_name": "string",
+  "initial_members": ["address1", "address2"]
+}
+```
+
+#### 2. Fetch Channel Object
+
+```
+GET /contract/channel/:channel_id
+```
+
+Fetches a complete channel object with all metadata including the messages table ID.
+
+**Response:**
+
+```json
+{
+  "message": "Channel {channel_id} fetched successfully.",
+  "channel": {
+    "id": "string",
+    "version": "number",
+    "rolesTableId": "string",
+    "membersTableId": "string",
+    "messagesTableId": "string",
+    "messagesCount": "number",
+    "lastMessage": "Message | null",
+    "wrappedKek": "Uint8Array",
+    "kekVersion": "number",
+    "createdAtMs": "number",
+    "updatedAtMs": "number"
+  }
+}
+```
+
+### Channel Memberships
+
+#### 3. Fetch Basic Memberships
+
+```
+GET /contract/channel/memberships/:user_address?limit=10
+```
+
+Returns basic membership information (memberCapId and channelId).
+
+**Response:**
+
+```json
+{
+  "message": "Found {count} memberships for user {user_address}.",
+  "memberships": [
+    {
+      "memberCapId": "string",
+      "channelId": "string"
+    }
+  ]
+}
+```
+
+#### 4. Fetch Memberships with Metadata
+
+```
+GET /contract/channel/memberships/:user_address/with-metadata?limit=10
+```
+
+Returns memberships with full channel metadata, including the messages table ID for efficient polling.
+
+**Response:**
+
+```json
+{
+  "message": "Found {count} memberships with metadata for user {user_address}.",
+  "memberships": [
+    {
+      "memberCapId": "string",
+      "channelId": "string",
+      "channel": {
+        "id": "string",
+        "version": "number",
+        "rolesTableId": "string",
+        "membersTableId": "string",
+        "messagesTableId": "string",
+        "messagesCount": "number",
+        "lastMessage": "Message | null",
+        "wrappedKek": "Uint8Array",
+        "kekVersion": "number",
+        "createdAtMs": "number",
+        "updatedAtMs": "number"
+      }
+    }
+  ]
+}
+```
+
+### Message Operations
+
+#### 5. Send Message
+
+```
+POST /contract/channel/message
+```
+
+Sends a message to a channel.
+
+**Request Body:**
+
+```json
+{
+  "secret_key": "string",
+  "channel_id": "string",
+  "member_cap_id": "string",
+  "message": "string"
+}
+```
+
+#### 6. Fetch Messages by Channel ID
+
+```
+GET /contract/channel/:channel_id/messages?limit=10
+```
+
+Fetches messages for a channel (requires fetching channel object first).
+
+#### 7. Fetch Messages by Table ID (Polling)
+
+```
+GET /contract/messages/table/:table_id?limit=10
+```
+
+**Efficient polling endpoint** - fetches messages directly from the messages table ID.
+
+## Optimized Polling Strategy
+
+### Recommended Usage Pattern
+
+1. **Initial Load**: Use `/channel/memberships/:user_address/with-metadata` to get channel list with metadata
+2. **Channel Selection**: Store the `messagesTableId` from the channel object
+3. **Polling**: Use `/messages/table/:table_id` for efficient message polling
+
+### Performance Benefits
+
+- **Reduced Round Trips**: No need to fetch channel object before polling messages
+- **Cached Table IDs**: Store messages table IDs locally after initial fetch
+- **Efficient Polling**: Direct access to message table without channel object overhead
+
+## Error Handling
+
+All endpoints return consistent error responses:
+
+```json
+{
+  "error": "Error message description"
+}
+```
+
+Common HTTP status codes:
+
+- `400`: Bad Request (missing required fields)
+- `404`: Not Found (channel doesn't exist)
+- `500`: Internal Server Error
