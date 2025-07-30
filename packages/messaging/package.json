@@ -22,6 +22,7 @@
 	"scripts": {
 		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
 		"build": "node genversion.mjs && build-package",
+		"codegen": "sui-ts-codegen generate && pnpm lint:fix",
 		"codegen:version": "node genversion.mjs",
 		"vitest": "vitest",
 		"test": "pnpm test:typecheck && pnpm test:unit",
@@ -44,13 +45,14 @@
 	},
 	"homepage": "https://github.com/MystenLabs/<tbd>#readme",
 	"dependencies": {
-		"@mysten/bcs": "^1.6.4",
+		"@mysten/bcs": "^1.7.0",
 		"@mysten/build-scripts": "workspace:*",
-		"@mysten/sui": "^1.36.0",
-		"@mysten/sui-grpc": "^0.0.8",
+		"@mysten/sui": "^1.37.1",
+		"@mysten/sui-grpc": "^0.0.12",
 		"@protobuf-ts/grpcweb-transport": "^2.11.1"
 	},
 	"devDependencies": {
+		"@mysten/codegen": "^0.3.0",
 		"@protobuf-ts/plugin": "^2.11.1",
 		"@types/node": "^24.0.15",
 		"testcontainers": "^11.3.2",
