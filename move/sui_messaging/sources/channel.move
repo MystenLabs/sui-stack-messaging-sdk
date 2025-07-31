@@ -148,7 +148,7 @@ use fun df::remove as UID.remove;
 /// new() -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     let channel_uid = object::new(ctx);
     let mut channel = Channel {
         id: channel_uid,
@@ -170,9 +170,9 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, Member
 
     // TODO: should we make this a configurable option?
     // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
-    let creator_member_cap = channel.add_creator_to_members(&creator_cap, clock, ctx);
+    channel.add_creator_to_members(&creator_cap, clock, ctx);
 
-    (channel, creator_cap, creator_member_cap)
+    (channel, creator_cap)
 }
 
 // Builder pattern
@@ -461,7 +461,7 @@ fun add_creator_to_members(
     creator_cap: &CreatorCap,
     clock: &Clock,
     ctx: &mut TxContext,
-): MemberCap {
+) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     // Ensure the creator is also added as a Member
     let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
@@ -476,5 +476,5 @@ fun add_creator_to_members(
                 presense: Presense::Offline,
             },
         );
-    member_cap
+    transfer::transfer(member_cap, ctx.sender());
 }

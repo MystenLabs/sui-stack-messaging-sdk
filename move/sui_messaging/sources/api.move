@@ -94,7 +94,7 @@ entry fun create_default_channel(
         channel.with_initial_members(&creator_cap, &mut initial_members, clock, ctx);
     };
 
-    channel.share();
+    channel.share(&creator_cap);
     transfer::public_transfer(creator_cap, ctx.sender());
 }
 
@@ -103,7 +103,7 @@ entry fun create_default_channel(
 use sui::test_scenario::{Self as ts};
 
 #[test_only]
-use sui_messaging::{attachment, permissions::{Role}};
+use sui_messaging::{attachment, permissions::{Role}, channel::CreatorCap};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -172,14 +172,15 @@ fun test_new_with_defaults() {
             scenario.ctx(),
         );
 
+        channel.share(&creator_cap);
         transfer::public_transfer(creator_cap, sender_address);
-        channel.share();
     };
 
     // === Send message ===
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();
+        let creator_cap = scenario.take_from_sender<CreatorCap>();
         let member_cap = scenario.take_from_sender<MemberCap>();
         let ciphertext = b"Some text";
         let wrapped_dek = vector[0, 1, 0, 1];
@@ -211,8 +212,9 @@ fun test_new_with_defaults() {
         );
         std::debug::print(channel.messages().borrow(0));
 
+        channel.share(&creator_cap);
+        scenario.return_to_sender<CreatorCap>(creator_cap);
         scenario.return_to_sender<MemberCap>(member_cap);
-        channel.share();
     };
 
     clock::destroy_for_testing(clock);
