@@ -175,19 +175,22 @@ export function addWrappedKek(options: AddWrappedKekOptions) {
 }
 export interface ShareArguments {
     self: RawTransactionArgument<string>;
+    creatorCap: RawTransactionArgument<string>;
 }
 export interface ShareOptions {
     package?: string;
     arguments: ShareArguments | [
-        self: RawTransactionArgument<string>
+        self: RawTransactionArgument<string>,
+        creatorCap: RawTransactionArgument<string>
     ];
 }
 export function share(options: ShareOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
-        `${packageAddress}::channel::Channel`
+        `${packageAddress}::channel::Channel`,
+        `${packageAddress}::channel::CreatorCap`
     ] satisfies string[];
-    const parameterNames = ["self"];
+    const parameterNames = ["self", "creatorCap"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
