@@ -1,4 +1,4 @@
-import { Argument, Transaction } from '@mysten/sui/transactions';
+import { Transaction } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 
 import {
@@ -30,7 +30,6 @@ const addMessage = ({ arguments: { self, creatorCap, message } }: any): Command 
 		arguments: [self, creatorCap, message],
 	},
 });
-import type { NewOptions as NewChannelOptions } from './contracts/sui_messaging/channel';
 
 import {
 	ChannelMembershipsRequest,
