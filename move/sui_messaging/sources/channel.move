@@ -148,7 +148,7 @@ use fun df::remove as UID.remove;
 /// new() -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
     let channel_uid = object::new(ctx);
     let mut channel = Channel {
         id: channel_uid,
@@ -167,10 +167,12 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     // Mint CreatorCap
     let creator_cap_uid = object::new(ctx);
     let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
-    // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
-    channel.add_creator_to_members(&creator_cap, clock, ctx);
 
-    (channel, creator_cap)
+    // TODO: should we make this a configurable option?
+    // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
+    let creator_member_cap = channel.add_creator_to_members(&creator_cap, clock, ctx);
+
+    (channel, creator_cap, creator_member_cap)
 }
 
 // Builder pattern
@@ -197,17 +199,27 @@ public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped
     self.wrapped_kek = wrapped_kek;
 }
 
-public fun share(self: Channel) {
+public fun share(self: Channel, creator_cap: &CreatorCap) {
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     transfer::share_object(self);
 }
 
-// Should this overwrite the defaults?
 public fun with_initial_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
     roles: &mut VecMap<String, Role>,
 ) {
     assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+
+    // overwrite the default roles with the ones provided here
+    if (!self.roles.is_empty()) {
+        let mut default_roles = permissions::default_roles();
+        while (!default_roles.is_empty()) {
+            let (name, _) = default_roles.pop();
+            self.roles.remove(name);
+        };
+    };
+
     while (!roles.is_empty()) {
         let (role_name, role) = roles.pop();
         self.roles.add(role_name, role);
@@ -334,6 +346,11 @@ public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
 }
 
 // Setters
+
+// TODO: there is no protection against duplicate members
+// We are keeping track of MemberCap IDs, not addresses,
+// so even if we used a VecSet we would have an issue
+// Only solution I can think of is keeping track of addresses instead
 public(package) fun add_members_internal(
     self: &mut Channel,
     members: &mut VecMap<address, String>, // address -> role_name
@@ -444,7 +461,7 @@ fun add_creator_to_members(
     creator_cap: &CreatorCap,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): MemberCap {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     // Ensure the creator is also added as a Member
     let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
@@ -459,5 +476,5 @@ fun add_creator_to_members(
                 presense: Presense::Offline,
             },
         );
-    transfer::transfer(member_cap, ctx.sender());
+    member_cap
 }
