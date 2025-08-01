@@ -71,7 +71,7 @@ export function addMembers(options: AddMembersOptions) {
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
-        '0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, 0x0000000000000000000000000000000000000000000000000000000000000001::string::String>',
+        '0x0000000000000000000000000000000000000000000000000000000000000002::vec_set::VecSet<address>',
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
     ] satisfies string[];
     const parameterNames = ["self", "memberCap", "members", "clock"];
@@ -79,6 +79,35 @@ export function addMembers(options: AddMembersOptions) {
         package: packageAddress,
         module: 'api',
         function: 'add_members',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface AddMembersWithRolesArguments {
+    self: RawTransactionArgument<string>;
+    memberCap: RawTransactionArgument<string>;
+    members: RawTransactionArgument<string>;
+}
+export interface AddMembersWithRolesOptions {
+    package?: string;
+    arguments: AddMembersWithRolesArguments | [
+        self: RawTransactionArgument<string>,
+        memberCap: RawTransactionArgument<string>,
+        members: RawTransactionArgument<string>
+    ];
+}
+export function addMembersWithRoles(options: AddMembersWithRolesOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::Channel`,
+        `${packageAddress}::channel::MemberCap`,
+        '0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, 0x0000000000000000000000000000000000000000000000000000000000000001::string::String>',
+        '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
+    ] satisfies string[];
+    const parameterNames = ["self", "memberCap", "members", "clock"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'api',
+        function: 'add_members_with_roles',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }

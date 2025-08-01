@@ -226,17 +226,46 @@ export function withInitialRoles(options: WithInitialRolesOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface WithInitialMembersArguments {
+export interface WithInitialMembersWithRolesArguments {
     self: RawTransactionArgument<string>;
     creatorCap: RawTransactionArgument<string>;
     initialMembers: RawTransactionArgument<string>;
+}
+export interface WithInitialMembersWithRolesOptions {
+    package?: string;
+    arguments: WithInitialMembersWithRolesArguments | [
+        self: RawTransactionArgument<string>,
+        creatorCap: RawTransactionArgument<string>,
+        initialMembers: RawTransactionArgument<string>
+    ];
+}
+export function withInitialMembersWithRoles(options: WithInitialMembersWithRolesOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::Channel`,
+        `${packageAddress}::channel::CreatorCap`,
+        '0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, 0x0000000000000000000000000000000000000000000000000000000000000001::string::String>',
+        '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
+    ] satisfies string[];
+    const parameterNames = ["self", "creatorCap", "initialMembers", "clock"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'with_initial_members_with_roles',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface WithInitialMembersArguments {
+    self: RawTransactionArgument<string>;
+    creatorCap: RawTransactionArgument<string>;
+    initialMembers: RawTransactionArgument<string[]>;
 }
 export interface WithInitialMembersOptions {
     package?: string;
     arguments: WithInitialMembersArguments | [
         self: RawTransactionArgument<string>,
         creatorCap: RawTransactionArgument<string>,
-        initialMembers: RawTransactionArgument<string>
+        initialMembers: RawTransactionArgument<string[]>
     ];
 }
 export function withInitialMembers(options: WithInitialMembersOptions) {
@@ -244,7 +273,7 @@ export function withInitialMembers(options: WithInitialMembersOptions) {
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
-        '0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, 0x0000000000000000000000000000000000000000000000000000000000000001::string::String>',
+        'vector<address>',
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
     ] satisfies string[];
     const parameterNames = ["self", "creatorCap", "initialMembers", "clock"];

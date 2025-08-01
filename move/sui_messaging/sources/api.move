@@ -9,7 +9,8 @@ module sui_messaging::api;
 
 use std::string::String;
 use sui::clock::Clock;
-use sui::vec_map::{Self, VecMap};
+use sui::vec_map::VecMap;
+use sui::vec_set::VecSet;
 use sui_messaging::attachment::Attachment;
 use sui_messaging::channel::{Self, Channel, MemberCap};
 use sui_messaging::config::Config;
@@ -39,8 +40,19 @@ public fun send_message(
     channel::emit_message_sent(clock, ctx);
 }
 
-// TODO: use default/restricted role name, if not provided
 public fun add_members(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    members: VecSet<address>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_permission(member_cap, permissions::permission_add_member()));
+    self.add_members_with_default_role_internal(members, clock, ctx);
+}
+
+public fun add_members_with_roles(
     self: &mut Channel,
     member_cap: &MemberCap,
     members: &mut VecMap<address, String>, // address -> role_name
@@ -49,7 +61,7 @@ public fun add_members(
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     assert!(self.has_permission(member_cap, permissions::permission_add_member()));
-    self.add_members_internal(members, clock, ctx);
+    self.add_members_with_roles_internal(members, clock, ctx);
 }
 
 public fun remove_members(
@@ -71,9 +83,8 @@ public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Confi
     self.return_config(member_cap, config, promise);
 }
 
-// Helper for the k6 load tests, otherwise we have to
-// expose the transaction apis from the sui-go-sdk,
-// and write a js-go bridge, which will get us out of scope.
+// Helper for creating a default channel
+// TBD if we should keep this
 entry fun create_default_channel(
     initial_member_addresses: vector<address>,
     clock: &Clock,
@@ -87,11 +98,12 @@ entry fun create_default_channel(
     channel.with_defaults(&creator_cap);
 
     if (!initial_member_addresses.is_empty()) {
-        let mut initial_members = vec_map::from_keys_values(
-            initial_member_addresses,
-            initial_member_addresses.map!(|_addr| { b"Restricted".to_string() }),
+        channel.with_initial_members(
+            &creator_cap,
+            (initial_member_addresses),
+            clock,
+            ctx,
         );
-        channel.with_initial_members(&creator_cap, &mut initial_members, clock, ctx);
     };
 
     channel.share(&creator_cap);
@@ -103,7 +115,10 @@ entry fun create_default_channel(
 use sui::test_scenario::{Self as ts};
 
 #[test_only]
-use sui_messaging::{attachment, permissions::{Role}, channel::CreatorCap};
+use sui::vec_map;
+
+#[test_only]
+use sui_messaging::{attachment, channel::CreatorCap, permissions::{Role, restricted_role_name}};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -142,7 +157,6 @@ fun test_new_with_defaults() {
         std::debug::print(channel.roles());
 
         // === Set initial roles ===
-
         let mut initial_roles = vec_map::empty<String, Role>();
         initial_roles.insert(b"Admin".to_string(), permissions::new_role(permissions::all()));
 
@@ -152,14 +166,18 @@ fun test_new_with_defaults() {
 
         // === Set initial members ===
         let mut initial_members = vec_map::empty<address, String>();
-        initial_members.insert(recipient_address, b"Admin".to_string());
+        initial_members.insert(recipient_address, restricted_role_name());
 
-        channel.with_initial_members(&creator_cap, &mut initial_members, &clock, scenario.ctx());
+        channel.with_initial_members_with_roles(
+            &creator_cap,
+            &mut initial_members,
+            &clock,
+            scenario.ctx(),
+        );
 
         std::debug::print(channel.members());
 
         // === Set initial message ===
-
         let ciphertext = b"Some text";
         let wrapped_dek = vector[0, 1, 0, 1];
         let nonce = vector[9, 0, 9, 0];

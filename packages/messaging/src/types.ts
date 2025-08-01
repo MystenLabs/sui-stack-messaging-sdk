@@ -1,8 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Argument } from '@mysten/sui/transactions';
-
 import {
 	ClientWithExtensions,
 	Experimental_CoreClient,
@@ -21,5 +19,3 @@ export type MessagingCompatibleClient = ClientWithExtensions<{
 type MessagingOwnedObjects = Omit<Experimental_SuiClientTypes.GetOwnedObjectsOptions, 'type'>;
 
 export type ChannelMembershipsRequest = MessagingOwnedObjects;
-
-export type TransactionNestedResultArgument = Extract<Argument, { $kind: 'NestedResult' }>;

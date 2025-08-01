@@ -7,6 +7,7 @@ use sui::event::emit;
 use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
 use sui::vec_map::VecMap;
+use sui::vec_set::{Self, VecSet};
 use sui_messaging::admin;
 use sui_messaging::attachment::Attachment;
 use sui_messaging::config::{Self, Config};
@@ -226,7 +227,7 @@ public fun with_initial_roles(
     }
 }
 
-public fun with_initial_members(
+public fun with_initial_members_with_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
     initial_members: &mut VecMap<address, String>, // address -> role_name
@@ -234,7 +235,18 @@ public fun with_initial_members(
     ctx: &mut TxContext,
 ) {
     assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-    self.add_members_internal(initial_members, clock, ctx);
+    self.add_members_with_roles_internal(initial_members, clock, ctx);
+}
+
+public fun with_initial_members(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    initial_members: vector<address>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+    self.add_members_with_default_role_internal(vec_set::from_keys(initial_members), clock, ctx);
 }
 
 /// Attach a dynamic config object to the Channel.
@@ -351,7 +363,7 @@ public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
 // We are keeping track of MemberCap IDs, not addresses,
 // so even if we used a VecSet we would have an issue
 // Only solution I can think of is keeping track of addresses instead
-public(package) fun add_members_internal(
+public(package) fun add_members_with_roles_internal(
     self: &mut Channel,
     members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
@@ -375,6 +387,28 @@ public(package) fun add_members_internal(
             );
         transfer::transfer(member_cap, member_address)
     };
+}
+
+public(package) fun add_members_with_default_role_internal(
+    self: &mut Channel,
+    members: VecSet<address>,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    members.into_keys().do!(|member_address| {
+        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
+        self
+            .members
+            .add(
+                member_cap.id.to_inner(),
+                MemberInfo {
+                    role_name: permissions::restricted_role_name(),
+                    joined_at_ms: clock.timestamp_ms(),
+                    presense: Presense::Offline,
+                },
+            );
+        transfer::transfer(member_cap, member_address)
+    });
 }
 
 public(package) fun remove_members_internal(
