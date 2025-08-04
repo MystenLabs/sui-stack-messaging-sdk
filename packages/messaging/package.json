@@ -47,6 +47,7 @@
 	"dependencies": {
 		"@mysten/bcs": "^1.7.0",
 		"@mysten/build-scripts": "workspace:*",
+		"@mysten/seal": "^0.4.20",
 		"@mysten/sui": "^1.37.1",
 		"@mysten/sui-grpc": "^0.0.12",
 		"@protobuf-ts/grpcweb-transport": "^2.11.1"

@@ -1,4 +1,4 @@
-import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions';
+import { Transaction } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 import { bcs } from '@mysten/sui/bcs';
 
@@ -6,7 +6,6 @@ import {
 	_new as newChannel,
 	addWrappedKek,
 	withDefaults,
-	share as shareChannel,
 	withInitialMembers,
 	withInitialMessage,
 } from './contracts/sui_messaging/channel';
@@ -15,26 +14,32 @@ import {
 	ChannelMembershipsRequest,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
+	SendMessageOptions,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { CreateChannelBuilder, CreateChannelBuilderOptions } from './flows/createChannelBuilder';
+import { SealClient } from '@mysten/seal';
 
 export interface MessagingClientExtensionOptions {
 	packageConfig?: MessagingPackageConfig;
 	network?: 'mainnet' | 'testnet';
+	getSealClient: (client: MessagingCompatibleClient) => SealClient;
 }
 
 export interface MessagingClientOptions extends MessagingClientExtensionOptions {
 	suiClient: MessagingCompatibleClient;
+	sealClient: SealClient;
 }
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
+	#sealClient: SealClient;
 	#packageConfig: MessagingPackageConfig;
 
 	constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
+		this.#sealClient = options.sealClient;
 
 		if (options.network && !options.packageConfig) {
 			const network = options.network;
@@ -59,6 +64,7 @@ export class MessagingClient {
 			register: (client: MessagingCompatibleClient) => {
 				return new MessagingClient({
 					suiClient: client,
+					sealClient: options.getSealClient(client),
 					...options,
 				});
 			},
@@ -108,7 +114,7 @@ export class MessagingClient {
 			// Create a new channel
 			const [channel, creatorCap] = tx.add(newChannel());
 
-			// TODO: Use Seal to generate and wrap a KEK (Key Encryption Key)
+			// TODO: Use Seal to generate and wrap a KEK (Key Encryption Key
 
 			const wrappedKek = tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
 			tx.add(
@@ -202,6 +208,20 @@ export class MessagingClient {
 		}
 
 		return { digest, channelID };
+	}
+
+	sendMessageTransaction({
+		channelId,
+		memberCapId,
+		encryptedChannelKey,
+		messageText,
+		attachments,
+	}: SendMessageOptions) {
+		const textData = new TextEncoder().encode(messageText);
+		const textNonce = crypto.getRandomValues(new Uint8Array(5));
+		// TODO: proper encryption
+
+		// TODO: attachments
 	}
 
 	// ===== Private Methods =====
