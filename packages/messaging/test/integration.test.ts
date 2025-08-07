@@ -1,10 +1,10 @@
-import {beforeAll, describe, expect, it} from "vitest";
-import {MessagingCompatibleClient} from "../src/types";
-import {getFullnodeUrl, SuiClient} from "@mysten/sui/client";
-import {MessagingClient} from "../src/client";
-import {SuiGraphQLClient} from "@mysten/sui/graphql";
-import {SuiGrpcClient} from "@mysten/sui-grpc";
-import {GrpcWebFetchTransport} from "@protobuf-ts/grpcweb-transport";
+import { beforeAll, describe, expect, it } from 'vitest';
+import { MessagingCompatibleClient } from '../src/types';
+import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { MessagingClient } from '../src/client';
+import { SuiGraphQLClient } from '@mysten/sui/graphql';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 
 describe('Integration tests', () => {
   const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
@@ -15,20 +15,21 @@ describe('Integration tests', () => {
 
   beforeAll(async () => {
     // todo: setup docker-compose file with test containers instead of having to start thr containers manually
-    suiJsonRpcClient = new SuiClient({url: getFullnodeUrl('localnet')});
-    suiGraphQLClient = new SuiGraphQLClient({url: DEFAULT_GRAPHQL_URL});
+    suiJsonRpcClient = new SuiClient({ url: getFullnodeUrl('localnet') });
+    suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
     suiGrpcClient = new SuiGrpcClient({
       network: 'localnet',
-      transport: new GrpcWebFetchTransport({baseUrl: 'http://127.0.0.1:9000'})
+      transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
     });
   });
 
-  it('json rpc client extension', {timeout: 12000}, async () => {
+  it('json rpc client extension', { timeout: 12000 }, async () => {
     const client = suiJsonRpcClient.$extend(
       MessagingClient.experimental_asClientExtension({
         packageConfig: {
-          packageId: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172",
-          memberCapType: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
+          packageId: '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172',
+          memberCapType:
+            '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap',
         },
       }),
     );
@@ -39,7 +40,7 @@ describe('Integration tests', () => {
 
     while (hasNextPage) {
       const result = await client.messaging.fetchChannelMemberships({
-        address: "0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6",
+        address: '0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6',
         cursor,
         limit: 1,
       });
@@ -51,17 +52,18 @@ describe('Integration tests', () => {
     let expectedCount = 2;
 
     expect(data.length).toBe(expectedCount);
-    expect(data[0].id).toBe("0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47");
-    expect(data[1].id).toBe("0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f");
+    expect(data[0].id).toBe('0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47');
+    expect(data[1].id).toBe('0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f');
   });
 
   it('test: Fetch channel memberships - json rpc client', async () => {
     const client = new MessagingClient({
       suiClient: suiJsonRpcClient,
       packageConfig: {
-        packageId: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172",
-        memberCapType: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
-      }
+        packageId: '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172',
+        memberCapType:
+          '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap',
+      },
     });
     let hasNextPage = true;
     let cursor = null;
@@ -69,7 +71,7 @@ describe('Integration tests', () => {
 
     while (hasNextPage) {
       const result = await client.fetchChannelMemberships({
-        address: "0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6",
+        address: '0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6',
         cursor,
         limit: 1,
       });
@@ -81,8 +83,8 @@ describe('Integration tests', () => {
     let expectedCount = 2;
 
     expect(data.length).toBe(expectedCount);
-    expect(data[0].id).toBe("0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47");
-    expect(data[1].id).toBe("0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f");
+    expect(data[0].id).toBe('0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47');
+    expect(data[1].id).toBe('0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f');
   });
 
   // todo
