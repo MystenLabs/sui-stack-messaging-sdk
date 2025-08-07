@@ -1,0 +1,60 @@
+{
+  "mappings": [
+    {
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPattern": "/",
+        "headers": {
+          "Content-Type": {
+            "contains": "application/json"
+          }
+        },
+        "bodyPatterns": [
+          {
+            "matches": ".*suix_getOwnedObjects.*"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyFileName": "channel-memberships/get-channel-memberships-1-of-2.json",
+        "transformers": ["response-template"]
+      },
+      "scenarioName": "GetChannelMembershipsScenario",
+      "requiredScenarioState": "Started",
+      "newScenarioState": "FirstResponseServed"
+    },
+    {
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPattern": "/",
+        "headers": {
+          "Content-Type": {
+            "contains": "application/json"
+          }
+        },
+        "bodyPatterns": [
+          {
+            "matches": ".*suix_getOwnedObjects.*"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "bodyFileName": "channel-memberships/get-channel-memberships-2-of-2.json",
+        "transformers": ["response-template"]
+      },
+      "scenarioName": "GetChannelMembershipsScenario",
+      "requiredScenarioState": "FirstResponseServed",
+      "newScenarioState": "Started"
+    }
+  ]
+}
