@@ -80,13 +80,12 @@ export class MessagingClient {
    * ```
    * const flow = client.createChannelBuilder(signer);
    * const createChannelTx = flow
-   * 								.init()
-   * 								.addEncryptedKey()
-   * 								.withDefaults()
-   * 								.withInitialMembers()
-   * 								.withInitialMessage()
-   * 								.build()
-   *
+   *                        .init()
+   *                        .addEncryptedKey()
+   *                        .withDefaults()
+   *                        .withInitialMembers()
+   *                        .withInitialMessage()
+   *                        .build()
    * ```
    *
    * @returns CreateChannelBuilder
@@ -179,7 +178,7 @@ export class MessagingClient {
       .build();
   }
 
-  async executeCreateChanneltransaction({
+  async executeCreateChannelTransaction({
     signer,
     initialMembers,
     initialMessage,

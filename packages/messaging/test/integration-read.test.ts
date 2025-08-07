@@ -1,26 +1,46 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import { MessagingCompatibleClient } from '../src/types';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { MessagingClient } from '../src/client';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
 import { SuiGrpcClient } from '@mysten/sui-grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
+import {GenericContainer, StartedTestContainer} from "testcontainers";
+import path from 'path';
 
 describe('Integration tests', () => {
+
+  const resourcesPath = path.resolve(__dirname, 'resources');
+
   const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
 
+  let jsonRpcNodeContainer: StartedTestContainer;
+
   let suiJsonRpcClient: MessagingCompatibleClient;
+  // @ts-ignore todo: remove when support added
   let suiGraphQLClient: MessagingCompatibleClient;
+  // @ts-ignore todo: remove when support added
   let suiGrpcClient: MessagingCompatibleClient;
 
   beforeAll(async () => {
-    // todo: setup docker-compose file with test containers instead of having to start thr containers manually
+    jsonRpcNodeContainer = await new GenericContainer("wiremock/wiremock:latest")
+      .withExposedPorts({container: 8080, host: 9000})
+      .withBindMounts([
+        {source: path.join(resourcesPath, "wiremock/jsonrpc/extensions"), target: "/var/wiremock/extensions", mode: "ro"},
+        {source: path.join(resourcesPath, "wiremock/jsonrpc/__files"), target: "/home/wiremock/__files", mode: "ro"},
+        {source: path.join(resourcesPath, "wiremock/jsonrpc/mappings"), target: "/home/wiremock/mappings", mode: "ro"}
+      ])
+      .start();
     suiJsonRpcClient = new SuiClient({ url: getFullnodeUrl('localnet') });
     suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
     suiGrpcClient = new SuiGrpcClient({
       network: 'localnet',
       transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
     });
+  });
+
+  afterAll(async () => {
+    await jsonRpcNodeContainer.stop();
   });
 
   it('json rpc client extension', { timeout: 12000 }, async () => {
