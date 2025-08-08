@@ -272,6 +272,7 @@ public fun with_initial_message(
 
     self.add_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
     self.set_last_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
+    self.increase_messages_count();
     emit_message_sent(clock, ctx);
 }
 
@@ -467,6 +468,10 @@ public(package) fun set_last_message_internal(
                 clock,
             ),
         );
+}
+
+public(package) fun increase_messages_count(self: &mut Channel) {
+    self.messages_count = self.messages_count + 1;
 }
 
 public(package) fun emit_message_sent(clock: &Clock, ctx: &TxContext) {

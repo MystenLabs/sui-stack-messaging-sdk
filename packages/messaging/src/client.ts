@@ -91,11 +91,12 @@ export class MessagingClient {
    * @returns CreateChannelBuilder
    */
   createChannelBuilder(options: CreateChannelBuilderOptions): CreateChannelBuilder {
+    options.packageId = options.packageId ?? this.#packageConfig.packageId;
     return new CreateChannelBuilder(options);
   }
 
   /**
-   *	Default
+   *  Default
    *
    * @param initialMembers
    * @param initialMessage
@@ -111,6 +112,7 @@ export class MessagingClient {
       const wrappedKek = tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
       tx.add(
         addWrappedKek({
+          package: this.#packageConfig.packageId,
           arguments: {
             self: channel,
             creatorCap,
@@ -122,6 +124,7 @@ export class MessagingClient {
       // Use defaults
       tx.add(
         withDefaults({
+          package: this.#packageConfig.packageId,
           arguments: {
             self: channel,
             creatorCap,
@@ -132,6 +135,7 @@ export class MessagingClient {
       // Add initial members with default roles
       tx.add(
         withInitialMembers({
+          package: this.#packageConfig.packageId,
           arguments: {
             self: channel,
             creatorCap,
@@ -148,6 +152,7 @@ export class MessagingClient {
         const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
         tx.add(
           withInitialMessage({
+            package: this.#packageConfig.packageId,
             arguments: {
               self: channel,
               creatorCap,
@@ -184,22 +189,22 @@ export class MessagingClient {
     initialMessage,
   }: { initialMembers: string[]; initialMessage?: string } & { signer: Signer }): Promise<{
     digest: string;
-    channelID: string;
+    channelId: string;
   }> {
     const tx = this.createChannelTransaction(signer, initialMembers, initialMessage);
 
     // Execute the transaction
     const { digest, effects } = await this.#executeTransaction(tx, signer, 'create channel');
-    const channelID = effects.changedObjects.find(
+    const channelId = effects.changedObjects.find(
       (obj) => obj.idOperation === 'Created' && obj.outputOwner?.$kind === 'Shared',
     )?.id;
-    if (channelID === undefined) {
+    if (channelId === undefined) {
       throw new MessagingClientError(
         'shared channel object id not found on the transaction effects',
       );
     }
 
-    return { digest, channelID };
+    return { digest, channelId };
   }
 
   // ===== Private Methods =====

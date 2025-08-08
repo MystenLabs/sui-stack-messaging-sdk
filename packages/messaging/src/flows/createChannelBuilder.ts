@@ -16,6 +16,7 @@ import { NotImplementedFeatureError } from '../error';
 export interface CreateChannelContext {
   signer: Signer;
   tx: Transaction;
+  packageId?: string;
   channel: TransactionObjectArgument;
   creatorCap: TransactionObjectArgument;
 }
@@ -23,22 +24,27 @@ export interface CreateChannelContext {
 export interface CreateChannelBuilderOptions {
   signer: Signer;
   transaction: Transaction;
+  packageId?: string;
 }
 
 // The flow entry point
 export class CreateChannelBuilder {
   #signer: Signer;
   #tx: Transaction;
-  constructor({ signer, transaction = new Transaction() }: CreateChannelBuilderOptions) {
+  #packageId?: string;
+
+  constructor({ signer, transaction = new Transaction(), packageId = undefined }: CreateChannelBuilderOptions) {
     this.#signer = signer;
     this.#tx = transaction;
+    this.#packageId = packageId;
   }
   /** Begin the flow. Must be called first. */
   init(): AddEncryptedKeyStep {
-    const [channel, creatorCap] = this.#tx.add(newChannel());
+    const [channel, creatorCap] = this.#tx.add(newChannel({ package: this.#packageId }));
     const context: CreateChannelContext = {
       signer: this.#signer,
       tx: this.#tx,
+      packageId: this.#packageId,
       channel,
       creatorCap,
     };
@@ -60,6 +66,7 @@ export class AddEncryptedKeyStep {
     const wrappedKek = this.#context.tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
     this.#context.tx.add(
       addWrappedKek({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,
@@ -83,6 +90,7 @@ export class BuildStep {
   withDefaults(): this {
     this.#context.tx.add(
       withDefaults({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,
@@ -100,6 +108,7 @@ export class BuildStep {
   withInitialRoles(roles: any): this {
     this.#context.tx.add(
       withInitialRoles({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,
@@ -117,6 +126,7 @@ export class BuildStep {
     }
     this.#context.tx.add(
       withInitialMembers({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,
@@ -140,6 +150,7 @@ export class BuildStep {
     const wrappedDek = this.#context.tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
     this.#context.tx.add(
       withInitialMessage({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,
@@ -162,6 +173,7 @@ export class BuildStep {
   #shareChannel(): void {
     this.#context.tx.add(
       shareChannel({
+        package: this.#context.packageId,
         arguments: {
           self: this.#context.channel,
           creatorCap: this.#context.creatorCap,

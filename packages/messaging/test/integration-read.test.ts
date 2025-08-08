@@ -8,7 +8,7 @@ import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import {GenericContainer, StartedTestContainer} from "testcontainers";
 import path from 'path';
 
-describe('Integration tests', () => {
+describe('Integration tests - Read Path', () => {
 
   const resourcesPath = path.resolve(__dirname, 'resources');
 
@@ -43,7 +43,7 @@ describe('Integration tests', () => {
     await jsonRpcNodeContainer.stop();
   });
 
-  it('json rpc client extension', { timeout: 12000 }, async () => {
+  it('test: Fetch channel memberships - json rpc client extension', { timeout: 12000 }, async () => {
     const client = suiJsonRpcClient.$extend(
       MessagingClient.experimental_asClientExtension({
         packageConfig: {
