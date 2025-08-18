@@ -7,6 +7,7 @@ import { SuiGrpcClient } from '@mysten/sui-grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import {GenericContainer, StartedTestContainer} from "testcontainers";
 import path from 'path';
+import {WalrusStorageAdapter} from "../src/storage/adapters/walrus/walrus";
 
 describe('Integration tests - Read Path', () => {
 
@@ -84,6 +85,10 @@ describe('Integration tests - Read Path', () => {
         memberCapType:
           '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap',
       },
+      storage: (c) => new WalrusStorageAdapter(c, {
+        publisher: "",
+        aggregator: "",
+      })
     });
     let hasNextPage = true;
     let cursor = null;

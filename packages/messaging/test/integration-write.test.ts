@@ -13,6 +13,8 @@ import * as channelModule from '../src/contracts/sui_messaging/channel';
 import * as permissionsModule from "../src/contracts/sui_messaging/permissions";
 import * as messageModule from "../src/contracts/sui_messaging/message";
 import { bcs } from "@mysten/sui/bcs";
+import {WalrusStorageAdapter} from "../src/storage/adapters/walrus/walrus";
+import {WalrusClient} from "@mysten/walrus";
 
 describe('Integration tests - Write Path', () => {
 
@@ -156,14 +158,20 @@ describe('Integration tests - Write Path', () => {
   });
 
   it('test: Execute crate channel transaction - json rpc client extension', { timeout: 12000 }, async () => {
-    const client = suiJsonRpcClient.$extend(
-      MessagingClient.experimental_asClientExtension({
+    const client = suiJsonRpcClient
+      // @ts-ignore
+      .$extend(WalrusClient.experimental_asClientExtension())
+      .$extend(MessagingClient.experimental_asClientExtension({
         packageConfig: {
           packageId,
           memberCapType: `${packageId}::channel::MemberCap`,
         },
-      }),
-    );
+        // If you want to use a custom storage adapter:
+        storage: (client) => new WalrusStorageAdapter(client, {
+          publisher: "",
+          aggregator: "",
+        }),
+      }));
 
     const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
@@ -320,6 +328,10 @@ describe('Integration tests - Write Path', () => {
   it('test: Execute crate channel transaction - json rpc client', async () => {
     const client = new MessagingClient({
       suiClient: suiJsonRpcClient,
+      storage: (client) => new WalrusStorageAdapter(client, {
+        publisher: "",
+        aggregator: "",
+      }),
       packageConfig: {
         packageId,
         memberCapType: `${packageId}::channel::MemberCap`,
@@ -478,5 +490,166 @@ describe('Integration tests - Write Path', () => {
 
     // Last Message
     expect(channelObj.last_message).toEqual(initialMessage.message);
+  });
+
+  it('test: Execute send message with attachment - json rpc client extension, walrus publisher', { timeout: 120000 }, async () => {
+    const client = suiJsonRpcClient
+      // @ts-ignore
+      .$extend(WalrusClient.experimental_asClientExtension({
+        network: 'testnet'
+      }))
+      .$extend(MessagingClient.experimental_asClientExtension({
+        packageConfig: {
+          packageId,
+          memberCapType: `${packageId}::channel::MemberCap`,
+        },
+        storage: (client) => new WalrusStorageAdapter(client, {
+          publisher: 'https://publisher.walrus-testnet.walrus.space',
+          aggregator: 'https://aggregator.walrus-testnet.walrus.space',
+        }),
+      }));
+
+    const initialMember = Ed25519Keypair.generate().toSuiAddress();
+
+    const { digest: cnlDigest, channelId } = await client.messaging.executeCreateChannelTransaction({
+      signer,
+      initialMembers: [initialMember],
+    });
+    expect(cnlDigest).toBeDefined();
+    expect(channelId).toBeDefined();
+
+    const memberCap = await client.core.getOwnedObjects({
+      address: signer.toSuiAddress(),
+      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
+      limit: 1,
+    });
+
+    const rndText = Math.random().toString(36).substring(2, 15)
+    const data = new TextEncoder().encode(`hello world, ${rndText}`);
+    const { digest: msgDigest, messageId } = await client.messaging.executeSendMessageTransaction({
+      signer,
+      channelId,
+      memberCapId: memberCap.objects[0].id,
+      message: "hello world",
+      attachments: [data],
+    });
+    expect(msgDigest).toBeDefined();
+
+    const channelResponse = await client.core.getObject({objectId: channelId});
+    const channelContent = await channelResponse.object.content;
+    const channelObj = channelModule.Channel.parse(channelContent);
+
+    const messagesResponse = await client.core.getDynamicFields({
+      parentId: channelObj.messages.contents.id.id
+    });
+    const messagesPromises = messagesResponse.dynamicFields.map(
+      async (message) => {
+        const messageResponse = await client.core.getDynamicField({
+          parentId: channelObj.messages.contents.id.id,
+          name: message.name,
+        });
+        const messageNameContent = messageResponse.dynamicField.name.bcs;
+        const messageName = bcs.U64.parse(messageNameContent);
+        const messageId = messageResponse.dynamicField.id;
+        const messageContent = messageResponse.dynamicField.value.bcs;
+        const messageObj = messageModule.Message.parse(messageContent);
+        return {name: messageName, id: messageId, message: messageObj};
+      });
+    const messages = await Promise.all(messagesPromises);
+    expect(messages.length).toBe(1);
+
+    const message = messages[0];
+    expect(message.name).toBe("0");
+    expect(message.id).toBe(messageId);
+    expect(message.message.sender).toBe(signer.toSuiAddress());
+    expect(message.message.nonce).toEqual([9, 0, 9, 0]);
+    expect(new TextDecoder().decode(new Uint8Array(messages[0].message.ciphertext)))
+      .toBe("hello world");
+    expect(message.message.wrapped_dek).toEqual([1, 2, 3]);
+    expect(message.message.kek_version).toBe("1");
+    expect(message.message.attachments).toHaveLength(1);
+    expect(message.message.created_at_ms).toMatch(/[0-9]+/);
+
+    // Last Message
+    expect(channelObj.last_message).toEqual(message.message);
+  });
+
+  it('test: Execute send message without attachment - json rpc client extension, walrus publisher', { timeout: 120000 }, async () => {
+    const client = suiJsonRpcClient
+      // @ts-ignore
+      .$extend(WalrusClient.experimental_asClientExtension({
+        network: 'testnet'
+      }))
+      .$extend(MessagingClient.experimental_asClientExtension({
+        packageConfig: {
+          packageId,
+          memberCapType: `${packageId}::channel::MemberCap`,
+        },
+        storage: (client) => new WalrusStorageAdapter(client, {
+          publisher: 'https://publisher.walrus-testnet.walrus.space',
+          aggregator: 'https://aggregator.walrus-testnet.walrus.space',
+        }),
+      }));
+
+    const initialMember = Ed25519Keypair.generate().toSuiAddress();
+
+    const { digest: cnlDigest, channelId } = await client.messaging.executeCreateChannelTransaction({
+      signer,
+      initialMembers: [initialMember],
+    });
+    expect(cnlDigest).toBeDefined();
+    expect(channelId).toBeDefined();
+
+    const memberCap = await client.core.getOwnedObjects({
+      address: signer.toSuiAddress(),
+      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
+      limit: 1,
+    });
+
+    const { digest: msgDigest, messageId } = await client.messaging.executeSendMessageTransaction({
+      signer,
+      channelId,
+      memberCapId: memberCap.objects[0].id,
+      message: "hello world",
+    });
+    expect(msgDigest).toBeDefined();
+
+    const channelResponse = await client.core.getObject({objectId: channelId});
+    const channelContent = await channelResponse.object.content;
+    const channelObj = channelModule.Channel.parse(channelContent);
+
+    const messagesResponse = await client.core.getDynamicFields({
+      parentId: channelObj.messages.contents.id.id
+    });
+    const messagesPromises = messagesResponse.dynamicFields.map(
+      async (message) => {
+        const messageResponse = await client.core.getDynamicField({
+          parentId: channelObj.messages.contents.id.id,
+          name: message.name,
+        });
+        const messageNameContent = messageResponse.dynamicField.name.bcs;
+        const messageName = bcs.U64.parse(messageNameContent);
+        const messageId = messageResponse.dynamicField.id;
+        const messageContent = messageResponse.dynamicField.value.bcs;
+        const messageObj = messageModule.Message.parse(messageContent);
+        return {name: messageName, id: messageId, message: messageObj};
+      });
+    const messages = await Promise.all(messagesPromises);
+    expect(messages.length).toBe(1);
+
+    const message = messages[0];
+    expect(message.name).toBe("0");
+    expect(message.id).toBe(messageId);
+    expect(message.message.sender).toBe(signer.toSuiAddress());
+    expect(message.message.nonce).toEqual([9, 0, 9, 0]);
+    expect(new TextDecoder().decode(new Uint8Array(messages[0].message.ciphertext)))
+      .toBe("hello world");
+    expect(message.message.wrapped_dek).toEqual([1, 2, 3]);
+    expect(message.message.kek_version).toBe("1");
+    expect(message.message.attachments).toHaveLength(0);
+    expect(message.message.created_at_ms).toMatch(/[0-9]+/);
+
+    // Last Message
+    expect(channelObj.last_message).toEqual(message.message);
   });
 });
