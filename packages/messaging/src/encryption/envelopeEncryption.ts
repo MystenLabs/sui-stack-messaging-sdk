@@ -2,20 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { SealClient, SessionKey } from '@mysten/seal';
-import {
-	SymmetricKey,
-	EncryptedPayload,
-	KeyEncryptionKey,
-	Encryptor,
-	KeyWrapper,
-	KeyProvider,
-} from './types';
-import { DefaultKeyProvider } from './keyProvider';
+import { SymmetricKey, EncryptedPayload, Encryptor, KeyWrapper, KeyProvider } from './types';
+import { DefaultKeyProvider } from './webCryptoKeyProvider';
 
 /**
  * Core encryption service that handles both single-layer and double-layer envelope encryption
  */
-export class EnvelopeEncryptionService implements Encryptor, KeyWrapper {
+export class EnvelopeEncryptionService {
 	private keyProvider: KeyProvider;
 
 	constructor(
