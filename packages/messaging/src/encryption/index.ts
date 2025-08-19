@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './types';
-export * from './webCryptoKeyProvider';
+export * from './webCryptoPrimitives';
 export * from './envelopeEncryption';
 
 // Re-export specific utilities
-export { WebCryptoKeyProvider } from './webCryptoKeyProvider';
+export { WebCryptoPrimitives } from './webCryptoPrimitives';
 export { EnvelopeEncryptionService } from './envelopeEncryption';
