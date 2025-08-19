@@ -31,11 +31,11 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	 */
 	async generateKEK(length?: number): Promise<Uint8Array<ArrayBuffer>> {
 		switch (this.config.kekAlgorithm) {
-			case 'AES-KWP': {
+			case 'AES-KW': {
 				const kek = await crypto.subtle.generateKey(
 					{ name: this.config.kekAlgorithm, length: length ?? this.config.keySize },
 					true,
-					['wrap', 'unwrap'],
+					['wrapKey', 'unwrapKey'],
 				);
 				return await crypto.subtle.exportKey('raw', kek).then((kekData) => new Uint8Array(kekData));
 			}
@@ -52,12 +52,12 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 				const dek = await crypto.subtle.generateKey(
 					{ name: this.config.dekAlgorithm, length: length ?? this.config.keySize },
 					true,
-					['encrypt', 'decrypt'],
+					['encrypt', 'decrypt', 'deriveKey'],
 				);
 				return await crypto.subtle.exportKey('raw', dek).then((dekData) => new Uint8Array(dekData));
 			}
 			default:
-				throw new MessagingClientError('Unsupported data encryption key algorithm');
+				throw new MessagingClientError('Unsupported Data Encryption Key algorithm');
 		}
 	}
 
@@ -74,25 +74,37 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	 * @param nonce
 	 * @param info
 	 */
-	deriveKey(
-		baseKey: CryptoKey,
+	async deriveKey(
+		baseKey: Uint8Array<ArrayBuffer>,
 		nonce: Uint8Array<ArrayBuffer>,
 		info: Uint8Array<ArrayBuffer>,
-	): Promise<CryptoKey> {
+	): Promise<Uint8Array<ArrayBuffer>> {
+		// Import the raw key
+		const importedBaseKey = await crypto.subtle.importKey(
+			'raw',
+			baseKey,
+			{ name: this.config.dekAlgorithm },
+			false,
+			['deriveKey'],
+		);
+
 		switch (this.config.deriveKeyAlgorithm) {
 			case 'HKDF': {
-				return crypto.subtle.deriveKey(
+				const derivedKey = await crypto.subtle.deriveKey(
 					{
 						name: this.config.deriveKeyAlgorithm,
 						salt: nonce,
 						info: info,
 						hash: 'SHA-256',
 					},
-					baseKey,
+					importedBaseKey,
 					{ name: this.config.dekAlgorithm, length: this.config.keySize },
 					false,
 					['encrypt', 'decrypt'],
 				);
+				return await crypto.subtle
+					.exportKey('raw', derivedKey)
+					.then((keyData) => new Uint8Array(keyData));
 			}
 			default:
 				throw new MessagingClientError('Unsupported derive key algorithm');
@@ -104,11 +116,11 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	 * @param kek
 	 * @param keyToWrap
 	 */
-	wrapKey(kek: Uint8Array, keyToWrap: Uint8Array): Promise<Uint8Array> {
+	wrapKey(kek: Uint8Array, keyToWrap: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
 		throw new Error('Method not implemented.');
 	}
 
-	unwrapKey(kek: Uint8Array, wrappedKey: Uint8Array): Promise<Uint8Array> {
+	unwrapKey(kek: Uint8Array, wrappedKey: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -117,14 +129,14 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 		key: Uint8Array,
 		nonce: Uint8Array,
 		bytesToEncrypt: Uint8Array,
-	): Promise<Uint8Array> {
+	): Promise<Uint8Array<ArrayBuffer>> {
 		throw new Error('Method not implemented.');
 	}
 	decryptBytes(
 		key: Uint8Array,
 		nonce: Uint8Array,
 		encryptedBytes: Uint8Array,
-	): Promise<Uint8Array> {
+	): Promise<Uint8Array<ArrayBuffer>> {
 		throw new Error('Method not implemented.');
 	}
 }

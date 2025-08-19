@@ -73,7 +73,7 @@ export interface SymmetricKey {
 export interface EncryptionPrimitivesConfig {
 	keySize: number;
 	nonceSize: number;
-	kekAlgorithm: 'AES-KWP';
+	kekAlgorithm: 'AES-KW';
 	dekAlgorithm: 'AES-GCM';
 	wrapAlgorithm: 'AES-KWP';
 	deriveKeyAlgorithm: 'HKDF';

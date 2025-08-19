@@ -3,8 +3,8 @@ import { EncryptionPrimitivesConfig } from './types';
 export const ENCRYPTION_PRIMITIVES_CONFIG = {
 	keySize: 32, // 256 bits
 	nonceSize: 12,
-	kekAlgorithm: 'AES-KWP',
+	kekAlgorithm: 'AES-KW',
 	dekAlgorithm: 'AES-GCM',
 	wrapAlgorithm: 'AES-KWP',
 	deriveKeyAlgorithm: 'HKDF',
-} satisfies EncryptionPrimitivesConfig;
+} as const satisfies EncryptionPrimitivesConfig;
