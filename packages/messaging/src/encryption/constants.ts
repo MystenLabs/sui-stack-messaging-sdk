@@ -5,6 +5,6 @@ export const ENCRYPTION_PRIMITIVES_CONFIG = {
 	nonceSize: 12,
 	kekAlgorithm: 'AES-KW',
 	dekAlgorithm: 'AES-GCM',
-	wrapAlgorithm: 'AES-KWP',
+	wrapAlgorithm: 'AES-KW',
 	deriveKeyAlgorithm: 'HKDF',
 } as const satisfies EncryptionPrimitivesConfig;

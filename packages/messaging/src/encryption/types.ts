@@ -75,7 +75,7 @@ export interface EncryptionPrimitivesConfig {
 	nonceSize: number;
 	kekAlgorithm: 'AES-KW';
 	dekAlgorithm: 'AES-GCM';
-	wrapAlgorithm: 'AES-KWP';
+	wrapAlgorithm: 'AES-KW';
 	deriveKeyAlgorithm: 'HKDF';
 }
 
