@@ -49,9 +49,10 @@ public struct MemberCap has key {
 /// A Shared object representing a group-communication channel.
 ///
 /// Dynamic fields:
+/// - `has_encryption_key: HasEncryptionKey -> bool`
 /// - `config: ConfigKey<C> -> C`
 /// - `rotated_kek_history` keep a history of rotated keys for accessing older messages?
-/// otherwise we can re-encrypted each message's DEK with the new KEK, however, since
+/// otherwise we can re-encrypte each message's DEK with the new KEK, however, since
 /// this is potentially costly(need to do this for the entire history), let's give it
 /// as an option. We could even provide an option for full re-encryption for cases of
 /// extra sensitivity.
@@ -124,6 +125,18 @@ public struct ConfigReturnPromise {
 
 // === Keys ===
 
+/// An authorization Key kept under the Channel
+///
+/// This is added once the Channel's wrapped KEK has been added.
+/// We have to do it in this 2-step way, because we want to
+/// include the Channel's ID when generating the KEK with Seal
+///
+/// (We want something in the form: [pkgID][ChannelID][random nonce])
+///
+/// So, for any method that interacts with the Channel object,
+/// we need to check if this df exists under it.
+public struct HasEncryptionKey() has copy, drop, store;
+
 /// Key for storing a configuration.
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
 
@@ -137,7 +150,7 @@ public struct MessageSent has copy, drop {
 use fun df::add as UID.add;
 use fun df::borrow as UID.borrow;
 // use fun df::borrow_mut as UID.borrow_mut;
-// use fun df::exists_ as UID.exists_;
+use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
 // === Public Functions ===
 
@@ -169,7 +182,6 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     let creator_cap_uid = object::new(ctx);
     let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
 
-    // TODO: should we make this a configurable option?
     // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
     channel.add_creator_to_members(&creator_cap, clock, ctx);
 
@@ -195,9 +207,9 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
 }
 
 public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
-    // Assert correct channel-promise
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     self.wrapped_kek = wrapped_kek;
+    self.id.add(HasEncryptionKey(), true);
 }
 
 public fun share(self: Channel, creator_cap: &CreatorCap) {
@@ -259,6 +271,10 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
 }
 
 /// Add an initial message to the Channel when creating it
+/// TODO: How can we set an initial encrypted message, when we haven't
+/// yet generated & added the Channel's Encryption Key?
+/// With our current, 2-step process of setting up a new Channel,
+/// it is not possible to also add an initial message like this.
 public fun with_initial_message(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -353,8 +369,15 @@ public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     self.members.contains(member_cap.id.to_inner())
 }
 
+/// Check if a `CreatorCap` is the creator of this Channel.
 public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
     self.id.to_inner() == creator_cap.channel_id
+}
+
+/// Check if this Channel has an encryption key.
+/// An ecnryption key should be added to the Channel right after creating & sharing it.
+public(package) fun has_encryption_key(self: &Channel): bool {
+    self.id.exists_(HasEncryptionKey())
 }
 
 // Setters
@@ -444,6 +467,8 @@ public(package) fun add_message_internal(
                 clock,
             ),
         );
+
+    self.messages_count = self.messages_count + 1;
 }
 
 public(package) fun set_last_message_internal(
@@ -485,7 +510,7 @@ public(package) fun has_permission(
     let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
     let role = self.roles.borrow(role_name);
 
-    // Assert permission
+    // Check permission
     role.permissions().contains(&permission)
 }
 

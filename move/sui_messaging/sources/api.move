@@ -32,6 +32,8 @@ public fun send_message(
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     // assert has_write_permission???
 
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
+
     self.add_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
 
     self.set_last_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
@@ -48,6 +50,7 @@ public fun add_members(
     ctx: &mut TxContext,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(self.has_permission(member_cap, permissions::permission_add_member()));
     self.add_members_with_default_role_internal(members, clock, ctx);
 }
@@ -60,6 +63,7 @@ public fun add_members_with_roles(
     ctx: &mut TxContext,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(self.has_permission(member_cap, permissions::permission_add_member()));
     self.add_members_with_roles_internal(members, clock, ctx);
 }
@@ -71,14 +75,15 @@ public fun remove_members(
     clock: &Clock,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(self.has_permission(member_cap, permissions::permission_remove_member()));
     self.remove_members_internal(members_to_remove, clock);
 }
 
 /// Edit Config Helper
-/// Looks like a candidate for `api.move` module
 /// We could also expose separate functions for each config value
 public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
     let (_editable_config, promise) = self.remove_config_for_editing(member_cap);
     self.return_config(member_cap, config, promise);
 }
