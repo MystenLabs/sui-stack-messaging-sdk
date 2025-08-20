@@ -30,7 +30,7 @@ use sui_messaging::errors;
 // === Package Functions ===
 //////////////////////////////////////////////////////////
 /// Access control
-/// key format: [pkg id]::[allowlist id][random nonce]
+/// key format: [pkg id]::[channel id][random nonce]
 
 /// All allowlisted addresses can access all IDs with the prefix of the allowlist
 fun approve_internal(member_cap: &MemberCap, id: vector<u8>, channel: &Channel): bool {
