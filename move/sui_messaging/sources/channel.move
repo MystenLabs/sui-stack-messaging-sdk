@@ -39,6 +39,8 @@ public struct CreatorCap has key, store {
 /// Gets transferred to someone when they join the channel.
 /// Can be used for retrieving conversations/channels that
 /// they are a member of.
+///
+/// Note: Soul Bound
 public struct MemberCap has key {
     id: UID,
     channel_id: ID,
@@ -206,6 +208,7 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     };
 }
 
+/// Add a wrapped Key Encryption Key (a key encrypted with Seal) to the Channel.
 public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     self.wrapped_kek = wrapped_kek;

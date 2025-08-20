@@ -123,7 +123,7 @@ use sui::test_scenario::{Self as ts};
 use sui::vec_map;
 
 #[test_only]
-use sui_messaging::{attachment, channel::CreatorCap, permissions::{Role, restricted_role_name}};
+use sui_messaging::{attachment, channel::CreatorCap, permissions::{Role}};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -152,9 +152,6 @@ fun test_new_with_defaults() {
         );
         assert!(channel::is_creator(&channel, &creator_cap), errors::e_channel_not_creator());
 
-        let wrapped_kek = channel.namespace();
-        channel.add_wrapped_kek(&creator_cap, wrapped_kek);
-
         // add defaults
         channel.with_defaults(&creator_cap);
 
@@ -164,6 +161,7 @@ fun test_new_with_defaults() {
         // === Set initial roles ===
         let mut initial_roles = vec_map::empty<String, Role>();
         initial_roles.insert(b"Admin".to_string(), permissions::new_role(permissions::all()));
+        initial_roles.insert(b"User".to_string(), permissions::new_role(permissions::empty()));
 
         channel.with_initial_roles(&creator_cap, &mut initial_roles);
 
@@ -171,7 +169,7 @@ fun test_new_with_defaults() {
 
         // === Set initial members ===
         let mut initial_members = vec_map::empty<address, String>();
-        initial_members.insert(recipient_address, restricted_role_name());
+        initial_members.insert(recipient_address, b"User".to_string());
 
         channel.with_initial_members_with_roles(
             &creator_cap,
@@ -196,10 +194,25 @@ fun test_new_with_defaults() {
         );
 
         channel.share(&creator_cap);
+
         transfer::public_transfer(creator_cap, sender_address);
     };
 
-    // === Send message ===
+    // === Add a wrapped KEK on the Channel ===
+    scenario.next_tx(sender_address);
+    {
+        let mut channel = scenario.take_shared<Channel>();
+        let creator_cap = scenario.take_from_sender<CreatorCap>();
+
+        // At this stage we are supposed to use Seal
+        let wrapped_kek = channel.namespace();
+        channel.add_wrapped_kek(&creator_cap, wrapped_kek);
+
+        channel.share(&creator_cap);
+        scenario.return_to_sender<CreatorCap>(creator_cap);
+    };
+
+    // === Send message to the Channel ===
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();
