@@ -10,9 +10,8 @@ use std::string::String;
 
 public struct Attachment has copy, drop, store {
     blob_ref: String,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
-    kek_version: u64,
+    key_version: u64,
     encrypted_filename: vector<u8>,
     encrypted_mimetype: vector<u8>,
     encrypted_filesize: vector<u8>,
@@ -24,19 +23,17 @@ public struct Attachment has copy, drop, store {
 
 // === Public Functions ===
 public fun new(
-    blob_ref: String, // Q: should we encrypt this as well?
-    wrapped_dek: vector<u8>,
+    blob_ref: String,
     nonce: vector<u8>,
-    kek_version: u64,
+    key_version: u64,
     encrypted_filename: vector<u8>,
     encrypted_mimetype: vector<u8>,
     encrypted_filesize: vector<u8>,
 ): Attachment {
     Attachment {
         blob_ref,
-        wrapped_dek,
         nonce,
-        kek_version,
+        key_version,
         encrypted_filename,
         encrypted_mimetype,
         encrypted_filesize,

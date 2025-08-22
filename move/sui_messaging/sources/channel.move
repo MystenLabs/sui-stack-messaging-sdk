@@ -11,6 +11,7 @@ use sui::vec_set::{Self, VecSet};
 use sui_messaging::admin;
 use sui_messaging::attachment::Attachment;
 use sui_messaging::config::{Self, Config};
+use sui_messaging::encryption_key;
 use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
@@ -90,14 +91,6 @@ public struct Channel has key {
     /// Utilize this for efficient fetching e.g. list of conversations showing
     /// the latest message and the user who sent it
     last_message: Option<Message>,
-    /// The encrypted key encryption key (KEK) for this channel, encrypted via `Seal`.
-    ///
-    /// This key is required to decrypt the DEK of each message.
-    wrapped_kek: vector<u8>,
-    /// The version number for the KEK.
-    ///
-    /// This is incremented each time the key is rotated.
-    kek_version: u64,
     // /// We need a way to include custom seal policy in addition to the "MemberList" one
     // /// Probably via a dynamic field
     // policy_id: ID,
@@ -126,18 +119,6 @@ public struct ConfigReturnPromise {
 }
 
 // === Keys ===
-
-/// An authorization Key kept under the Channel
-///
-/// This is added once the Channel's wrapped KEK has been added.
-/// We have to do it in this 2-step way, because we want to
-/// include the Channel's ID when generating the KEK with Seal
-///
-/// (We want something in the form: [pkgID][ChannelID][random nonce])
-///
-/// So, for any method that interacts with the Channel object,
-/// we need to check if this df exists under it.
-public struct HasEncryptionKey() has copy, drop, store;
 
 /// Key for storing a configuration.
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
@@ -174,8 +155,6 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
         messages: table_vec::empty<Message>(ctx),
         messages_count: 0,
         last_message: option::none<Message>(),
-        wrapped_kek: vector::empty(),
-        kek_version: 1,
         created_at_ms: clock.timestamp_ms(),
         updated_at_ms: clock.timestamp_ms(),
     };
@@ -208,11 +187,18 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     };
 }
 
-/// Add a wrapped Key Encryption Key (a key encrypted with Seal) to the Channel.
-public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
+/// Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
+///
+/// This function is meant to be called only once, right after creating and sharing the Channel.
+/// This is because we need the ChannelID available on the client side, to use as identity bytes
+/// when encrypting the Channel's Data Encryption Key with Seal.
+public fun add_encrypted_key(
+    self: &mut Channel,
+    creator_cap: &CreatorCap,
+    encrypted_key_bytes: vector<u8>,
+) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    self.wrapped_kek = wrapped_kek;
-    self.id.add(HasEncryptionKey(), true);
+    self.id.add(encryption_key::new(encrypted_key_bytes), true);
 }
 
 public fun share(self: Channel, creator_cap: &CreatorCap) {
@@ -271,27 +257,6 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
 
     // Add a new Config
     self.id.add(ConfigKey<Config>(), config);
-}
-
-/// Add an initial message to the Channel when creating it
-/// TODO: How can we set an initial encrypted message, when we haven't
-/// yet generated & added the Channel's Encryption Key?
-/// With our current, 2-step process of setting up a new Channel,
-/// it is not possible to also add an initial message like this.
-public fun with_initial_message(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
-    nonce: vector<u8>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-
-    self.add_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
-    self.set_last_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
-    emit_message_sent(clock, ctx);
 }
 
 public fun return_config(
