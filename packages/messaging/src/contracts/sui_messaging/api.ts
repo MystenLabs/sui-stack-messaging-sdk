@@ -19,7 +19,6 @@ export interface SendMessageArguments {
     self: RawTransactionArgument<string>;
     memberCap: RawTransactionArgument<string>;
     ciphertext: RawTransactionArgument<number[]>;
-    wrappedDek: RawTransactionArgument<number[]>;
     nonce: RawTransactionArgument<number[]>;
     attachments: RawTransactionArgument<string[]>;
 }
@@ -29,11 +28,11 @@ export interface SendMessageOptions {
         self: RawTransactionArgument<string>,
         memberCap: RawTransactionArgument<string>,
         ciphertext: RawTransactionArgument<number[]>,
-        wrappedDek: RawTransactionArgument<number[]>,
         nonce: RawTransactionArgument<number[]>,
         attachments: RawTransactionArgument<string[]>
     ];
 }
+/** Send a new message to the Channel */
 export function sendMessage(options: SendMessageOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -41,11 +40,10 @@ export function sendMessage(options: SendMessageOptions) {
         `${packageAddress}::channel::MemberCap`,
         'vector<u8>',
         'vector<u8>',
-        'vector<u8>',
         `vector<${packageAddress}::attachment::Attachment>`,
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
     ] satisfies string[];
-    const parameterNames = ["self", "memberCap", "ciphertext", "wrappedDek", "nonce", "attachments", "clock"];
+    const parameterNames = ["self", "memberCap", "ciphertext", "nonce", "attachments", "clock"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'api',
@@ -66,6 +64,7 @@ export interface AddMembersOptions {
         members: RawTransactionArgument<string>
     ];
 }
+/** Add new members to the Channel with the default role */
 export function addMembers(options: AddMembersOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -95,6 +94,7 @@ export interface AddMembersWithRolesOptions {
         members: RawTransactionArgument<string>
     ];
 }
+/** Add new members to the Channel with specific roles */
 export function addMembersWithRoles(options: AddMembersWithRolesOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -124,6 +124,7 @@ export interface RemoveMembersOptions {
         membersToRemove: RawTransactionArgument<string[]>
     ];
 }
+/** Remove members from the Channel */
 export function removeMembers(options: RemoveMembersOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -153,10 +154,7 @@ export interface EditConfigOptions {
         config: RawTransactionArgument<string>
     ];
 }
-/**
- * Edit Config Helper Looks like a candidate for `api.move` module We could also
- * expose separate functions for each config value
- */
+/** Edit Config Helper We could also expose separate functions for each config value */
 export function editConfig(options: EditConfigOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -169,6 +167,36 @@ export function editConfig(options: EditConfigOptions) {
         package: packageAddress,
         module: 'api',
         function: 'edit_config',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface RotateEncryptionKeyArguments {
+    self: RawTransactionArgument<string>;
+    memberCap: RawTransactionArgument<string>;
+    newEncryptedKeyBytes: RawTransactionArgument<number[]>;
+}
+export interface RotateEncryptionKeyOptions {
+    package?: string;
+    arguments: RotateEncryptionKeyArguments | [
+        self: RawTransactionArgument<string>,
+        memberCap: RawTransactionArgument<string>,
+        newEncryptedKeyBytes: RawTransactionArgument<number[]>
+    ];
+}
+/** Rotate the Channel's Encryption Key */
+export function rotateEncryptionKey(options: RotateEncryptionKeyOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::Channel`,
+        `${packageAddress}::channel::MemberCap`,
+        'vector<u8>',
+        '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
+    ] satisfies string[];
+    const parameterNames = ["self", "memberCap", "newEncryptedKeyBytes", "clock"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'api',
+        function: 'rotate_encryption_key',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }

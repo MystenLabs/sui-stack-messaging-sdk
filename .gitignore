@@ -18,6 +18,7 @@
 *.coverage_map.mvcov
 *.trace
 **/traces
+**/package_summaries
 
 # Scripts
 .env

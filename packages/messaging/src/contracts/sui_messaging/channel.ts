@@ -54,18 +54,6 @@ export const Channel = new MoveStruct({ name: `${$moduleName}::Channel`, fields:
          * latest message and the user who sent it
          */
         last_message: bcs.option(message.Message),
-        /**
-         * The encrypted key encryption key (KEK) for this channel, encrypted via `Seal`.
-         *
-         * This key is required to decrypt the DEK of each message.
-         */
-        wrapped_kek: bcs.vector(bcs.u8()),
-        /**
-         * The version number for the KEK.
-         *
-         * This is incremented each time the key is rotated.
-         */
-        kek_version: bcs.u64(),
         /** The timestamp (in milliseconds) when the channel was created. */
         created_at_ms: bcs.u64(),
         /**
@@ -88,10 +76,7 @@ export const ConfigReturnPromise = new MoveStruct({ name: `${$moduleName}::Confi
         member_cap_id: bcs.Address
     } });
 export const ConfigKey = new MoveTuple({ name: `${$moduleName}::ConfigKey`, fields: [bcs.bool()] });
-export const MessageSent = new MoveStruct({ name: `${$moduleName}::MessageSent`, fields: {
-        sender: bcs.Address,
-        timestamp_ms: bcs.u64()
-    } });
+export const EncryptionKey = new MoveTuple({ name: `${$moduleName}::EncryptionKey`, fields: [bcs.bool()] });
 export interface NewArguments {
 }
 export interface NewOptions {
@@ -104,7 +89,9 @@ export interface NewOptions {
  * creator as a member.
  *
  * The flow is: new() -> (optionally set_initial_roles()) -> (optionally
- * set_initial_members()) -> (optionally add_config())
+ * set_initial_members()) -> (optionally add_config()) -> share() -> client
+ * generate a DEK and encrypt it with Seal using the ChannelID as identity bytes ->
+ * add_encrypted_key(CreatorCap)
  */
 export function _new(options: NewOptions = {}) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
@@ -145,56 +132,39 @@ export function withDefaults(options: WithDefaultsOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface AddWrappedKekArguments {
+export interface AddEncryptedKeyArguments {
     self: RawTransactionArgument<string>;
     creatorCap: RawTransactionArgument<string>;
-    wrappedKek: RawTransactionArgument<number[]>;
+    encryptedKeyBytes: RawTransactionArgument<number[]>;
 }
-export interface AddWrappedKekOptions {
+export interface AddEncryptedKeyOptions {
     package?: string;
-    arguments: AddWrappedKekArguments | [
+    arguments: AddEncryptedKeyArguments | [
         self: RawTransactionArgument<string>,
         creatorCap: RawTransactionArgument<string>,
-        wrappedKek: RawTransactionArgument<number[]>
+        encryptedKeyBytes: RawTransactionArgument<number[]>
     ];
 }
-export function addWrappedKek(options: AddWrappedKekOptions) {
+/**
+ * Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
+ *
+ * This function is meant to be called only once, right after creating and sharing
+ * the Channel. This is because we need the ChannelID available on the client side,
+ * to use as identity bytes when encrypting the Channel's Data Encryption Key with
+ * Seal.
+ */
+export function addEncryptedKey(options: AddEncryptedKeyOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
         'vector<u8>'
     ] satisfies string[];
-    const parameterNames = ["self", "creatorCap", "wrappedKek"];
+    const parameterNames = ["self", "creatorCap", "encryptedKeyBytes"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'add_wrapped_kek',
-        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
-    });
-}
-export interface ShareArguments {
-    self: RawTransactionArgument<string>;
-    creatorCap: RawTransactionArgument<string>;
-}
-export interface ShareOptions {
-    package?: string;
-    arguments: ShareArguments | [
-        self: RawTransactionArgument<string>,
-        creatorCap: RawTransactionArgument<string>
-    ];
-}
-export function share(options: ShareOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
-    const argumentsTypes = [
-        `${packageAddress}::channel::Channel`,
-        `${packageAddress}::channel::CreatorCap`
-    ] satisfies string[];
-    const parameterNames = ["self", "creatorCap"];
-    return (tx: Transaction) => tx.moveCall({
-        package: packageAddress,
-        module: 'channel',
-        function: 'share',
+        function: 'add_encrypted_key',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
@@ -313,39 +283,28 @@ export function withInitialConfig(options: WithInitialConfigOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface WithInitialMessageArguments {
+export interface ShareArguments {
     self: RawTransactionArgument<string>;
     creatorCap: RawTransactionArgument<string>;
-    ciphertext: RawTransactionArgument<number[]>;
-    wrappedDek: RawTransactionArgument<number[]>;
-    nonce: RawTransactionArgument<number[]>;
 }
-export interface WithInitialMessageOptions {
+export interface ShareOptions {
     package?: string;
-    arguments: WithInitialMessageArguments | [
+    arguments: ShareArguments | [
         self: RawTransactionArgument<string>,
-        creatorCap: RawTransactionArgument<string>,
-        ciphertext: RawTransactionArgument<number[]>,
-        wrappedDek: RawTransactionArgument<number[]>,
-        nonce: RawTransactionArgument<number[]>
+        creatorCap: RawTransactionArgument<string>
     ];
 }
-/** Add an initial message to the Channel when creating it */
-export function withInitialMessage(options: WithInitialMessageOptions) {
+export function share(options: ShareOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
-        `${packageAddress}::channel::CreatorCap`,
-        'vector<u8>',
-        'vector<u8>',
-        'vector<u8>',
-        '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
+        `${packageAddress}::channel::CreatorCap`
     ] satisfies string[];
-    const parameterNames = ["self", "creatorCap", "ciphertext", "wrappedDek", "nonce", "clock"];
+    const parameterNames = ["self", "creatorCap"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'with_initial_message',
+        function: 'share',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
@@ -432,16 +391,16 @@ export function removeConfigForEditing(options: RemoveConfigForEditingOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface KekVersionArguments {
+export interface EncryptionKeyVersionArguments {
     self: RawTransactionArgument<string>;
 }
-export interface KekVersionOptions {
+export interface EncryptionKeyVersionOptions {
     package?: string;
-    arguments: KekVersionArguments | [
+    arguments: EncryptionKeyVersionArguments | [
         self: RawTransactionArgument<string>
     ];
 }
-export function kekVersion(options: KekVersionOptions) {
+export function encryptionKeyVersion(options: EncryptionKeyVersionOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
@@ -450,7 +409,7 @@ export function kekVersion(options: KekVersionOptions) {
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'kek_version',
+        function: 'encryption_key_version',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
