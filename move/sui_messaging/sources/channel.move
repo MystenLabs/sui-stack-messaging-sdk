@@ -3,7 +3,6 @@ module sui_messaging::channel;
 use std::string::String;
 use sui::clock::Clock;
 use sui::dynamic_field as df;
-use sui::event::emit;
 use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
 use sui::vec_map::VecMap;
@@ -52,8 +51,8 @@ public struct MemberCap has key {
 /// A Shared object representing a group-communication channel.
 ///
 /// Dynamic fields:
-/// - `has_encryption_key: HasEncryptionKey -> bool`
 /// - `config: ConfigKey<C> -> C`
+/// - `encryption_key: EncryptionKey -> bool`
 /// - `rotated_kek_history` keep a history of rotated keys for accessing older messages?
 /// otherwise we can re-encrypte each message's DEK with the new KEK, however, since
 /// this is potentially costly(need to do this for the entire history), let's give it
@@ -122,17 +121,14 @@ public struct ConfigReturnPromise {
 
 /// Key for storing a configuration.
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
+public struct EncryptionKey() has copy, drop, store;
 
 // === Events ===
-public struct MessageSent has copy, drop {
-    sender: address,
-    timestamp_ms: u64,
-}
 
 // === Method Aliases ===
 use fun df::add as UID.add;
 use fun df::borrow as UID.borrow;
-// use fun df::borrow_mut as UID.borrow_mut;
+use fun df::borrow_mut as UID.borrow_mut;
 use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
 // === Public Functions ===
@@ -145,6 +141,9 @@ use fun df::remove as UID.remove;
 /// new() -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
+///       -> share()
+///       -> client generate a DEK and encrypt it with Seal using the ChannelID as identity bytes
+///       -> add_encrypted_key(CreatorCap)
 public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
     let channel_uid = object::new(ctx);
     let mut channel = Channel {
@@ -198,12 +197,7 @@ public fun add_encrypted_key(
     encrypted_key_bytes: vector<u8>,
 ) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    self.id.add(encryption_key::new(encrypted_key_bytes), true);
-}
-
-public fun share(self: Channel, creator_cap: &CreatorCap) {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    transfer::share_object(self);
+    self.id.add(EncryptionKey(), encryption_key::new(encrypted_key_bytes));
 }
 
 public fun with_initial_roles(
@@ -259,6 +253,11 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
     self.id.add(ConfigKey<Config>(), config);
 }
 
+public fun share(self: Channel, creator_cap: &CreatorCap) {
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
+    transfer::share_object(self);
+}
+
 public fun return_config(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -303,8 +302,8 @@ public fun remove_config_for_editing(
 }
 
 // === View Functions ===
-public fun kek_version(self: &Channel): u64 {
-    self.kek_version
+public fun encryption_key_version(self: &Channel): u32 {
+    self.id.borrow<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey()).version()
 }
 
 // utilized by seal_policies
@@ -345,7 +344,7 @@ public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
 /// Check if this Channel has an encryption key.
 /// An ecnryption key should be added to the Channel right after creating & sharing it.
 public(package) fun has_encryption_key(self: &Channel): bool {
-    self.id.exists_(HasEncryptionKey())
+    self.id.exists_(EncryptionKey())
 }
 
 // Setters
@@ -416,21 +415,20 @@ public(package) fun remove_members_internal(
 public(package) fun add_message_internal(
     self: &mut Channel,
     ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
     attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &TxContext,
 ) {
+    let key_version = self.encryption_key_version();
     self
         .messages
         .push_back(
             message::new(
                 ctx.sender(),
                 ciphertext,
-                wrapped_dek,
                 nonce,
-                self.kek_version,
+                key_version,
                 attachments,
                 clock,
             ),
@@ -442,28 +440,35 @@ public(package) fun add_message_internal(
 public(package) fun set_last_message_internal(
     self: &mut Channel,
     ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
     attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &TxContext,
 ) {
+    let key_version = self.encryption_key_version();
     self.last_message =
         option::some(
             message::new(
                 ctx.sender(),
                 ciphertext,
-                wrapped_dek,
                 nonce,
-                self.kek_version,
+                key_version,
                 attachments,
                 clock,
             ),
         );
 }
 
-public(package) fun emit_message_sent(clock: &Clock, ctx: &TxContext) {
-    emit(MessageSent { sender: ctx.sender(), timestamp_ms: clock.timestamp_ms() });
+public(package) fun rotate_encryption_key_internal(
+    self: &mut Channel,
+    new_encrypted_key_bytes: vector<u8>,
+    clock: &Clock,
+) {
+    let encryption_key = self
+        .id
+        .borrow_mut<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey());
+    encryption_key::rotate(encryption_key, new_encrypted_key_bytes);
+    self.updated_at_ms = clock.timestamp_ms();
 }
 
 public(package) fun has_permission(

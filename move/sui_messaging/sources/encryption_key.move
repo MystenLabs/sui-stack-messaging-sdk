@@ -14,6 +14,14 @@ public fun new(encrypted_key_bytes: vector<u8>): EncryptionKey {
     }
 }
 
+public fun version(key: &EncryptionKey): u32 {
+    key.version
+}
+
+public fun encrypted_key_bytes(key: &EncryptionKey): &vector<u8> {
+    &key.encrypted_key_bytes
+}
+
 public fun is_enabled(key: &EncryptionKey): bool {
     key.state == State::Enabled
 }

@@ -11,7 +11,7 @@ use std::string::String;
 public struct Attachment has copy, drop, store {
     blob_ref: String,
     nonce: vector<u8>,
-    key_version: u64,
+    key_version: u32,
     encrypted_filename: vector<u8>,
     encrypted_mimetype: vector<u8>,
     encrypted_filesize: vector<u8>,
@@ -25,7 +25,7 @@ public struct Attachment has copy, drop, store {
 public fun new(
     blob_ref: String,
     nonce: vector<u8>,
-    key_version: u64,
+    key_version: u32,
     encrypted_filename: vector<u8>,
     encrypted_mimetype: vector<u8>,
     encrypted_filesize: vector<u8>,
