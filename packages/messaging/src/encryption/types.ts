@@ -28,13 +28,16 @@ export interface EncryptionPrimitives {
 }
 
 export interface MessagingEncryptor {
-	encryptText({ text, sender, channelId, key }: EncryptTextArgs): Promise<EncryptedTextPayload>;
-	decryptText({ ciphertext, nonce }: DecryptTextArgs): Promise<string>;
-	encryptAttachment(): void;
-	decryptAttachment(): void;
+	generateEncryptedChannelDEK({ channelId }: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>>;
+	encryptText({ text, sender, channelId, key }: EncryptTextOpts): Promise<EncryptedTextPayload>;
+	decryptText({ ciphertext, nonce }: DecryptTextOpts): Promise<string>;
+	encryptAttachment(opts: EncryptAttachmentOpts): Promise<EncryptedAttachmentPayload>;
+	decryptAttachment(opts: DecryptAttachmentOpts): Promise<DecryptAttachmentResult>;
+	decryptAttachmentMetadata(opts: DecryptAttachmentMetadataOpts): Promise<AttachmentMetadata>;
+	decryptAttachmentData(opts: DecryptAttachmentDataOpts): Promise<Uint8Array<ArrayBuffer>>;
 	// Convenience methods
-	encryptMessage(): void;
-	decryptMessage(): void;
+	encryptMessage(opts: EncryptMessageOpts): Promise<EncryptedMessagePayload>;
+	decryptMessage(opts: DecryptMessageOpts): Promise<DecryptMessageResult>;
 }
 
 /**
@@ -71,11 +74,19 @@ export interface EncryptAAD {
 	sender: string; // should be valid sui address
 }
 
-export interface EncryptTextArgs {
-	text: string;
+export interface CommonEncryptOpts {
 	channelId: string; // should be valid sui object id
-	key: SymmetricKey; // must be provided for encryption
 	sender: string; // should be valid sui address
+	key: EncryptedSymmetricKey; // encrypted key that needs decryption via Seal
+	memberCapId: string; // required for Seal decryption
+}
+
+export interface GenerateEncryptedChannelDEKopts {
+	channelId: string; // should be valid sui object id
+}
+
+export interface EncryptTextOpts extends CommonEncryptOpts {
+	text: string;
 }
 
 /**
@@ -86,18 +97,60 @@ export interface EncryptedTextPayload {
 	nonce: Uint8Array<ArrayBuffer>;
 }
 
-export interface DecryptTextArgs {
+export interface DecryptTextOpts extends CommonEncryptOpts {
 	ciphertext: Uint8Array<ArrayBuffer>;
 	nonce: Uint8Array<ArrayBuffer>;
-	channelId: string; // should be valid sui object id
-	key: SymmetricKey; // must be provided for decryption
-	sender: string; // should be valid sui address
 }
 
-export interface EncryptAttachmentArgs {
+export interface EncryptAttachmentOpts extends CommonEncryptOpts {
 	file: File;
-	sender: string;
-	wrappedChannelKEK: Uint8Array<ArrayBuffer>;
 }
 
-export interface DecryptAttachmentArgs {}
+export interface EncryptedAttachmentMetadata {
+	encryptedFileName: Uint8Array<ArrayBuffer>;
+	encryptedMimeType: Uint8Array<ArrayBuffer>;
+	encryptedFileSize: Uint8Array<ArrayBuffer>;
+}
+
+export interface AttachmentMetadata {
+	fileName: string;
+	mimeType: string;
+	fileSize: number;
+}
+
+export interface EncryptedAttachmentPayload extends EncryptedAttachmentMetadata {
+	encryptedData: Uint8Array<ArrayBuffer>;
+	nonce: Uint8Array<ArrayBuffer>;
+}
+
+export interface DecryptAttachmentMetadataOpts extends CommonEncryptOpts, EncryptedAttachmentMetadata {}
+export interface DecryptAttachmentDataOpts extends CommonEncryptOpts {
+	encryptedData: Uint8Array<ArrayBuffer>;
+	nonce: Uint8Array<ArrayBuffer>;
+}
+
+export interface DecryptAttachmentOpts extends CommonEncryptOpts, EncryptedAttachmentPayload {}
+
+export interface DecryptAttachmentResult extends AttachmentMetadata {
+	data: Uint8Array<ArrayBuffer>;
+}
+
+export interface EncryptMessageOpts extends CommonEncryptOpts {
+	text: string;
+	attachments?: File[];
+}
+
+export interface EncryptedMessagePayload extends EncryptedTextPayload{
+	attachments?: EncryptedAttachmentPayload[];
+}
+
+export interface DecryptMessageOpts extends CommonEncryptOpts {
+	ciphertext: Uint8Array<ArrayBuffer>;
+	nonce: Uint8Array<ArrayBuffer>;
+	attachments?: EncryptedAttachmentPayload[];
+}
+
+export interface DecryptMessageResult {
+	text: string;
+	attachments?: AttachmentMetadata[];
+}

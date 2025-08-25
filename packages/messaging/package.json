@@ -50,6 +50,7 @@
 		"@mysten/seal": "^0.4.20",
 		"@mysten/sui": "^1.37.1",
 		"@mysten/sui-grpc": "^0.0.12",
+		"@mysten/walrus": "^0.6.4",
 		"@protobuf-ts/grpcweb-transport": "^2.11.1"
 	},
 	"devDependencies": {

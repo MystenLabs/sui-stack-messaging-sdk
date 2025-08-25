@@ -1,6 +1,9 @@
 import { Transaction } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 import { bcs } from '@mysten/sui/bcs';
+import { SealClient } from '@mysten/seal';
+import {ClientWithExtensions} from "@mysten/sui/experimental";
+import {WalrusClient} from "@mysten/walrus";
 
 import {
 	_new as newChannel,
@@ -8,6 +11,8 @@ import {
 	withDefaults,
 	withInitialMembers,
 } from './contracts/sui_messaging/channel';
+import { sendMessage } from "./contracts/sui_messaging/api";
+import {_new as newAttachment, Attachment} from "./contracts/sui_messaging/attachment";
 
 import {
 	ChannelMembershipsRequest,
@@ -18,27 +23,34 @@ import {
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { CreateChannelBuilder, CreateChannelBuilderOptions } from './flows/createChannelBuilder';
-import { SealClient } from '@mysten/seal';
+import {StorageAdapter} from "./storage/adapters/storage";
+import {WalrusStorageAdapter} from "./storage/adapters/walrus/walrus";
+import { EnvelopeEncryption, MessagingEncryptor } from './encryption';
+
 
 export interface MessagingClientExtensionOptions {
 	packageConfig?: MessagingPackageConfig;
 	network?: 'mainnet' | 'testnet';
-	getSealClient: (client: MessagingCompatibleClient) => SealClient;
+	encryptor?: (client: ClientWithExtensions<any>) => MessagingEncryptor;
+	storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
 }
 
 export interface MessagingClientOptions extends MessagingClientExtensionOptions {
 	suiClient: MessagingCompatibleClient;
-	sealClient: SealClient;
+	encryptor: (client: SealClient) => MessagingEncryptor;
+	storage: (client: WalrusClient) => StorageAdapter;
 }
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
-	#sealClient: SealClient;
 	#packageConfig: MessagingPackageConfig;
+	#encryptor: (client: ClientWithExtensions<any>) => MessagingEncryptor;
+	#storage: (client: ClientWithExtensions<any>) => StorageAdapter;
 
 	constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
-		this.#sealClient = options.sealClient;
+		this.#encryptor = options.encryptor;
+		this.#storage = options.storage;
 
 		if (options.network && !options.packageConfig) {
 			const network = options.network;
@@ -57,18 +69,63 @@ export class MessagingClient {
 		}
 	}
 
-	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
-		return {
-			name: 'messaging' as const,
-			register: (client: MessagingCompatibleClient) => {
-				return new MessagingClient({
-					suiClient: client,
-					sealClient: options.getSealClient(client),
-					...options,
-				});
-			},
-		};
-	}
+static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
+    return {
+      name: 'messaging' as const,
+      register: (client: MessagingCompatibleClient) => {
+        const walrusClient = (client as any).walrus;
+        const sealClient = (client as any).seal;
+
+        if (!walrusClient) {
+          throw new MessagingClientError('WalrusClient extension is required for MessagingClient');
+        }
+
+        if (!sealClient) {
+          throw new MessagingClientError('SealClient extension is required for MessagingClient');
+        }
+
+        let packageConfig = options.packageConfig;
+        if (options.network && !packageConfig) {
+          switch (options.network) {
+            case 'testnet':
+              packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+              break;
+            case 'mainnet':
+              packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
+              break;
+            default:
+              throw new MessagingClientError(`Unsupported network: ${options.network}`);
+          }
+        }
+
+        if (!packageConfig) {
+          throw new MessagingClientError('Either packageConfig or network must be provided');
+        }
+
+        // Handle storage configuration
+        const storage = options.storage 
+          ? (c: WalrusClient) => options.storage!(c)
+          : (c: WalrusClient) => new WalrusStorageAdapter(c, {
+              publisher: "",
+              aggregator: "",
+            });
+
+        // Handle encryptor configuration
+        const encryptor = options.encryptor
+          ? (c: SealClient) => options.encryptor!(c)
+          : (_: SealClient) => {
+              throw new MessagingClientError('Encryptor is required for MessagingClient');
+            };
+
+        return new MessagingClient({
+          suiClient: client,
+          storage,
+          encryptor,
+          packageConfig,
+        });
+      },
+    };
+  }
 
 	// ===== Read Path =====
 
