@@ -144,6 +144,9 @@ importers:
       '@mysten/sui-grpc':
         specifier: ^0.0.12
         version: 0.0.12(typescript@5.9.2)
+      '@mysten/walrus':
+        specifier: ^0.6.4
+        version: 0.6.4(typescript@5.9.2)
       '@protobuf-ts/grpcweb-transport':
         specifier: ^2.11.1
         version: 2.11.1
@@ -1332,8 +1335,18 @@ packages:
     resolution: {integrity: sha512-xkQEgO/XdGz9T5vJU0iEiw8ZnuDSHWjdYA+u783wY5dt0TknYDBBcThaufhz9j+tksCxKhR5OkktE+Wz3zdYtw==}
     engines: {node: '>=18'}
 
+  '@mysten/sui@1.37.4':
+    resolution: {integrity: sha512-3dKddNEF7XTfPnYIfVyHHTX+9fraQrKFxiBJ8nveISqo4skyClH/nDyS8Nkh7coknbWghuSSsD82liCOZX2uLw==}
+    engines: {node: '>=18'}
+
   '@mysten/utils@0.1.1':
     resolution: {integrity: sha512-jvhJC6/2la1QHltukQXzfyTZ+VVHxe187JjPx+mEXRUWyAo6jCSdioOQJIfaGu4K4i+37KeiydXRwV/bq/7UJQ==}
+
+  '@mysten/walrus-wasm@0.1.1':
+    resolution: {integrity: sha512-j+12gNbPAIkgY7g1d4aCF2rXDpgTLQsyjEdu0s7A8xlu/95u5quP7Tc7Jz7VLFfbtkJigBpGyPZ/8J2tZv4cJA==}
+
+  '@mysten/walrus@0.6.4':
+    resolution: {integrity: sha512-u4gAsjJ9KYN5ECdmNvVpw0igMIKUV50ESbYC1x4CoJAwOBDASyt4c5rRkT7/ufpdEEKmdY/u0KiQOSxrjWkUQQ==}
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
@@ -5961,9 +5974,42 @@ snapshots:
       - '@gql.tada/vue-support'
       - typescript
 
+  '@mysten/sui@1.37.4(typescript@5.9.2)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.11.0)
+      '@mysten/bcs': 1.7.0
+      '@mysten/utils': 0.1.1
+      '@noble/curves': 1.9.6
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      gql.tada: 1.8.12(graphql@16.11.0)(typescript@5.9.2)
+      graphql: 16.11.0
+      poseidon-lite: 0.2.1
+      valibot: 0.36.0
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
   '@mysten/utils@0.1.1':
     dependencies:
       '@scure/base': 1.2.6
+
+  '@mysten/walrus-wasm@0.1.1': {}
+
+  '@mysten/walrus@0.6.4(typescript@5.9.2)':
+    dependencies:
+      '@mysten/bcs': 1.7.0
+      '@mysten/sui': 1.37.4(typescript@5.9.2)
+      '@mysten/utils': 0.1.1
+      '@mysten/walrus-wasm': 0.1.1
+      dataloader: 2.2.3
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
 
   '@napi-rs/wasm-runtime@0.2.12':
     dependencies:

@@ -3,6 +3,7 @@
 
 import { SealClient, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
+import { Signer } from '@mysten/sui/cryptography';
 
 import {
 	AttachmentMetadata,
@@ -25,9 +26,8 @@ import {
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
-import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
-import { SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
+import { MessagingCompatibleClient } from '../types';
 
 
 export interface SealApproveContract {
@@ -37,9 +37,13 @@ export interface SealApproveContract {
 }
 export interface EnvelopeEncryptionConfig {
 	sealClient: SealClient;
-	suiClient: ClientWithExtensions<{ jsonRpc: SuiClient; }>;
+	suiClient: MessagingCompatibleClient;
 	sealApproveContract: SealApproveContract;
-	sessionKey: SessionKey;
+	sessionKey?: SessionKey;
+	sessionKeyConfig?: {
+		signer: Signer;
+		ttlMin: number;
+	};
 	encryptionPrimitives?: EncryptionPrimitives;
 }
 
@@ -47,22 +51,48 @@ export interface EnvelopeEncryptionConfig {
  * Core encryption service that handles both single-layer and double-layer envelope encryption
  */
 export class EnvelopeEncryption implements MessagingEncryptor {
-	#suiClient: ClientWithExtensions<{
-		jsonRpc: SuiClient;
-	}>;
+	#suiClient: MessagingCompatibleClient;
 	#encryptionPrimitives: EncryptionPrimitives;
-	#sessionKey: SessionKey;
+	#sessionKey?: SessionKey;
 	#sealClient: SealClient;
 	#sealApproveContract: SealApproveContract;
+	#sessionKeyConfig?: {
+		signer: Signer;
+		ttlMin: number;
+	};
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
 		this.#sealClient = config.sealClient;
 		this.#sealApproveContract = config.sealApproveContract;
 		this.#sessionKey = config.sessionKey;
-
+		this.#sessionKeyConfig = config.sessionKeyConfig;
 		this.#encryptionPrimitives =
 			config.encryptionPrimitives ?? WebCryptoPrimitives.getInstance();
+
+		if (!this.#sessionKey && !this.#sessionKeyConfig) {
+			throw new Error('Either sessionKey or sessionKeyConfig must be provided');
+		}
+	}
+
+	private async getSessionKey(): Promise<SessionKey> {
+		if (this.#sessionKey && !this.#sessionKey.isExpired()) {
+			return this.#sessionKey;
+		}
+
+		if (!this.#sessionKeyConfig) {
+			throw new Error('SessionKey is expired and sessionKeyConfig is not available to create a new one.');
+		}
+
+		this.#sessionKey = await SessionKey.create({
+			address: this.#sessionKeyConfig.signer.toSuiAddress(),
+			signer: this.#sessionKeyConfig.signer,
+			ttlMin: this.#sessionKeyConfig.ttlMin,
+			packageId: this.#sealApproveContract.packageId,
+			suiClient: this.#suiClient,
+		});
+
+		return this.#sessionKey;
 	}
 
 	// ===== MessagingEncryptor methods =====
@@ -411,7 +441,7 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 		// Decrypt using Seal
 		const dekBytes = await this.#sealClient.decrypt({
 			data: key.encryptedBytes,
-			sessionKey: this.#sessionKey,
+			sessionKey: await this.getSessionKey(),
 			txBytes,
 		});
 		return {

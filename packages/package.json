@@ -29,6 +29,10 @@
 			"@eslint/plugin-kit@<0.3.3": "0.3.3"
 		},
 		"onlyBuiltDependencies": [
+			"cpu-features",
+			"esbuild",
+			"protobufjs",
+			"ssh2",
 			"unrs-resolver"
 		]
 	},

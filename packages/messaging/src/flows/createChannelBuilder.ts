@@ -1,14 +1,11 @@
 import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions';
-import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 
 import {
-	addWrappedKek,
 	_new as newChannel,
 	share as shareChannel,
 	withDefaults,
 	withInitialMembers,
-	withInitialMessage,
 	withInitialRoles,
 } from '../contracts/sui_messaging/channel';
 import { NotImplementedFeatureError } from '../error';
@@ -34,7 +31,7 @@ export class CreateChannelBuilder {
 		this.#tx = transaction;
 	}
 	/** Begin the flow. Must be called first. */
-	init(): AddEncryptedKeyStep {
+	init(): BuildStep{
 		const [channel, creatorCap] = this.#tx.add(newChannel());
 		const context: CreateChannelContext = {
 			signer: this.#signer,
@@ -43,35 +40,12 @@ export class CreateChannelBuilder {
 			creatorCap,
 		};
 
-		return new AddEncryptedKeyStep(context);
+		return new BuildStep(context);
 	}
 }
 
-// Step 2: add encrypted key step
-export class AddEncryptedKeyStep {
-	#context: CreateChannelContext;
-	constructor(context: CreateChannelContext) {
-		this.#context = context;
-	}
 
-	addEncryptedKey(): BuildStep {
-		// TODO: Implement Envelope Encryption with Seal
-		// Mocking it for now
-		const wrappedKek = this.#context.tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
-		this.#context.tx.add(
-			addWrappedKek({
-				arguments: {
-					self: this.#context.channel,
-					creatorCap: this.#context.creatorCap,
-					wrappedKek,
-				},
-			}),
-		);
-		return new BuildStep(this.#context);
-	}
-}
-
-// Step 3: build step with optional settings
+// Step 2: build step with optional settings
 export class BuildStep {
 	#context: CreateChannelContext;
 
@@ -126,37 +100,17 @@ export class BuildStep {
 		);
 		return this;
 	}
-	/** Optional: set an initial message. */
-	withInitialMessage(initialMessage: string): this {
-		if (typeof initialMessage !== 'string' || initialMessage.length < 1) {
-			return this;
-		}
-		// TODO: Inocorporate Envelope Encryption once implemented
-		// Mocking this for now
-		const messageBytes = this.#context.tx.pure(
-			bcs.vector(bcs.U8).serialize(new TextEncoder().encode(initialMessage)),
-		);
-		const nonce = this.#context.tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
-		const wrappedDek = this.#context.tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
-		this.#context.tx.add(
-			withInitialMessage({
-				arguments: {
-					self: this.#context.channel,
-					creatorCap: this.#context.creatorCap,
-					ciphertext: messageBytes,
-					wrappedDek,
-					nonce,
-				},
-			}),
-		);
-		return this;
-	}
+	
 	/** Required action: finalize the build. */
 	build(): Transaction {
 		// Finalize by sharing the channel and transferring the creatorCap to the signer
 		this.#shareChannel();
 		this.#transferCreatorCap();
 		return this.#context.tx;
+	}
+
+	context(): CreateChannelContext {
+		return this.#context;
 	}
 
 	#shareChannel(): void {

@@ -1,30 +1,28 @@
-import { Transaction } from '@mysten/sui/transactions';
+import { Transaction, TransactionArgument, TransactionResult } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 import { bcs } from '@mysten/sui/bcs';
 import { SealClient } from '@mysten/seal';
-import {ClientWithExtensions} from "@mysten/sui/experimental";
-import {WalrusClient} from "@mysten/walrus";
-
+import { ClientWithExtensions } from '@mysten/sui/experimental';
+import { WalrusClient } from '@mysten/walrus';
 import {
 	_new as newChannel,
 	addEncryptedKey,
 	withDefaults,
 	withInitialMembers,
 } from './contracts/sui_messaging/channel';
-import { sendMessage } from "./contracts/sui_messaging/api";
-import {_new as newAttachment, Attachment} from "./contracts/sui_messaging/attachment";
+import { sendMessage } from './contracts/sui_messaging/api';
+import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment';
 
 import {
 	ChannelMembershipsRequest,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
-	SendMessageOptions,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { CreateChannelBuilder, CreateChannelBuilderOptions } from './flows/createChannelBuilder';
-import {StorageAdapter} from "./storage/adapters/storage";
-import {WalrusStorageAdapter} from "./storage/adapters/walrus/walrus";
+import { StorageAdapter } from "./storage/adapters/storage";
+import { WalrusStorageAdapter } from "./storage/adapters/walrus/walrus";
 import { EnvelopeEncryption, MessagingEncryptor } from './encryption';
 
 
@@ -33,6 +31,7 @@ export interface MessagingClientExtensionOptions {
 	network?: 'mainnet' | 'testnet';
 	encryptor?: (client: ClientWithExtensions<any>) => MessagingEncryptor;
 	storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+	signer: Signer;
 }
 
 export interface MessagingClientOptions extends MessagingClientExtensionOptions {
@@ -69,63 +68,70 @@ export class MessagingClient {
 		}
 	}
 
-static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
-    return {
-      name: 'messaging' as const,
-      register: (client: MessagingCompatibleClient) => {
-        const walrusClient = (client as any).walrus;
-        const sealClient = (client as any).seal;
+	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
+		return {
+			name: 'messaging' as const,
+			register: (client: MessagingCompatibleClient) => {
+				const walrusClient = (client as any).walrus;
+				const sealClient = (client as any).seal;
 
-        if (!walrusClient) {
-          throw new MessagingClientError('WalrusClient extension is required for MessagingClient');
-        }
+				if (!walrusClient) {
+					throw new MessagingClientError('WalrusClient extension is required for MessagingClient');
+				}
 
-        if (!sealClient) {
-          throw new MessagingClientError('SealClient extension is required for MessagingClient');
-        }
+				if (!sealClient) {
+					throw new MessagingClientError('SealClient extension is required for MessagingClient');
+				}
 
-        let packageConfig = options.packageConfig;
-        if (options.network && !packageConfig) {
-          switch (options.network) {
-            case 'testnet':
-              packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
-              break;
-            case 'mainnet':
-              packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
-              break;
-            default:
-              throw new MessagingClientError(`Unsupported network: ${options.network}`);
-          }
-        }
+				let packageConfig = options.packageConfig;
+				if (options.network && !packageConfig) {
+					switch (options.network) {
+						case 'testnet':
+							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+							break;
+						case 'mainnet':
+							packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
+							break;
+						default:
+							throw new MessagingClientError(`Unsupported network: ${options.network}`);
+					}
+				}
 
-        if (!packageConfig) {
-          throw new MessagingClientError('Either packageConfig or network must be provided');
-        }
+				if (!packageConfig) {
+					throw new MessagingClientError('Either packageConfig or network must be provided');
+				}
 
-        // Handle storage configuration
-        const storage = options.storage 
-          ? (c: WalrusClient) => options.storage!(c)
-          : (c: WalrusClient) => new WalrusStorageAdapter(c, {
-              publisher: "",
-              aggregator: "",
-            });
+				// Handle storage configuration
+				const storage = options.storage
+					? (c: WalrusClient) => options.storage!(c)
+					: (c: WalrusClient) => new WalrusStorageAdapter(c, {
+						publisher: "",
+						aggregator: "",
+					});
 
-        // Handle encryptor configuration
-        const encryptor = options.encryptor
-          ? (c: SealClient) => options.encryptor!(c)
-          : (_: SealClient) => {
-              throw new MessagingClientError('Encryptor is required for MessagingClient');
-            };
+				// Handle encryptor configuration
+				const encryptor = options.encryptor
+					? (c: SealClient) => options.encryptor!(c)
+					: (c: SealClient) => new EnvelopeEncryption({
+						sealClient: c,
+						suiClient: client,
+						sealApproveContract: packageConfig.sealApproveContract,
+						sessionKeyConfig: {
+							signer: options.signer,
+							ttlMin: packageConfig.sealSessionKeyTTLmins,
+						}
+					});
 
-        return new MessagingClient({
-          suiClient: client,
-          storage,
-          encryptor,
-          packageConfig,
-        });
-      },
-    };
-  }
+				return new MessagingClient({
+					suiClient: client,
+					storage,
+					encryptor,
+					packageConfig,
+					signer: options.signer,
+				});
+			},
+		};
+	}
 
 	// ===== Read Path =====
 
@@ -144,10 +150,8 @@ static experimental_asClientExtension(options: MessagingClientExtensionOptions) 
 	 * const flow = client.createChannelBuilder(signer);
 	 * const createChannelTx = flow
 	 * 								.init()
-	 * 								.addEncryptedKey()
 	 * 								.withDefaults()
 	 * 								.withInitialMembers()
-	 * 								.withInitialMessage()
 	 * 								.build()
 	 *
 	 * ```
@@ -162,26 +166,12 @@ static experimental_asClientExtension(options: MessagingClientExtensionOptions) 
 	 *	Default
 	 *
 	 * @param initialMembers
-	 * @param initialMessage
 	 * @returns
 	 */
-	createChannel(initialMembers: string[], initialMessage?: string) {
+	createChannel(initialMembers: string[]) {
 		return (tx: Transaction) => {
 			// Create a new channel
 			const [channel, creatorCap] = tx.add(newChannel());
-
-			// TODO: Use Seal to generate and wrap a KEK (Key Encryption Key
-
-			const wrappedKek = tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3]).toBytes());
-			tx.add(
-				addWrappedKek({
-					arguments: {
-						self: channel,
-						creatorCap,
-						wrappedKek,
-					},
-				}),
-			);
 
 			// Use defaults
 			tx.add(
@@ -204,25 +194,6 @@ static experimental_asClientExtension(options: MessagingClientExtensionOptions) 
 				}),
 			);
 
-			// Add initial message if provided
-			if (initialMessage) {
-				const messageBytes = tx.pure(
-					bcs.vector(bcs.U8).serialize(new TextEncoder().encode(initialMessage)),
-				);
-				const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
-				tx.add(
-					withInitialMessage({
-						arguments: {
-							self: channel,
-							creatorCap,
-							ciphertext: messageBytes,
-							wrappedDek: wrappedKek,
-							nonce,
-						},
-					}),
-				);
-			}
-
 			return [channel, creatorCap];
 		};
 	}
@@ -230,30 +201,35 @@ static experimental_asClientExtension(options: MessagingClientExtensionOptions) 
 	createChannelTransaction(
 		signer: Signer,
 		initialMembers: string[],
-		initialMessage?: string,
 		transaction: Transaction = new Transaction(),
 	): Transaction {
 		return this.createChannelBuilder({ signer, transaction })
 			.init()
-			.addEncryptedKey()
 			.withDefaults()
 			.withInitialMembers(initialMembers)
-			.withInitialMessage(initialMessage ?? '')
 			.build();
 	}
 
 	async executeCreateChanneltransaction({
 		signer,
 		initialMembers,
-		initialMessage,
-	}: { initialMembers: string[]; initialMessage?: string } & { signer: Signer }): Promise<{
+	}: { initialMembers: string[]; } & { signer: Signer }): Promise<{
 		digest: string;
 		channelID: string;
 	}> {
-		const tx = this.createChannelTransaction(signer, initialMembers, initialMessage);
+		const createChannelTxBuilder = this.createChannelBuilder({ signer, transaction: new Transaction() });
+		const createChannelFlow = createChannelTxBuilder
+			.init()
+			.withDefaults()
+			.withInitialMembers(initialMembers);
+		const createChannelCtx = createChannelFlow.context(); // TODO: this looks weird 
+		const tx = createChannelFlow.build();
 
 		// Execute the transaction
 		const { digest, effects } = await this.#executeTransaction(tx, signer, 'create channel');
+
+		// Extract the channel ID from the transaction effects
+		// TODO: is there no way to get this by the specific type? (packageId::channel::Channel)
 		const channelID = effects.changedObjects.find(
 			(obj) => obj.idOperation === 'Created' && obj.outputOwner?.$kind === 'Shared',
 		)?.id;
@@ -262,22 +238,134 @@ static experimental_asClientExtension(options: MessagingClientExtensionOptions) 
 				'shared channel object id not found on the transaction effects',
 			);
 		}
+		// TODO: is there no way to get the creatorCap that was created in the above tx by the specific type? 
+		// (packageId::channel::Channel)
+
+		// Generate and add an encrypted DEK for the channel
+		const dek = await this.#encryptor(this.#suiClient).generateEncryptedChannelDEK({ channelId: channelID });
+		const addDekTx = new Transaction();
+		addDekTx.add(
+			addEncryptedKey({
+				arguments: {
+					self: addDekTx.object(channelID),
+					creatorCap: createChannelCtx.creatorCap,
+					encryptedKeyBytes: addDekTx.pure.vector("u8", dek)
+				},
+			}),
+		);
+		await this.#executeTransaction(addDekTx, signer, 'add encrypted DEK to channel');
+
+
 
 		return { digest, channelID };
 	}
 
-	sendMessageTransaction({
+	async sendMessage(
+		channelId: string,
+		memberCapId: string,
+		message: string,
+		attachments?: Uint8Array[],
+	) {
+		return async (tx: Transaction) => {
+
+			// TODO: Use Seal to generate and wrap a KEK (Key Encryption Key)
+			const nonce = tx.pure(bcs.vector(bcs.U8).serialize([9, 0, 9, 0]).toBytes());
+			const messageBytes = tx.pure(
+				bcs.vector(bcs.U8).serialize(new TextEncoder().encode(message)),
+			);
+			const channel = tx.object(channelId);
+			const memberCap = tx.object(memberCapId);
+
+			const attachmentsVec = await this.#createAttachmentsVec(tx, nonce, attachments);
+
+			tx.add(
+				sendMessage({
+					package: this.#packageConfig.packageId,
+					arguments: {
+						self: channel,
+						memberCap,
+						ciphertext: messageBytes,
+						nonce,
+						attachments: attachmentsVec,
+					}
+				})
+			);
+		};
+	}
+
+	async #createAttachmentsVec(
+		tx: Transaction,
+		nonce: TransactionArgument,
+		attachments?: Uint8Array[],
+	): Promise<TransactionResult> {
+		const attachmentType = this.#packageConfig.packageId ?
+			// todo: this needs better handling - it's needed for the integration tests
+			Attachment.name.replace("@local-pkg/sui_messaging", this.#packageConfig.packageId) :
+			Attachment.name;
+
+		if (!attachments || attachments.length === 0) {
+			return tx.moveCall({
+				package: '0x1',
+				module: 'vector',
+				function: 'empty',
+				arguments: [],
+				typeArguments: [attachmentType],
+			});
+		}
+
+		const attachmentRefs = await this.#storage(this.#suiClient).upload(attachments, { storageType: 'quilts' });
+
+		const textEncoder = new TextEncoder();
+		return tx.makeMoveVec({
+			type: attachmentType,
+			elements: attachmentRefs.ids.map((attachment) => {
+				return tx.add(
+					newAttachment({
+						package: this.#packageConfig.packageId,
+						arguments: {
+							blobRef: tx.pure.string(attachment),
+							nonce,
+							keyVersion: 1,
+							encryptedFilename: tx.pure(bcs.vector(bcs.U8).serialize(textEncoder.encode("1"))),
+							encryptedMimetype: tx.pure(bcs.vector(bcs.U8).serialize(textEncoder.encode("2"))),
+							encryptedFilesize: tx.pure(bcs.vector(bcs.U8).serialize(textEncoder.encode("3"))),
+						}
+					})
+				);
+			})
+		});
+	}
+
+	async executeSendMessageTransaction({
+		signer,
 		channelId,
 		memberCapId,
-		encryptedChannelKey,
-		messageText,
+		message,
 		attachments,
-	}: SendMessageOptions) {
-		const textData = new TextEncoder().encode(messageText);
-		const textNonce = crypto.getRandomValues(new Uint8Array(5));
-		// TODO: proper encryption
+	}: {
+		channelId: string;
+		memberCapId: string;
+		message: string;
+		attachments?: Uint8Array[]
+	} & { signer: Signer }
+	): Promise<{ digest: string, messageId: string }> {
 
-		// TODO: attachments
+		const tx = new Transaction();
+		const sendMessageTxBuilder =
+			await this.sendMessage(channelId, memberCapId, message, attachments);
+		await sendMessageTxBuilder(tx);
+		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message');
+
+		const messageId = effects.changedObjects.find(
+			(obj) => obj.idOperation === 'Created',
+		)?.id;
+		if (messageId === undefined) {
+			throw new MessagingClientError(
+				'shared channel object id not found on the transaction effects',
+			);
+		}
+
+		return { digest, messageId };
 	}
 
 	// ===== Private Methods =====

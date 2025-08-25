@@ -8,10 +8,13 @@ import {
 	Experimental_CoreClient,
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
+import { SealApproveContract } from './encryption';
 
 export interface MessagingPackageConfig {
 	packageId: string;
 	memberCapType: string;
+	sealApproveContract: SealApproveContract;
+	sealSessionKeyTTLmins: number;
 }
 
 export type MessagingCompatibleClient = ClientWithExtensions<{
