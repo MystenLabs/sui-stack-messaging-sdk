@@ -4,10 +4,9 @@ import { bcs } from '@mysten/sui/bcs';
 
 import {
 	_new as newChannel,
-	addWrappedKek,
+	addEncryptedKey,
 	withDefaults,
 	withInitialMembers,
-	withInitialMessage,
 } from './contracts/sui_messaging/channel';
 
 import {

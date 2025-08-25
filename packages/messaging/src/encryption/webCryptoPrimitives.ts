@@ -55,21 +55,22 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	// ===== Encryption methods =====
 	/**
 	 * Encrypts bytes using a Data Encryption Key (DEK) and a nonce
-	 * @param {Uint8Array} dek
+	 * @param {Uint8Array} key
 	 * @param {Uint8Array} nonce
 	 * @param {Uint8Array} bytesToEncrypt
 	 * @returns {Promise<Uint8Array>} The encrypted bytes as a Uint8Array
 	 */
 	async encryptBytes(
-		dek: Uint8Array<ArrayBuffer>,
+		key: Uint8Array<ArrayBuffer>,
 		nonce: Uint8Array<ArrayBuffer>,
+		aad: Uint8Array<ArrayBuffer>,
 		bytesToEncrypt: Uint8Array<ArrayBuffer>,
 	): Promise<Uint8Array<ArrayBuffer>> {
 		switch (this.config.dekAlgorithm) {
 			case 'AES-GCM': {
 				const importedDEK = await crypto.subtle.importKey(
 					'raw',
-					dek,
+					key,
 					{ name: this.config.dekAlgorithm },
 					false,
 					['encrypt'],
@@ -80,6 +81,7 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 						{
 							name: this.config.dekAlgorithm,
 							iv: nonce,
+							additionalData: aad,
 						},
 						importedDEK,
 						bytesToEncrypt,
@@ -87,20 +89,21 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 					.then((encryptedData) => new Uint8Array(encryptedData));
 			}
 			default:
-				throw new MessagingClientError('Unsupported key unwrap algorithm');
+				throw new MessagingClientError('Unsupported encryption algorithm');
 		}
 	}
 
 	async decryptBytes(
-		dek: Uint8Array<ArrayBuffer>,
+		key: Uint8Array<ArrayBuffer>,
 		nonce: Uint8Array<ArrayBuffer>,
+		aad: Uint8Array<ArrayBuffer>,
 		encryptedBytes: Uint8Array<ArrayBuffer>,
 	): Promise<Uint8Array<ArrayBuffer>> {
 		switch (this.config.dekAlgorithm) {
 			case 'AES-GCM': {
 				const importedDEK = await crypto.subtle.importKey(
 					'raw',
-					dek,
+					key,
 					{ name: this.config.dekAlgorithm },
 					false,
 					['decrypt'],
@@ -111,6 +114,7 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 						{
 							name: this.config.dekAlgorithm,
 							iv: nonce,
+							additionalData: aad,
 						},
 						importedDEK,
 						encryptedBytes,
@@ -118,7 +122,7 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 					.then((decryptedData) => new Uint8Array(decryptedData));
 			}
 			default:
-				throw new MessagingClientError('Unsupported key unwrap algorithm');
+				throw new MessagingClientError('Unsupported encryption algorithm');
 		}
 	}
 }

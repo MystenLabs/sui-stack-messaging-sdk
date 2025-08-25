@@ -391,6 +391,32 @@ export function removeConfigForEditing(options: RemoveConfigForEditingOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface EncryptionKeyArguments {
+    self: RawTransactionArgument<string>;
+}
+export interface EncryptionKeyOptions {
+    package?: string;
+    arguments: EncryptionKeyArguments | [
+        self: RawTransactionArgument<string>
+    ];
+}
+/**
+ * Borrow the channel's encryption key. (read-only) Is there a point in restricting
+ * this to members only? The Channel is a shared object
+ */
+export function encryptionKey(options: EncryptionKeyOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::Channel`
+    ] satisfies string[];
+    const parameterNames = ["self"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'encryption_key',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
 export interface EncryptionKeyVersionArguments {
     self: RawTransactionArgument<string>;
 }
@@ -400,6 +426,7 @@ export interface EncryptionKeyVersionOptions {
         self: RawTransactionArgument<string>
     ];
 }
+/** Get the current version of the encryption key. (read-only) */
 export function encryptionKeyVersion(options: EncryptionKeyVersionOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [

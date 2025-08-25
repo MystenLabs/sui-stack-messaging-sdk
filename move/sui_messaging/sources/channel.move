@@ -302,6 +302,14 @@ public fun remove_config_for_editing(
 }
 
 // === View Functions ===
+
+/// Borrow the channel's encryption key. (read-only)
+/// Is there a point in restricting this to members only? The Channel is a shared object
+public fun encryption_key(self: &Channel): &encryption_key::EncryptionKey {
+    self.id.borrow<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey())
+}
+
+/// Get the current version of the encryption key. (read-only)
 public fun encryption_key_version(self: &Channel): u32 {
     self.id.borrow<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey()).version()
 }
