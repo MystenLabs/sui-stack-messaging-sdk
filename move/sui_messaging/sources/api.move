@@ -212,10 +212,9 @@ fun test_new_with_defaults() {
                 attachment::new(
                     i.to_string(),
                     vector[1, 2, 3, 4],
-                    channel.encryption_key_version(),
                     vector[9, 10, 11, 12],
                     vector[13, 14, 15, 16],
-                    vector[17, 18, 19, 20],
+                    channel.encryption_key_version(),
                 ),
             );
         });

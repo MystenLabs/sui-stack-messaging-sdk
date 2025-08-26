@@ -121,7 +121,8 @@ public struct ConfigReturnPromise {
 
 /// Key for storing a configuration.
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
-public struct EncryptionKey() has copy, drop, store;
+/// Key for storing the channel's encryption key.
+public struct EncryptionKeyField() has copy, drop, store;
 
 // === Events ===
 
@@ -186,20 +187,7 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     };
 }
 
-/// Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
-///
-/// This function is meant to be called only once, right after creating and sharing the Channel.
-/// This is because we need the ChannelID available on the client side, to use as identity bytes
-/// when encrypting the Channel's Data Encryption Key with Seal.
-public fun add_encrypted_key(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    encrypted_key_bytes: vector<u8>,
-) {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    self.id.add(EncryptionKey(), encryption_key::new(encrypted_key_bytes));
-}
-
+/// Add custom roles to the Channel, overwriting the default ones
 public fun with_initial_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -222,6 +210,9 @@ public fun with_initial_roles(
     }
 }
 
+/// Add initial member to the Channel, with custom assigned roles.
+/// Note1: the role_names must already exist in the Channel.
+/// Note2: the creator is already automatically added as a member, so no need to include them here.
 public fun with_initial_members_with_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -233,6 +224,8 @@ public fun with_initial_members_with_roles(
     self.add_members_with_roles_internal(initial_members, clock, ctx);
 }
 
+/// Add initial member to the Channel, with the default role.
+/// Note1: the creator is already automatically added as a member, so no need to include them here.
 public fun with_initial_members(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -250,34 +243,30 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
     config::assert_is_valid_config(&config);
 
     // Add a new Config
+    // TODO: overwrite existing config
     self.id.add(ConfigKey<Config>(), config);
 }
 
+/// Share the Channel object
+/// Note: at this point the client needs to attach an encrypted DEK
+/// Otherwise, it is considered in an invalid state, and cannot be interacted with.
 public fun share(self: Channel, creator_cap: &CreatorCap) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     transfer::share_object(self);
 }
 
-public fun return_config(
+/// Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
+///
+/// This function is meant to be called only once, right after creating and sharing the Channel.
+/// This is because we need the ChannelID available on the client side, to use as identity bytes
+/// when encrypting the Channel's Data Encryption Key with Seal.
+public fun add_encrypted_key(
     self: &mut Channel,
-    member_cap: &MemberCap,
-    config: Config,
-    promise: ConfigReturnPromise,
+    creator_cap: &CreatorCap,
+    encrypted_key_bytes: vector<u8>,
 ) {
-    assert!(
-        self.has_permission(member_cap, permission_update_config()),
-        errors::e_channel_no_permission(),
-    );
-    config::assert_is_valid_config(&config);
-
-    // Burn ConfigReturnPromise
-    let ConfigReturnPromise { channel_id, member_cap_id } = promise;
-
-    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
-    assert!(member_cap.id.to_inner() == member_cap_id, errors::e_channel_not_member());
-
-    // Add the new Config
-    self.id.add(ConfigKey<Config>(), config);
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
+    self.id.add(EncryptionKeyField(), encryption_key::new(encrypted_key_bytes));
 }
 
 /// Borrow the dynamic config object. (Read-only)
@@ -301,20 +290,48 @@ public fun remove_config_for_editing(
     )
 }
 
+/// Reattach a Config to the Channel after editing it.
+/// Burns the `ConfigReturnPromise`.
+public fun return_config(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    config: Config,
+    promise: ConfigReturnPromise,
+) {
+    assert!(
+        self.has_permission(member_cap, permission_update_config()),
+        errors::e_channel_no_permission(),
+    );
+    config::assert_is_valid_config(&config);
+
+    // Burn ConfigReturnPromise
+    let ConfigReturnPromise { channel_id, member_cap_id } = promise;
+
+    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
+    assert!(member_cap.id.to_inner() == member_cap_id, errors::e_channel_not_member());
+
+    // Add the new Config
+    self.id.add(ConfigKey<Config>(), config);
+}
+
 // === View Functions ===
 
 /// Borrow the channel's encryption key. (read-only)
-/// Is there a point in restricting this to members only? The Channel is a shared object
 public fun encryption_key(self: &Channel): &encryption_key::EncryptionKey {
-    self.id.borrow<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey())
+    self.id.borrow<EncryptionKeyField, encryption_key::EncryptionKey>(EncryptionKeyField())
 }
 
 /// Get the current version of the encryption key. (read-only)
 public fun encryption_key_version(self: &Channel): u32 {
-    self.id.borrow<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey()).version()
+    self
+        .id
+        .borrow<EncryptionKeyField, encryption_key::EncryptionKey>(EncryptionKeyField())
+        .version()
 }
 
-// utilized by seal_policies
+/// Returns a namespace for the channel to be
+/// utilized by seal_policies
+/// In this case we use the Channel's UID bytes
 public fun namespace(self: &Channel): vector<u8> {
     self.id.to_bytes()
 }
@@ -352,7 +369,7 @@ public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
 /// Check if this Channel has an encryption key.
 /// An ecnryption key should be added to the Channel right after creating & sharing it.
 public(package) fun has_encryption_key(self: &Channel): bool {
-    self.id.exists_(EncryptionKey())
+    self.id.exists_(EncryptionKeyField())
 }
 
 // Setters
@@ -474,7 +491,7 @@ public(package) fun rotate_encryption_key_internal(
 ) {
     let encryption_key = self
         .id
-        .borrow_mut<EncryptionKey, encryption_key::EncryptionKey>(EncryptionKey());
+        .borrow_mut<EncryptionKeyField, encryption_key::EncryptionKey>(EncryptionKeyField());
     encryption_key::rotate(encryption_key, new_encrypted_key_bytes);
     self.updated_at_ms = clock.timestamp_ms();
 }

@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { Transaction } from '@mysten/sui/transactions';
+
 export interface SealApproveContract {
 	packageId: string;
 	module: string;
@@ -28,16 +30,50 @@ export interface EncryptionPrimitives {
 }
 
 export interface MessagingEncryptor {
-	generateEncryptedChannelDEK({ channelId }: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>>;
-	encryptText({ text, sender, channelId, key }: EncryptTextOpts): Promise<EncryptedTextPayload>;
-	decryptText({ ciphertext, nonce }: DecryptTextOpts): Promise<string>;
+	generateEncryptedChannelDEK(
+		opts: GenerateEncryptedChannelDEKopts,
+	): Promise<Uint8Array<ArrayBuffer>>;
+	decryptChannelDEK(opts: DecryptChannelDEKOpts): Promise<SymmetricKey>;
+	generateNonce(): Uint8Array<ArrayBuffer>;
+	encryptText(opts: EncryptTextOpts): Promise<EncryptedPayload>;
+	decryptText(opts: DecryptTextOpts): Promise<string>;
 	encryptAttachment(opts: EncryptAttachmentOpts): Promise<EncryptedAttachmentPayload>;
+	encryptAttachmentData(opts: EncryptAttachmentOpts): Promise<EncryptedPayload>;
+	encryptAttachmentMetadata(opts: EncryptAttachmentOpts): Promise<EncryptedPayload>;
 	decryptAttachment(opts: DecryptAttachmentOpts): Promise<DecryptAttachmentResult>;
-	decryptAttachmentMetadata(opts: DecryptAttachmentMetadataOpts): Promise<AttachmentMetadata>;
-	decryptAttachmentData(opts: DecryptAttachmentDataOpts): Promise<Uint8Array<ArrayBuffer>>;
+	decryptAttachmentData(opts: DecryptAttachmentDataOpts): Promise<DecryptAttachmentDataResult>;
+	decryptAttachmentMetadata(
+		opts: DecryptAttachmentMetadataOpts,
+	): Promise<DecryptAttachmentMetadataResult>;
 	// Convenience methods
 	encryptMessage(opts: EncryptMessageOpts): Promise<EncryptedMessagePayload>;
 	decryptMessage(opts: DecryptMessageOpts): Promise<DecryptMessageResult>;
+}
+
+export interface CreateChannelFlowBuildOpts {
+	creatorAddress: string;
+	useDefaults?: boolean;
+	initialMemberAddresses?: string[];
+}
+
+export interface CreateChannelFlowGenerateAndSealKeyOpts {
+	digest: string;
+}
+
+export interface CreateChannelFlowAttachEncryptionKeyOpts {
+	channelId: string;
+	creatorCapId: string;
+	encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+}
+
+export interface CreateChannelFlow {
+	build: (opts: CreateChannelFlowBuildOpts) => Transaction;
+	generateAndSealKey: (opts: CreateChannelFlowGenerateAndSealKeyOpts) => Promise<{
+		channelId: string;
+		creatorCapId: string;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	}>;
+	attachEncryptionKey: (opts: CreateChannelFlowAttachEncryptionKeyOpts) => Transaction;
 }
 
 /**
@@ -47,6 +83,12 @@ export interface SymmetricKey {
 	$kind: 'Unencrypted';
 	bytes: Uint8Array<ArrayBuffer>;
 	version: number;
+}
+
+export interface DecryptChannelDEKOpts {
+	encryptedKey: EncryptedSymmetricKey;
+	memberCapId: string; // should be valid sui object id
+	channelId: string; // should be valid sui object id
 }
 
 /**
@@ -77,7 +119,7 @@ export interface EncryptAAD {
 export interface CommonEncryptOpts {
 	channelId: string; // should be valid sui object id
 	sender: string; // should be valid sui address
-	key: EncryptedSymmetricKey; // encrypted key that needs decryption via Seal
+	encryptedKey: EncryptedSymmetricKey; // encrypted key that needs decryption via Seal
 	memberCapId: string; // required for Seal decryption
 }
 
@@ -85,62 +127,52 @@ export interface GenerateEncryptedChannelDEKopts {
 	channelId: string; // should be valid sui object id
 }
 
-export interface EncryptTextOpts extends CommonEncryptOpts {
-	text: string;
-}
-
 /**
  * Represents an encrypted payload along with its metadata
  */
-export interface EncryptedTextPayload {
-	ciphertext: Uint8Array<ArrayBuffer>;
+export interface EncryptedPayload {
+	encryptedBytes: Uint8Array<ArrayBuffer>;
 	nonce: Uint8Array<ArrayBuffer>;
 }
 
-export interface DecryptTextOpts extends CommonEncryptOpts {
-	ciphertext: Uint8Array<ArrayBuffer>;
-	nonce: Uint8Array<ArrayBuffer>;
+export interface EncryptTextOpts extends CommonEncryptOpts {
+	text: string;
 }
-
-export interface EncryptAttachmentOpts extends CommonEncryptOpts {
-	file: File;
-}
-
-export interface EncryptedAttachmentMetadata {
-	encryptedFileName: Uint8Array<ArrayBuffer>;
-	encryptedMimeType: Uint8Array<ArrayBuffer>;
-	encryptedFileSize: Uint8Array<ArrayBuffer>;
-}
+export interface DecryptTextOpts extends CommonEncryptOpts, EncryptedPayload {}
 
 export interface AttachmentMetadata {
 	fileName: string;
 	mimeType: string;
 	fileSize: number;
 }
-
-export interface EncryptedAttachmentPayload extends EncryptedAttachmentMetadata {
-	encryptedData: Uint8Array<ArrayBuffer>;
-	nonce: Uint8Array<ArrayBuffer>;
+export interface EncryptAttachmentOpts extends CommonEncryptOpts {
+	file: File;
 }
 
-export interface DecryptAttachmentMetadataOpts extends CommonEncryptOpts, EncryptedAttachmentMetadata {}
-export interface DecryptAttachmentDataOpts extends CommonEncryptOpts {
-	encryptedData: Uint8Array<ArrayBuffer>;
-	nonce: Uint8Array<ArrayBuffer>;
+export interface EncryptedAttachmentPayload {
+	data: EncryptedPayload;
+	metadata: EncryptedPayload;
 }
 
+export interface DecryptAttachmentMetadataOpts extends CommonEncryptOpts, EncryptedPayload {}
+export interface DecryptAttachmentDataOpts extends CommonEncryptOpts, EncryptedPayload {}
 export interface DecryptAttachmentOpts extends CommonEncryptOpts, EncryptedAttachmentPayload {}
 
 export interface DecryptAttachmentResult extends AttachmentMetadata {
 	data: Uint8Array<ArrayBuffer>;
 }
+export interface DecryptAttachmentDataResult {
+	data: Uint8Array<ArrayBuffer>;
+}
+export interface DecryptAttachmentMetadataResult extends AttachmentMetadata {}
 
 export interface EncryptMessageOpts extends CommonEncryptOpts {
 	text: string;
 	attachments?: File[];
 }
 
-export interface EncryptedMessagePayload extends EncryptedTextPayload{
+export interface EncryptedMessagePayload {
+	text: EncryptedPayload;
 	attachments?: EncryptedAttachmentPayload[];
 }
 

@@ -76,7 +76,7 @@ export const ConfigReturnPromise = new MoveStruct({ name: `${$moduleName}::Confi
         member_cap_id: bcs.Address
     } });
 export const ConfigKey = new MoveTuple({ name: `${$moduleName}::ConfigKey`, fields: [bcs.bool()] });
-export const EncryptionKey = new MoveTuple({ name: `${$moduleName}::EncryptionKey`, fields: [bcs.bool()] });
+export const EncryptionKeyField = new MoveTuple({ name: `${$moduleName}::EncryptionKeyField`, fields: [bcs.bool()] });
 export interface NewArguments {
 }
 export interface NewOptions {
@@ -132,42 +132,6 @@ export function withDefaults(options: WithDefaultsOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface AddEncryptedKeyArguments {
-    self: RawTransactionArgument<string>;
-    creatorCap: RawTransactionArgument<string>;
-    encryptedKeyBytes: RawTransactionArgument<number[]>;
-}
-export interface AddEncryptedKeyOptions {
-    package?: string;
-    arguments: AddEncryptedKeyArguments | [
-        self: RawTransactionArgument<string>,
-        creatorCap: RawTransactionArgument<string>,
-        encryptedKeyBytes: RawTransactionArgument<number[]>
-    ];
-}
-/**
- * Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
- *
- * This function is meant to be called only once, right after creating and sharing
- * the Channel. This is because we need the ChannelID available on the client side,
- * to use as identity bytes when encrypting the Channel's Data Encryption Key with
- * Seal.
- */
-export function addEncryptedKey(options: AddEncryptedKeyOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
-    const argumentsTypes = [
-        `${packageAddress}::channel::Channel`,
-        `${packageAddress}::channel::CreatorCap`,
-        'vector<u8>'
-    ] satisfies string[];
-    const parameterNames = ["self", "creatorCap", "encryptedKeyBytes"];
-    return (tx: Transaction) => tx.moveCall({
-        package: packageAddress,
-        module: 'channel',
-        function: 'add_encrypted_key',
-        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
-    });
-}
 export interface WithInitialRolesArguments {
     self: RawTransactionArgument<string>;
     creatorCap: RawTransactionArgument<string>;
@@ -181,6 +145,7 @@ export interface WithInitialRolesOptions {
         roles: RawTransactionArgument<string>
     ];
 }
+/** Add custom roles to the Channel, overwriting the default ones */
 export function withInitialRoles(options: WithInitialRolesOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -209,6 +174,11 @@ export interface WithInitialMembersWithRolesOptions {
         initialMembers: RawTransactionArgument<string>
     ];
 }
+/**
+ * Add initial member to the Channel, with custom assigned roles. Note1: the
+ * role_names must already exist in the Channel. Note2: the creator is already
+ * automatically added as a member, so no need to include them here.
+ */
 export function withInitialMembersWithRoles(options: WithInitialMembersWithRolesOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -238,6 +208,10 @@ export interface WithInitialMembersOptions {
         initialMembers: RawTransactionArgument<string[]>
     ];
 }
+/**
+ * Add initial member to the Channel, with the default role. Note1: the creator is
+ * already automatically added as a member, so no need to include them here.
+ */
 export function withInitialMembers(options: WithInitialMembersOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -294,6 +268,11 @@ export interface ShareOptions {
         creatorCap: RawTransactionArgument<string>
     ];
 }
+/**
+ * Share the Channel object Note: at this point the client needs to attach an
+ * encrypted DEK Otherwise, it is considered in an invalid state, and cannot be
+ * interacted with.
+ */
 export function share(options: ShareOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -308,34 +287,39 @@ export function share(options: ShareOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface ReturnConfigArguments {
+export interface AddEncryptedKeyArguments {
     self: RawTransactionArgument<string>;
-    memberCap: RawTransactionArgument<string>;
-    config: RawTransactionArgument<string>;
-    promise: RawTransactionArgument<string>;
+    creatorCap: RawTransactionArgument<string>;
+    encryptedKeyBytes: RawTransactionArgument<number[]>;
 }
-export interface ReturnConfigOptions {
+export interface AddEncryptedKeyOptions {
     package?: string;
-    arguments: ReturnConfigArguments | [
+    arguments: AddEncryptedKeyArguments | [
         self: RawTransactionArgument<string>,
-        memberCap: RawTransactionArgument<string>,
-        config: RawTransactionArgument<string>,
-        promise: RawTransactionArgument<string>
+        creatorCap: RawTransactionArgument<string>,
+        encryptedKeyBytes: RawTransactionArgument<number[]>
     ];
 }
-export function returnConfig(options: ReturnConfigOptions) {
+/**
+ * Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
+ *
+ * This function is meant to be called only once, right after creating and sharing
+ * the Channel. This is because we need the ChannelID available on the client side,
+ * to use as identity bytes when encrypting the Channel's Data Encryption Key with
+ * Seal.
+ */
+export function addEncryptedKey(options: AddEncryptedKeyOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
-        `${packageAddress}::channel::MemberCap`,
-        `${packageAddress}::config::Config`,
-        `${packageAddress}::channel::ConfigReturnPromise`
+        `${packageAddress}::channel::CreatorCap`,
+        'vector<u8>'
     ] satisfies string[];
-    const parameterNames = ["self", "memberCap", "config", "promise"];
+    const parameterNames = ["self", "creatorCap", "encryptedKeyBytes"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'return_config',
+        function: 'add_encrypted_key',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
@@ -391,6 +375,41 @@ export function removeConfigForEditing(options: RemoveConfigForEditingOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface ReturnConfigArguments {
+    self: RawTransactionArgument<string>;
+    memberCap: RawTransactionArgument<string>;
+    config: RawTransactionArgument<string>;
+    promise: RawTransactionArgument<string>;
+}
+export interface ReturnConfigOptions {
+    package?: string;
+    arguments: ReturnConfigArguments | [
+        self: RawTransactionArgument<string>,
+        memberCap: RawTransactionArgument<string>,
+        config: RawTransactionArgument<string>,
+        promise: RawTransactionArgument<string>
+    ];
+}
+/**
+ * Reattach a Config to the Channel after editing it. Burns the
+ * `ConfigReturnPromise`.
+ */
+export function returnConfig(options: ReturnConfigOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::Channel`,
+        `${packageAddress}::channel::MemberCap`,
+        `${packageAddress}::config::Config`,
+        `${packageAddress}::channel::ConfigReturnPromise`
+    ] satisfies string[];
+    const parameterNames = ["self", "memberCap", "config", "promise"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'return_config',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
 export interface EncryptionKeyArguments {
     self: RawTransactionArgument<string>;
 }
@@ -400,10 +419,7 @@ export interface EncryptionKeyOptions {
         self: RawTransactionArgument<string>
     ];
 }
-/**
- * Borrow the channel's encryption key. (read-only) Is there a point in restricting
- * this to members only? The Channel is a shared object
- */
+/** Borrow the channel's encryption key. (read-only) */
 export function encryptionKey(options: EncryptionKeyOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -449,6 +465,10 @@ export interface NamespaceOptions {
         self: RawTransactionArgument<string>
     ];
 }
+/**
+ * Returns a namespace for the channel to be utilized by seal_policies In this case
+ * we use the Channel's UID bytes
+ */
 export function namespace(options: NamespaceOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [

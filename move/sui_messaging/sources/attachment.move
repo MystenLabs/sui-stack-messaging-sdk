@@ -10,11 +10,10 @@ use std::string::String;
 
 public struct Attachment has copy, drop, store {
     blob_ref: String,
-    nonce: vector<u8>,
+    encrypted_metadata: vector<u8>,
+    data_nonce: vector<u8>, // Need separate nonces, because we must not reuse a nonce when encrypting with the same key
+    metadata_nonce: vector<u8>,
     key_version: u32,
-    encrypted_filename: vector<u8>,
-    encrypted_mimetype: vector<u8>,
-    encrypted_filesize: vector<u8>,
 }
 
 // === Events ===
@@ -24,19 +23,17 @@ public struct Attachment has copy, drop, store {
 // === Public Functions ===
 public fun new(
     blob_ref: String,
-    nonce: vector<u8>,
+    encrypted_metadata: vector<u8>,
+    data_nonce: vector<u8>,
+    metadata_nonce: vector<u8>,
     key_version: u32,
-    encrypted_filename: vector<u8>,
-    encrypted_mimetype: vector<u8>,
-    encrypted_filesize: vector<u8>,
 ): Attachment {
     Attachment {
         blob_ref,
-        nonce,
+        encrypted_metadata,
+        data_nonce,
+        metadata_nonce,
         key_version,
-        encrypted_filename,
-        encrypted_mimetype,
-        encrypted_filesize,
     }
 }
 // === View Functions ===
