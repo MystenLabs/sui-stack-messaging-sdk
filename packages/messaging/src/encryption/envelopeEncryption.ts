@@ -141,7 +141,7 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 			dek.bytes,
 			nonce,
 			this.encryptionAAD(channelId, dek.version, sender),
-			new TextEncoder().encode(text),
+			new Uint8Array(new TextEncoder().encode(text)),
 		);
 		return {
 			encryptedBytes: ciphertext,
@@ -259,7 +259,7 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 			dek.bytes,
 			nonce,
 			this.encryptionAAD(channelId, dek.version, sender),
-			new TextEncoder().encode(metadataStr),
+			new Uint8Array(new TextEncoder().encode(metadataStr)),
 		);
 
 		return {
@@ -507,6 +507,6 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 		keyVersion: number,
 		sender: string,
 	): Uint8Array<ArrayBuffer> {
-		return new TextEncoder().encode(channelId + keyVersion.toString() + sender);
+		return new Uint8Array(new TextEncoder().encode(channelId + keyVersion.toString() + sender));
 	}
 }

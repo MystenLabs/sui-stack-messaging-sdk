@@ -124,7 +124,13 @@ export interface RemoveMembersOptions {
         membersToRemove: RawTransactionArgument<string[]>
     ];
 }
-/** Remove members from the Channel */
+/**
+ * Remove members from the Channel
+ *
+ * TODO: Require a key rotation after removal key rotation == generate a new
+ * Seal-encrypted key client-side and push it back on the channel.encryption_keys
+ * vector
+ */
 export function removeMembers(options: RemoveMembersOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
@@ -167,36 +173,6 @@ export function editConfig(options: EditConfigOptions) {
         package: packageAddress,
         module: 'api',
         function: 'edit_config',
-        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
-    });
-}
-export interface RotateEncryptionKeyArguments {
-    self: RawTransactionArgument<string>;
-    memberCap: RawTransactionArgument<string>;
-    newEncryptedKeyBytes: RawTransactionArgument<number[]>;
-}
-export interface RotateEncryptionKeyOptions {
-    package?: string;
-    arguments: RotateEncryptionKeyArguments | [
-        self: RawTransactionArgument<string>,
-        memberCap: RawTransactionArgument<string>,
-        newEncryptedKeyBytes: RawTransactionArgument<number[]>
-    ];
-}
-/** Rotate the Channel's Encryption Key */
-export function rotateEncryptionKey(options: RotateEncryptionKeyOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
-    const argumentsTypes = [
-        `${packageAddress}::channel::Channel`,
-        `${packageAddress}::channel::MemberCap`,
-        'vector<u8>',
-        '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
-    ] satisfies string[];
-    const parameterNames = ["self", "memberCap", "newEncryptedKeyBytes", "clock"];
-    return (tx: Transaction) => tx.moveCall({
-        package: packageAddress,
-        module: 'api',
-        function: 'rotate_encryption_key',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }

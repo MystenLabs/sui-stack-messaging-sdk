@@ -10,14 +10,14 @@ export const Attachment = new MoveStruct({ name: `${$moduleName}::Attachment`, f
         encrypted_metadata: bcs.vector(bcs.u8()),
         data_nonce: bcs.vector(bcs.u8()),
         metadata_nonce: bcs.vector(bcs.u8()),
-        key_version: bcs.u32()
+        key_version: bcs.u64()
     } });
 export interface NewArguments {
     blobRef: RawTransactionArgument<string>;
     encryptedMetadata: RawTransactionArgument<number[]>;
     dataNonce: RawTransactionArgument<number[]>;
     metadataNonce: RawTransactionArgument<number[]>;
-    keyVersion: RawTransactionArgument<number>;
+    keyVersion: RawTransactionArgument<number | bigint>;
 }
 export interface NewOptions {
     package?: string;
@@ -26,7 +26,7 @@ export interface NewOptions {
         encryptedMetadata: RawTransactionArgument<number[]>,
         dataNonce: RawTransactionArgument<number[]>,
         metadataNonce: RawTransactionArgument<number[]>,
-        keyVersion: RawTransactionArgument<number>
+        keyVersion: RawTransactionArgument<number | bigint>
     ];
 }
 export function _new(options: NewOptions) {
@@ -36,7 +36,7 @@ export function _new(options: NewOptions) {
         'vector<u8>',
         'vector<u8>',
         'vector<u8>',
-        'u32'
+        'u64'
     ] satisfies string[];
     const parameterNames = ["blobRef", "encryptedMetadata", "dataNonce", "metadataNonce", "keyVersion"];
     return (tx: Transaction) => tx.moveCall({

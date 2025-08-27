@@ -50,31 +50,7 @@ export interface MessagingEncryptor {
 	decryptMessage(opts: DecryptMessageOpts): Promise<DecryptMessageResult>;
 }
 
-export interface CreateChannelFlowBuildOpts {
-	creatorAddress: string;
-	useDefaults?: boolean;
-	initialMemberAddresses?: string[];
-}
 
-export interface CreateChannelFlowGenerateAndSealKeyOpts {
-	digest: string;
-}
-
-export interface CreateChannelFlowAttachEncryptionKeyOpts {
-	channelId: string;
-	creatorCapId: string;
-	encryptedKeyBytes: Uint8Array<ArrayBuffer>;
-}
-
-export interface CreateChannelFlow {
-	build: (opts: CreateChannelFlowBuildOpts) => Transaction;
-	generateAndSealKey: (opts: CreateChannelFlowGenerateAndSealKeyOpts) => Promise<{
-		channelId: string;
-		creatorCapId: string;
-		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
-	}>;
-	attachEncryptionKey: (opts: CreateChannelFlowAttachEncryptionKeyOpts) => Transaction;
-}
 
 /**
  * Represents an encryption key that can be used for both encryption and decryption

@@ -60,7 +60,20 @@ export const Channel = new MoveStruct({ name: `${$moduleName}::Channel`, fields:
          * The timestamp (in milliseconds) when the channel was last updated. (e.g. change
          * in metadata, members, admins, keys)
          */
-        updated_at_ms: bcs.u64()
+        updated_at_ms: bcs.u64(),
+        /**
+         * History of Encryption keys
+         *
+         * Each entry holds the encrypted bytes of the channel encryption key index ==
+         * key_version The latest entry holds the latest/active key. If the vector is
+         * empty, it means that no enryption key has been added on the channel, and
+         * therefore the channel is considered in an invalid state TODO: vector limits -
+         * how often do we expect to rotate a key? Other than an interval of once per year,
+         * we also want to rotate the key when kicking a member from the channel What
+         * should we do when reaching the limit? Re-encrypt older messages? Alternatively,
+         * we can use a TableVec to overcome this issue
+         */
+        encryption_keys: bcs.vector(bcs.vector(bcs.u8()))
     } });
 export const Presense = new MoveEnum({ name: `${$moduleName}::Presense`, fields: {
         Online: null,
@@ -76,7 +89,64 @@ export const ConfigReturnPromise = new MoveStruct({ name: `${$moduleName}::Confi
         member_cap_id: bcs.Address
     } });
 export const ConfigKey = new MoveTuple({ name: `${$moduleName}::ConfigKey`, fields: [bcs.bool()] });
-export const EncryptionKeyField = new MoveTuple({ name: `${$moduleName}::EncryptionKeyField`, fields: [bcs.bool()] });
+export interface TransferCreatorCapArguments {
+    cap: RawTransactionArgument<string>;
+    recipient: RawTransactionArgument<string>;
+}
+export interface TransferCreatorCapOptions {
+    package?: string;
+    arguments: TransferCreatorCapArguments | [
+        cap: RawTransactionArgument<string>,
+        recipient: RawTransactionArgument<string>
+    ];
+}
+/**
+ * Transfer a CreatorCap to a new owner This is the only way to transfer a
+ * CreatorCap since it's key-only
+ */
+export function transferCreatorCap(options: TransferCreatorCapOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::CreatorCap`,
+        'address'
+    ] satisfies string[];
+    const parameterNames = ["cap", "recipient"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'transfer_creator_cap',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface TransferMemberCapArguments {
+    cap: RawTransactionArgument<string>;
+    recipient: RawTransactionArgument<string>;
+}
+export interface TransferMemberCapOptions {
+    package?: string;
+    arguments: TransferMemberCapArguments | [
+        cap: RawTransactionArgument<string>,
+        recipient: RawTransactionArgument<string>
+    ];
+}
+/**
+ * Transfer a MemberCap to a new owner This is the only way to transfer a MemberCap
+ * since it's key-only
+ */
+export function transferMemberCap(options: TransferMemberCapOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `${packageAddress}::channel::MemberCap`,
+        'address'
+    ] satisfies string[];
+    const parameterNames = ["cap", "recipient"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'transfer_member_cap',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
 export interface NewArguments {
 }
 export interface NewOptions {
@@ -177,7 +247,8 @@ export interface WithInitialMembersWithRolesOptions {
 /**
  * Add initial member to the Channel, with custom assigned roles. Note1: the
  * role_names must already exist in the Channel. Note2: the creator is already
- * automatically added as a member, so no need to include them here.
+ * automatically added as a member, so no need to include them here. Returns a
+ * VecMap mapping member addresses to their MemberCaps.
  */
 export function withInitialMembersWithRoles(options: WithInitialMembersWithRolesOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
@@ -211,6 +282,7 @@ export interface WithInitialMembersOptions {
 /**
  * Add initial member to the Channel, with the default role. Note1: the creator is
  * already automatically added as a member, so no need to include them here.
+ * Returns a VecMap mapping member addresses to their MemberCaps.
  */
 export function withInitialMembers(options: WithInitialMembersOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
@@ -410,17 +482,17 @@ export function returnConfig(options: ReturnConfigOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface EncryptionKeyArguments {
+export interface LatestEncryptionKeyArguments {
     self: RawTransactionArgument<string>;
 }
-export interface EncryptionKeyOptions {
+export interface LatestEncryptionKeyOptions {
     package?: string;
-    arguments: EncryptionKeyArguments | [
+    arguments: LatestEncryptionKeyArguments | [
         self: RawTransactionArgument<string>
     ];
 }
-/** Borrow the channel's encryption key. (read-only) */
-export function encryptionKey(options: EncryptionKeyOptions) {
+/** Borrow the channel's latest encryption key. (read-only) */
+export function latestEncryptionKey(options: LatestEncryptionKeyOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
@@ -429,21 +501,21 @@ export function encryptionKey(options: EncryptionKeyOptions) {
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'encryption_key',
+        function: 'latest_encryption_key',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
-export interface EncryptionKeyVersionArguments {
+export interface LatestEncryptionKeyVersionArguments {
     self: RawTransactionArgument<string>;
 }
-export interface EncryptionKeyVersionOptions {
+export interface LatestEncryptionKeyVersionOptions {
     package?: string;
-    arguments: EncryptionKeyVersionArguments | [
+    arguments: LatestEncryptionKeyVersionArguments | [
         self: RawTransactionArgument<string>
     ];
 }
-/** Get the current version of the encryption key. (read-only) */
-export function encryptionKeyVersion(options: EncryptionKeyVersionOptions) {
+/** Get the current version of the encryption key. */
+export function latestEncryptionKeyVersion(options: LatestEncryptionKeyVersionOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui_messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
@@ -452,7 +524,7 @@ export function encryptionKeyVersion(options: EncryptionKeyVersionOptions) {
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
-        function: 'encryption_key_version',
+        function: 'latest_encryption_key_version',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
