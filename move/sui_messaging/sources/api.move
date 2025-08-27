@@ -45,14 +45,14 @@ public fun add_members(
     members: VecSet<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(
         self.has_permission(member_cap, permissions::permission_add_member()),
         errors::e_channel_no_permission(),
     );
-    self.add_members_with_default_role_internal(members, clock, ctx);
+    self.add_members_with_default_role_internal(members, clock, ctx)
 }
 
 /// Add new members to the Channel with specific roles
@@ -62,14 +62,18 @@ public fun add_members_with_roles(
     members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(self.has_permission(member_cap, permissions::permission_add_member()));
-    self.add_members_with_roles_internal(members, clock, ctx);
+    self.add_members_with_roles_internal(members, clock, ctx)
 }
 
 /// Remove members from the Channel
+///
+/// TODO: Require a key rotation after removal
+/// key rotation == generate a new Seal-encrypted key client-side
+/// and push it back on the channel.encryption_keys vector
 public fun remove_members(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -97,22 +101,6 @@ public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Confi
     self.return_config(member_cap, config, promise);
 }
 
-/// Rotate the Channel's Encryption Key
-public fun rotate_encryption_key(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    new_encrypted_key_bytes: vector<u8>,
-    clock: &Clock,
-) {
-    assert!(self.is_member(member_cap), errors::e_channel_not_member());
-    assert!(
-        self.has_permission(member_cap, permissions::permission_rotate_key()),
-        errors::e_channel_no_permission(),
-    );
-    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
-    self.rotate_encryption_key_internal(new_encrypted_key_bytes, clock);
-}
-
 // === Test Functions ===
 #[test_only]
 use sui::test_scenario::{Self as ts};
@@ -121,7 +109,11 @@ use sui::test_scenario::{Self as ts};
 use sui::vec_map;
 
 #[test_only]
-use sui_messaging::{attachment, channel::{Self, CreatorCap}, permissions::{Role}};
+use sui_messaging::{
+    attachment,
+    channel::{Self, CreatorCap, transfer_creator_cap, transfer_member_cap},
+    permissions::{Role},
+};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -144,7 +136,7 @@ fun test_new_with_defaults() {
     scenario.next_tx(sender_address);
     {
         // create new channel
-        let (mut channel, creator_cap) = channel::new(
+        let (mut channel, creator_cap, creator_member_cap) = channel::new(
             &clock,
             scenario.ctx(),
         );
@@ -169,7 +161,7 @@ fun test_new_with_defaults() {
         let mut initial_members = vec_map::empty<address, String>();
         initial_members.insert(recipient_address, b"User".to_string());
 
-        channel.with_initial_members_with_roles(
+        let mut member_caps_map = channel.with_initial_members_with_roles(
             &creator_cap,
             &mut initial_members,
             &clock,
@@ -180,7 +172,19 @@ fun test_new_with_defaults() {
 
         channel.share(&creator_cap);
 
-        transfer::public_transfer(creator_cap, sender_address);
+        // transfer CreatorCap to sender
+        transfer_creator_cap(creator_cap, sender_address);
+        // transfer creator's MemberCap to sender
+        transfer_member_cap(creator_member_cap, sender_address);
+
+        // transfer MemberCaps to initial_member_addresses
+        while (!member_caps_map.is_empty()) {
+            let (member_address, member_cap) = member_caps_map.pop();
+            transfer_member_cap(member_cap, member_address);
+        };
+        // destroy the member_caps_map
+        // At this point it should be empty
+        member_caps_map.destroy_empty();
     };
 
     // === Add a wrapped KEK on the Channel ===
@@ -214,7 +218,7 @@ fun test_new_with_defaults() {
                     vector[1, 2, 3, 4],
                     vector[9, 10, 11, 12],
                     vector[13, 14, 15, 16],
-                    channel.encryption_key_version(),
+                    channel.latest_encryption_key_version(),
                 ),
             );
         });

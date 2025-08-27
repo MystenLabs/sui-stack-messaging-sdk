@@ -13,7 +13,7 @@ public struct Attachment has copy, drop, store {
     encrypted_metadata: vector<u8>,
     data_nonce: vector<u8>, // Need separate nonces, because we must not reuse a nonce when encrypting with the same key
     metadata_nonce: vector<u8>,
-    key_version: u32,
+    key_version: u64,
 }
 
 // === Events ===
@@ -26,7 +26,7 @@ public fun new(
     encrypted_metadata: vector<u8>,
     data_nonce: vector<u8>,
     metadata_nonce: vector<u8>,
-    key_version: u32,
+    key_version: u64,
 ): Attachment {
     Attachment {
         blob_ref,

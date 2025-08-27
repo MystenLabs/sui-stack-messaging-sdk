@@ -5,6 +5,7 @@ use sui_messaging::errors;
 // === Errors ===
 
 // === Constants ===
+// No need for hard limits on the contract side
 const MAX_CHANNEL_MEMBERS: u64 = 10;
 const MAX_CHANNEL_ROLES: u64 = 3;
 const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
