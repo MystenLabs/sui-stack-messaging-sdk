@@ -11,8 +11,9 @@ import {
 	share as shareChannel,
 	withDefaults,
 	withInitialMembers,
-	Channel,
 	CreatorCap,
+	transferMemberCap,
+	transferMemberCaps,
 } from './contracts/sui_messaging/channel';
 
 import { sendMessage } from './contracts/sui_messaging/api';
@@ -30,7 +31,7 @@ import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
 import { EncryptedSymmetricKey, EnvelopeEncryption, MessagingEncryptor } from './encryption';
 
 import { EncryptionKey } from './contracts/sui_messaging/encryption_key';
-import { InferBcsType } from '@mysten/bcs';
+import { RawTransactionArgument } from './contracts/utils';
 
 export interface MessagingClientExtensionOptions {
 	packageConfig?: MessagingPackageConfig;
@@ -47,28 +48,31 @@ export interface MessagingClientOptions extends MessagingClientExtensionOptions 
 }
 
 // Create Channel Flow interfaces
-export interface CreateChannelFlowBuildOpts {
+export interface CreateChannelFlowOpts {
 	creatorAddress: string;
-	useDefaults?: boolean;
 	initialMemberAddresses?: string[];
 }
 
-export interface CreateChannelFlowGenerateEncryptedKeyOpts {
+export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
 	digest: string; // Transaction digest from the channel creation transaction
 }
 
-export interface CreateChannelFlowAttachKeyOpts {
-	// No additional options needed for key attachment
+export interface CreateChannelFlowGetGeneratedCreatorCapOpts {
+	digest: string; // Transaction digest from the channel creation transaction
 }
 
 export interface CreateChannelFlow {
-	build: (opts: CreateChannelFlowBuildOpts) => Transaction;
-	generateEncryptedKey: (opts: CreateChannelFlowGenerateEncryptedKeyOpts) => Promise<{
+	build: () => Transaction;
+	getGeneratedCreatorCap: (
+		opts: CreateChannelFlowGetGeneratedCreatorCapOpts,
+	) => Promise<(typeof CreatorCap)['$inferType']>;
+	generateAndAttachEncryptiondKey: (
+		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
+	) => Promise<Transaction>;
+	getGeneratedEncryptionKey: () => {
 		channelId: string;
-		creatorCapId: string;
-		encryptedKeyBytes: Uint8Array;
-	}>;
-	attachKey: (opts: CreateChannelFlowAttachKeyOpts) => Transaction;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	};
 }
 
 export class MessagingClient {
@@ -76,16 +80,8 @@ export class MessagingClient {
 	#packageConfig: MessagingPackageConfig;
 	#encryptor: (client: ClientWithExtensions<any>) => MessagingEncryptor;
 	#storage: (client: ClientWithExtensions<any>) => StorageAdapter;
-	// TODO: Replace with an LRU cache with a max size
-	// Cache for channel creation flow results: channelId --> {creatorCapId, encryptedKey}
-	#channelCreationCache: Map<
-		string,
-		{ creatorCapId: string; encryptedKey: EncryptedSymmetricKey }
-	> = new Map();
-	// Leave for future
+	// TODO: Leave the responsibility of caching to the caller
 	#encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
-	#channelObjectCache: Map<string, InferBcsType<typeof Channel>> = new Map(); // channelId --> Channel
-	#creatorCapObjectCache: Map<string, InferBcsType<typeof CreatorCap>> = new Map(); // channelId --> CreatorCap
 
 	constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
@@ -186,16 +182,6 @@ export class MessagingClient {
 		});
 	}
 
-	/**
-	 * Get cached channel creation data if available
-	 * This returns the creator cap ID and encrypted key for a channel that was created in this session
-	 */
-	getCachedChannelCreationData(
-		channelId: string,
-	): { creatorCapId: string; encryptedKey: EncryptedSymmetricKey } | undefined {
-		return this.#channelCreationCache.get(channelId);
-	}
-
 	// ===== Write Path =====
 
 	/**
@@ -213,94 +199,93 @@ export class MessagingClient {
 	 *
 	 * @returns CreateChannelFlow
 	 */
-	createChannelFlow(): CreateChannelFlow {
-		const build = (opts: CreateChannelFlowBuildOpts) => {
+	createChannelFlow({
+		creatorAddress,
+		initialMemberAddresses,
+	}: CreateChannelFlowOpts): CreateChannelFlow {
+		const build = () => {
 			const tx = new Transaction();
-			const [channel, creatorCap] = tx.add(newChannel());
+			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel());
 
-			// Apply defaults if requested
-			if (opts.useDefaults !== false) {
-				tx.add(
-					withDefaults({
-						arguments: { self: channel, creatorCap },
-					}),
-				);
-			}
+			// Apply defaults
+			tx.add(
+				withDefaults({
+					arguments: { self: channel, creatorCap },
+				}),
+			);
 
 			// Add initial members if provided
-			if (opts.initialMemberAddresses && opts.initialMemberAddresses.length > 0) {
-				tx.add(
+			let memberCaps: RawTransactionArgument<string> | null = null;
+			if (initialMemberAddresses && initialMemberAddresses.length > 0) {
+				memberCaps = tx.add(
 					withInitialMembers({
-						arguments: { self: channel, creatorCap, initialMembers: opts.initialMemberAddresses },
+						arguments: {
+							self: channel,
+							creatorCap,
+							initialMembers: tx.pure.vector('address', initialMemberAddresses),
+						},
 					}),
 				);
 			}
 
 			// Share the channel and transfer creator cap
 			tx.add(shareChannel({ arguments: { self: channel, creatorCap } }));
-			tx.transferObjects([creatorCap], opts.creatorAddress);
+			// Transfer MemberCaps
+			tx.add(
+				transferMemberCap({ arguments: { cap: creatorMemberCap, recipient: creatorAddress } }),
+			);
+			if (memberCaps !== null) {
+				tx.add(transferMemberCaps({ arguments: { memberCapsMap: memberCaps } }));
+			}
 
 			return tx;
 		};
 
-		const generateEncryptedKey = async (opts: CreateChannelFlowGenerateEncryptedKeyOpts) => {
-			// Fetch transaction effects to get the created objects
-			const { transaction } = await this.#suiClient.core.waitForTransaction({
-				digest: opts.digest,
-			});
-			const effects = transaction.effects;
-
-			// Extract channel ID from transaction effects
-			const channelId = effects.changedObjects.find(
-				(obj: any) => obj.idOperation === 'Created' && obj.outputOwner?.$kind === 'Shared',
-			)?.id;
-			if (!channelId) {
-				throw new MessagingClientError('Shared channel object ID not found in transaction effects');
-			}
-
-			// TODO: this is not correct - MemberCaps are also created in the same transaction
-			// Extract creator cap ID from transaction effects
-			const creatorCapId = effects.changedObjects.find(
-				(obj: any) => obj.idOperation === 'Created' && obj.outputOwner?.$kind === 'AddressOwner',
-			)?.id;
-			if (!creatorCapId) {
-				throw new MessagingClientError('Creator cap object ID not found in transaction effects');
-			}
-
-			// Generate the encrypted channel DEK
-			const encryptedKeyBytes = await this.#encryptor(this.#suiClient).generateEncryptedChannelDEK({
-				channelId,
-			});
-
-			// Cache the result for future use
-			this.#channelCreationCache.set(channelId, {
-				creatorCapId,
-				encryptedKey: { $kind: 'Encrypted', encryptedBytes: encryptedKeyBytes, version: 1 },
-			});
-
-			return { channelId, creatorCapId, encryptedKeyBytes };
+		const getGeneratedCreatorCap = async ({
+			digest,
+		}: CreateChannelFlowGetGeneratedCreatorCapOpts) => {
+			return { creatorCap: await this.#getCreatedCreatorCap(digest) };
 		};
 
-		const attachKey = (opts: CreateChannelFlowAttachKeyOpts) => {
+		const generateAndAttachEncryptionKey = async ({
+			creatorCap,
+		}: Awaited<ReturnType<typeof getGeneratedCreatorCap>>) => {
+			// Generate the encrypted channel DEK
+			const encryptedKeyBytes = await this.#encryptor(this.#suiClient).generateEncryptedChannelDEK({
+				channelId: creatorCap.channel_id,
+			});
+
 			const tx = new Transaction();
-			const generateEncryptedKeyResult = getResults('generateEncryptedKey', 'attachKey');
+
 			tx.add(
 				addEncryptedKey({
 					arguments: {
-						self: tx.object(generateEncryptedKeyResult.channelId),
-						creatorCap: tx.object(generateEncryptedKeyResult.creatorCapId),
-						encryptedKeyBytes: tx.pure.vector('u8', generateEncryptedKeyResult.encryptedKeyBytes),
+						self: tx.object(creatorCap.channel_id),
+						creatorCap: tx.object(creatorCap.id.id),
+						encryptedKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
 					},
 				}),
 			);
 
-			return tx;
+			return {
+				transaction: tx,
+				creatorCap,
+				encryptedKeyBytes,
+			};
+		};
+
+		const getGeneratedEncryptionKey = ({
+			creatorCap,
+			encryptedKeyBytes,
+		}: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>) => {
+			return { channelId: creatorCap.channel_id, encryptedKeyBytes };
 		};
 
 		const stepResults: {
 			build?: ReturnType<typeof build>;
-			generateEncryptedKey?: Awaited<ReturnType<typeof generateEncryptedKey>>;
-			attachKey?: ReturnType<typeof attachKey>;
+			getGeneratedCreatorCap?: Awaited<ReturnType<typeof getGeneratedCreatorCap>>;
+			generateAndAttachEncryptionKey?: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>;
+			getGeneratedEncryptionKey?: never;
 		} = {};
 
 		function getResults<T extends keyof typeof stepResults>(
@@ -314,24 +299,27 @@ export class MessagingClient {
 		}
 
 		return {
-			build: (opts: CreateChannelFlowBuildOpts) => {
+			build: () => {
 				if (!stepResults.build) {
-					stepResults.build = build(opts);
+					stepResults.build = build();
 				}
 				return stepResults.build;
 			},
-			generateEncryptedKey: async (opts: CreateChannelFlowGenerateEncryptedKeyOpts) => {
-				if (!stepResults.generateEncryptedKey) {
-					stepResults.generateEncryptedKey = await generateEncryptedKey(opts);
-				}
-				return stepResults.generateEncryptedKey;
+			getGeneratedCreatorCap: async (opts: CreateChannelFlowGetGeneratedCreatorCapOpts) => {
+				getResults('build', 'getGeneratedCreatorCap');
+				stepResults.getGeneratedCreatorCap = await getGeneratedCreatorCap(opts);
+				return stepResults.getGeneratedCreatorCap.creatorCap;
 			},
-			attachKey: (opts: CreateChannelFlowAttachKeyOpts) => {
-				const generateEncryptedKeyResult = getResults('generateEncryptedKey', 'attachKey');
-				if (!stepResults.attachKey) {
-					stepResults.attachKey = attachKey(opts);
-				}
-				return stepResults.attachKey;
+			generateAndAttachEncryptiondKey: async () => {
+				stepResults.generateAndAttachEncryptionKey = await generateAndAttachEncryptionKey(
+					getResults('getGeneratedCreatorCap', 'generateAndAttachEncryptionKey'),
+				);
+				return stepResults.generateAndAttachEncryptionKey.transaction;
+			},
+			getGeneratedEncryptionKey: () => {
+				return getGeneratedEncryptionKey(
+					getResults('generateAndAttachEncryptionKey', 'getGeneratedEncryptionKey'),
+				);
 			},
 		};
 	}
@@ -342,11 +330,12 @@ export class MessagingClient {
 		sender: string,
 		message: string,
 		attachments?: File[],
+		encryptedSymmetricKey?: EncryptedSymmetricKey,
 	) {
 		return async (tx: Transaction) => {
 			const channel = tx.object(channelId);
 			const memberCap = tx.object(memberCapId);
-			const encryptedKey = await this.#getEncryptedChannelDEK(channelId);
+			const encryptedKey = encryptedSymmetricKey ?? (await this.#getEncryptedChannelDEK(channelId));
 
 			// Encrypt the message text
 			const encryptor = this.#encryptor(this.#suiClient);
@@ -361,6 +350,7 @@ export class MessagingClient {
 			// Encrypt and upload attachments
 			const attachmentsVec = await this.#createAttachmentsVec(
 				tx,
+				encryptedKey,
 				channelId,
 				memberCapId,
 				sender,
@@ -384,6 +374,7 @@ export class MessagingClient {
 
 	async #createAttachmentsVec(
 		tx: Transaction,
+		encryptedKey: EncryptedSymmetricKey,
 		channelId: string,
 		memberCapId: string,
 		sender: string,
@@ -405,7 +396,6 @@ export class MessagingClient {
 		}
 
 		const encryptor = this.#encryptor(this.#suiClient);
-		const encryptedKey = await this.#getEncryptedChannelDEK(channelId);
 
 		// 1. Encrypt all attachment data in parallel
 		const encryptedDataPayloads = await Promise.all(
@@ -521,18 +511,6 @@ export class MessagingClient {
 	}
 
 	async #getEncryptedChannelDEK(channelId: string): Promise<EncryptedSymmetricKey> {
-		// Check channel creation cache first (most recent)
-		const channelCreationResult = this.#channelCreationCache.get(channelId);
-		if (channelCreationResult) {
-			return channelCreationResult.encryptedKey;
-		}
-
-		// Check existing cache
-		const cachedKey = this.#encryptedChannelDEKCache.get(channelId);
-		if (cachedKey) {
-			return cachedKey;
-		}
-
 		// The type of the dynamic field's key
 		const keyType = `${this.#packageConfig.packageId}::channel::EncryptionDEKKey`;
 
@@ -557,58 +535,33 @@ export class MessagingClient {
 		return encryptedKey;
 	}
 
-	// async #getChannelAndCreatorCap(digest: string) {
-	// 	const {
-	// 		transaction: { effects },
-	// 	} = await this.#suiClient.core.waitForTransaction({ digest });
+	async #getCreatedCreatorCap(digest: string) {
+		const creatorCapType = `${this.#packageConfig.packageId}::channel::CreatorCap`;
 
-	// 	const createdChannelObjectIds = effects?.changedObjects
-	// 		.filter((obj) => obj.idOperation === 'Created' && obj.inputOwner?.$kind === 'Shared') // input or output Owner?
-	// 		.map((obj) => obj.id);
+		const {
+			transaction: { effects },
+		} = await this.#suiClient.core.waitForTransaction({
+			digest,
+		});
 
-	// 	if (createdChannelObjectIds.length !== 1) {
-	// 		throw new MessagingClientError(
-	// 			`Only one shared object should be found in transaction effects for transaction (${digest})`,
-	// 		);
-	// 	}
-	// 	const channelId = createdChannelObjectIds[0];
+		const createdObjectIds = effects?.changedObjects
+			.filter((object) => object.idOperation === 'Created')
+			.map((object) => object.id);
 
-	// 	const createdCreatorCapObjectIds = effects?.changedObjects
-	// 		.filter((obj) => obj.idOperation === 'Created' && obj.inputOwner?.$kind === 'AddressOwner') // input or output Owner?
-	// 		.map((obj) => obj.id);
+		const createdObjects = await this.#suiClient.core.getObjects({
+			objectIds: createdObjectIds,
+		});
 
-	// 	if (createdCreatorCapObjectIds.length !== 1) {
-	// 		throw new MessagingClientError(
-	// 			`Only one addressOwned object should be found in transaction effects for transaction (${digest})`,
-	// 		);
-	// 	}
-	// 	const creatorCapId = createdCreatorCapObjectIds[0];
+		const suiCreatorCapObject = createdObjects.objects.find(
+			(object) => !(object instanceof Error) && object.type === creatorCapType,
+		);
 
-	// 	const createdObjects = await this.#suiClient.core.getObjects({
-	// 		objectIds: [channelId, creatorCapId],
-	// 	});
-	// 	const channelObject = createdObjects.objects.find(
-	// 		(obj) => !(obj instanceof Error) && obj.type === `${this.#packageConfig}::channel::Channel`,
-	// 	);
-	// 	if (channelObject instanceof Error || !channelObject) {
-	// 		throw new MessagingClientError(
-	// 			`Channel object not found in transaction effects for transaction (${digest})`,
-	// 		);
-	// 	}
-	// 	const creatorCapObject = createdObjects.objects.find(
-	// 		(obj) =>
-	// 			!(obj instanceof Error) && obj.type === `${this.#packageConfig}::channel::CreatorCap`,
-	// 	);
+		if (suiCreatorCapObject instanceof Error || !suiCreatorCapObject) {
+			throw new MessagingClientError(
+				`CreatorCap object not found in transaction effects for transaction (${digest})`,
+			);
+		}
 
-	// 	if (creatorCapObject instanceof Error || !creatorCapObject) {
-	// 		throw new MessagingClientError(
-	// 			`CreatorCap object not found in transaction effects for transaction (${digest})`,
-	// 		);
-	// 	}
-
-	// 	return {
-	// 		channel: Channel.parse(await channelObject.content),
-	// 		creatorCap: CreatorCap.parse(await creatorCapObject.content),
-	// 	};
-	// }
+		return CreatorCap.parse(await suiCreatorCapObject.content);
+	}
 }

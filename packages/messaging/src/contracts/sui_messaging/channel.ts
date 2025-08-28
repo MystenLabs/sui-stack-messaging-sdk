@@ -147,6 +147,28 @@ export function transferMemberCap(options: TransferMemberCapOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface TransferMemberCapsArguments {
+    memberCapsMap: RawTransactionArgument<string>;
+}
+export interface TransferMemberCapsOptions {
+    package?: string;
+    arguments: TransferMemberCapsArguments | [
+        memberCapsMap: RawTransactionArgument<string>
+    ];
+}
+export function transferMemberCaps(options: TransferMemberCapsOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const argumentsTypes = [
+        `0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, ${packageAddress}::channel::MemberCap>`
+    ] satisfies string[];
+    const parameterNames = ["memberCapsMap"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'channel',
+        function: 'transfer_member_caps',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
 export interface NewArguments {
 }
 export interface NewOptions {

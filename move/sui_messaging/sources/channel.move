@@ -59,6 +59,13 @@ public fun transfer_member_cap(cap: MemberCap, recipient: address) {
     transfer::transfer(cap, recipient)
 }
 
+public fun transfer_member_caps(member_caps_map: &mut VecMap<address, MemberCap>) {
+    while (!member_caps_map.is_empty()) {
+        let (member_address, member_cap) = member_caps_map.pop();
+        transfer_member_cap(member_cap, member_address);
+    };
+}
+
 // === Structs ===
 
 /// A Shared object representing a group-communication channel.
