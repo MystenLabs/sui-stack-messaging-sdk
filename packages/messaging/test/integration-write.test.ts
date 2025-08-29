@@ -321,38 +321,6 @@ describe('Integration tests - Write Path', () => {
 			expect(restrictedMember?.memberInfo.role_name).toBe('Restricted');
 			expect(restrictedMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
 			expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
-
-			// Messages
-			// const messagesResponse = await client.core.getDynamicFields({
-			// 	parentId: channelObj.messages.contents.id.id,
-			// });
-			// const messagesPromises = messagesResponse.dynamicFields.map(async (message) => {
-			// 	const messageResponse = await client.core.getDynamicField({
-			// 		parentId: channelObj.messages.contents.id.id,
-			// 		name: message.name,
-			// 	});
-			// 	const messageNameContent = messageResponse.dynamicField.name.bcs;
-			// 	const messageName = bcs.U64.parse(messageNameContent);
-			// 	const messageContent = messageResponse.dynamicField.value.bcs;
-			// 	const messageObj = messageModule.Message.parse(messageContent);
-			// 	return { name: messageName, message: messageObj };
-			// });
-			// const messages = await Promise.all(messagesPromises);
-			// expect(messages.length).toBe(1);
-
-			// const initialMessage = messages[0];
-			// expect(initialMessage.name).toBe('0');
-			// expect(initialMessage.message.sender).toBe(signer.toSuiAddress());
-			// expect(initialMessage.message.nonce).toEqual([9, 0, 9, 0]);
-			// expect(new TextDecoder().decode(new Uint8Array(messages[0].message.ciphertext))).toBe(
-			// 	'hello world',
-			// );
-			// expect(initialMessage.message.key_version).toBe('1');
-			// expect(initialMessage.message.attachments).toHaveLength(0);
-			// expect(initialMessage.message.created_at_ms).toMatch(/[0-9]+/);
-
-			// // Last Message
-			// expect(channelObj.last_message).toEqual(initialMessage.message);
 		},
 	);
 
