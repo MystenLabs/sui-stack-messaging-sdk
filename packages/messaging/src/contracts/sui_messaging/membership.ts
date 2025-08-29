@@ -4,7 +4,7 @@
 import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { type Transaction } from '@mysten/sui/transactions';
 import * as object from './deps/sui/object.js';
-const $moduleName = '@local-pkg/sui_messaging::membership';
+const $moduleName = '@local-pkg/sui-messaging::membership';
 export const MembershipRegistry = new MoveStruct({ name: `${$moduleName}::MembershipRegistry`, fields: {
         id: object.UID
     } });
@@ -17,7 +17,7 @@ export interface MintOptions {
     ];
 }
 export function mint(options: MintOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'membership',
@@ -38,7 +38,7 @@ export interface MintAndTransferOptions {
     ];
 }
 export function mintAndTransfer(options: MintAndTransferOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         'address'
     ] satisfies string[];

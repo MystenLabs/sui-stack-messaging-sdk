@@ -20,7 +20,7 @@
 import { MoveEnum, MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { type Transaction } from '@mysten/sui/transactions';
 import * as vec_set from './deps/sui/vec_set.js';
-const $moduleName = '@local-pkg/sui_messaging::permissions';
+const $moduleName = '@local-pkg/sui-messaging::permissions';
 /**
  * An enum representing all possible granular permissions within the scope of a
  * Channel. 2^10 = 1024 possible roles
@@ -50,7 +50,7 @@ export interface NewRoleOptions {
     ];
 }
 export function newRole(options: NewRoleOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `0x0000000000000000000000000000000000000000000000000000000000000002::vec_set::VecSet<${packageAddress}::permissions::Permission>`
     ] satisfies string[];
@@ -68,7 +68,7 @@ export interface DefaultRolesOptions {
     ];
 }
 export function defaultRoles(options: DefaultRolesOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -81,7 +81,7 @@ export interface EmptyOptions {
     ];
 }
 export function empty(options: EmptyOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -94,7 +94,7 @@ export interface AllOptions {
     ];
 }
 export function all(options: AllOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -107,7 +107,7 @@ export interface PermissionAddMemberOptions {
     ];
 }
 export function permissionAddMember(options: PermissionAddMemberOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -120,7 +120,7 @@ export interface PermissionRemoveMemberOptions {
     ];
 }
 export function permissionRemoveMember(options: PermissionRemoveMemberOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -133,7 +133,7 @@ export interface PermissionAddRoleOptions {
     ];
 }
 export function permissionAddRole(options: PermissionAddRoleOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -146,7 +146,7 @@ export interface PermissionPromoteMemberOptions {
     ];
 }
 export function permissionPromoteMember(options: PermissionPromoteMemberOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -159,7 +159,7 @@ export interface PermissionDemoteMemberOptions {
     ];
 }
 export function permissionDemoteMember(options: PermissionDemoteMemberOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -172,7 +172,7 @@ export interface PermissionRotateKeyOptions {
     ];
 }
 export function permissionRotateKey(options: PermissionRotateKeyOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -185,7 +185,7 @@ export interface PermissionUpdateMetadataOptions {
     ];
 }
 export function permissionUpdateMetadata(options: PermissionUpdateMetadataOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -198,7 +198,7 @@ export interface PermissionUpdateConfigOptions {
     ];
 }
 export function permissionUpdateConfig(options: PermissionUpdateConfigOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -211,7 +211,7 @@ export interface PermissionDeleteMessageOptions {
     ];
 }
 export function permissionDeleteMessage(options: PermissionDeleteMessageOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -224,7 +224,7 @@ export interface PermissionPinMessageOptions {
     ];
 }
 export function permissionPinMessage(options: PermissionPinMessageOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'permissions',
@@ -241,7 +241,7 @@ export interface PermissionsOptions {
     ];
 }
 export function permissions(options: PermissionsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::permissions::Role`
     ] satisfies string[];
@@ -265,7 +265,7 @@ export interface HasPermissionOptions {
     ];
 }
 export function hasPermission(options: HasPermissionOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::permissions::Role`,
         `${packageAddress}::permissions::Permission`

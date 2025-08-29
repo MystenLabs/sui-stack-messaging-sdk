@@ -5,7 +5,7 @@ import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from 
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
 import * as attachment from './attachment.js';
-const $moduleName = '@local-pkg/sui_messaging::message';
+const $moduleName = '@local-pkg/sui-messaging::message';
 export const Message = new MoveStruct({ name: `${$moduleName}::Message`, fields: {
         /** The address of the sender of this message. TODO: should we encrypt this as well? */
         sender: bcs.Address,
@@ -41,7 +41,7 @@ export interface NewOptions {
     ];
 }
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         'address',
         'vector<u8>',

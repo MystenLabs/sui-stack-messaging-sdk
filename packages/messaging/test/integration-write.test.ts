@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MessagingCompatibleClient } from '../src/types';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { MessagingClient } from '../src/client';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
@@ -155,7 +154,16 @@ describe('Integration tests - Write Path', () => {
 		expect(published).toBeDefined();
 		packageId = published.packageId;
 
-		suiJsonRpcClient = new SuiClient({ url: getFullnodeUrl('localnet') });
+		suiJsonRpcClient = new SuiClient({
+			url: getFullnodeUrl('localnet'),
+			mvr: {
+				overrides: {
+					packages: {
+						'@local-pkg/sui-messaging': packageId,
+					},
+				},
+			},
+		});
 
 		// todo
 		suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
@@ -176,7 +184,7 @@ describe('Integration tests - Write Path', () => {
 		{ timeout: 12000 },
 		async () => {
 			const client = suiJsonRpcClient
-				.$extend(WalrusClient.experimental_asClientExtension())
+				.$extend(WalrusClient.experimental_asClientExtension({ network: 'testnet' }))
 				.$extend(
 					SealClient.asClientExtension({
 						serverConfigs: ALLOWLISTED_SEAL_KEY_SERVERS['testnet'].map((id) => ({

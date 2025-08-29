@@ -4,7 +4,7 @@
 import { MoveEnum, MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
-const $moduleName = '@local-pkg/sui_messaging::encryption_key';
+const $moduleName = '@local-pkg/sui-messaging::encryption_key';
 export const State = new MoveEnum({ name: `${$moduleName}::State`, fields: {
         Enabled: null,
         Disabled: null
@@ -24,7 +24,7 @@ export interface NewOptions {
     ];
 }
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         'vector<u8>'
     ] satisfies string[];
@@ -46,7 +46,7 @@ export interface VersionOptions {
     ];
 }
 export function version(options: VersionOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::encryption_key::EncryptionKey`
     ] satisfies string[];
@@ -68,7 +68,7 @@ export interface EncryptedKeyBytesOptions {
     ];
 }
 export function encryptedKeyBytes(options: EncryptedKeyBytesOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::encryption_key::EncryptionKey`
     ] satisfies string[];
@@ -90,7 +90,7 @@ export interface IsEnabledOptions {
     ];
 }
 export function isEnabled(options: IsEnabledOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::encryption_key::EncryptionKey`
     ] satisfies string[];
@@ -112,7 +112,7 @@ export interface IsDisabledOptions {
     ];
 }
 export function isDisabled(options: IsDisabledOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::encryption_key::EncryptionKey`
     ] satisfies string[];
@@ -130,7 +130,7 @@ export interface CreateEnabledStateOptions {
     ];
 }
 export function createEnabledState(options: CreateEnabledStateOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'encryption_key',
@@ -143,7 +143,7 @@ export interface CreateDisabledStateOptions {
     ];
 }
 export function createDisabledState(options: CreateDisabledStateOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'encryption_key',

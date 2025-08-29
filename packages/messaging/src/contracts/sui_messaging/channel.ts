@@ -8,7 +8,7 @@ import * as object from './deps/sui/object.js';
 import * as table from './deps/sui/table.js';
 import * as table_vec from './deps/sui/table_vec.js';
 import * as message from './message.js';
-const $moduleName = '@local-pkg/sui_messaging::channel';
+const $moduleName = '@local-pkg/sui-messaging::channel';
 export const CreatorCap = new MoveStruct({ name: `${$moduleName}::CreatorCap`, fields: {
         id: object.UID,
         channel_id: bcs.Address
@@ -105,7 +105,7 @@ export interface TransferCreatorCapOptions {
  * CreatorCap since it's key-only
  */
 export function transferCreatorCap(options: TransferCreatorCapOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::CreatorCap`,
         'address'
@@ -134,7 +134,7 @@ export interface TransferMemberCapOptions {
  * since it's key-only
  */
 export function transferMemberCap(options: TransferMemberCapOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::MemberCap`,
         'address'
@@ -157,7 +157,7 @@ export interface TransferMemberCapsOptions {
     ];
 }
 export function transferMemberCaps(options: TransferMemberCapsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, ${packageAddress}::channel::MemberCap>`
     ] satisfies string[];
@@ -186,7 +186,7 @@ export interface NewOptions {
  * add_encrypted_key(CreatorCap)
  */
 export function _new(options: NewOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
     ] satisfies string[];
@@ -211,7 +211,7 @@ export interface WithDefaultsOptions {
 }
 /** Take a Channel, add default Config and default Roles, */
 export function withDefaults(options: WithDefaultsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`
@@ -239,7 +239,7 @@ export interface WithInitialRolesOptions {
 }
 /** Add custom roles to the Channel, overwriting the default ones */
 export function withInitialRoles(options: WithInitialRolesOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
@@ -273,7 +273,7 @@ export interface WithInitialMembersWithRolesOptions {
  * VecMap mapping member addresses to their MemberCaps.
  */
 export function withInitialMembersWithRoles(options: WithInitialMembersWithRolesOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
@@ -307,7 +307,7 @@ export interface WithInitialMembersOptions {
  * Returns a VecMap mapping member addresses to their MemberCaps.
  */
 export function withInitialMembers(options: WithInitialMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
@@ -337,7 +337,7 @@ export interface WithInitialConfigOptions {
 }
 /** Attach a dynamic config object to the Channel. */
 export function withInitialConfig(options: WithInitialConfigOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
@@ -368,7 +368,7 @@ export interface ShareOptions {
  * interacted with.
  */
 export function share(options: ShareOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`
@@ -403,7 +403,7 @@ export interface AddEncryptedKeyOptions {
  * Seal.
  */
 export function addEncryptedKey(options: AddEncryptedKeyOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::CreatorCap`,
@@ -428,7 +428,7 @@ export interface ConfigOptions {
 }
 /** Borrow the dynamic config object. (Read-only) */
 export function config(options: ConfigOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
     ] satisfies string[];
@@ -456,7 +456,7 @@ export interface RemoveConfigForEditingOptions {
  * should then add it back.
  */
 export function removeConfigForEditing(options: RemoveConfigForEditingOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`
@@ -489,7 +489,7 @@ export interface ReturnConfigOptions {
  * `ConfigReturnPromise`.
  */
 export function returnConfig(options: ReturnConfigOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
@@ -515,7 +515,7 @@ export interface LatestEncryptionKeyOptions {
 }
 /** Borrow the channel's latest encryption key. (read-only) */
 export function latestEncryptionKey(options: LatestEncryptionKeyOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
     ] satisfies string[];
@@ -538,7 +538,7 @@ export interface LatestEncryptionKeyVersionOptions {
 }
 /** Get the current version of the encryption key. */
 export function latestEncryptionKeyVersion(options: LatestEncryptionKeyVersionOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
     ] satisfies string[];
@@ -564,7 +564,7 @@ export interface NamespaceOptions {
  * we use the Channel's UID bytes
  */
 export function namespace(options: NamespaceOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
     ] satisfies string[];

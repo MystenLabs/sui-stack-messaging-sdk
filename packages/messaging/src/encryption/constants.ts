@@ -1,7 +1,7 @@
 import { EncryptionPrimitivesConfig } from './types';
 
 export const ENCRYPTION_PRIMITIVES_CONFIG = {
-	keySize: 32, // 256 bits
+	keySize: 256,
 	nonceSize: 12,
 	dekAlgorithm: 'AES-GCM',
 } as const satisfies EncryptionPrimitivesConfig;

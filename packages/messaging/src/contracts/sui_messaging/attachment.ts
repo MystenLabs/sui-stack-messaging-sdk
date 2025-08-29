@@ -4,7 +4,7 @@
 import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
-const $moduleName = '@local-pkg/sui_messaging::attachment';
+const $moduleName = '@local-pkg/sui-messaging::attachment';
 export const Attachment = new MoveStruct({ name: `${$moduleName}::Attachment`, fields: {
         blob_ref: bcs.string(),
         encrypted_metadata: bcs.vector(bcs.u8()),
@@ -30,7 +30,7 @@ export interface NewOptions {
     ];
 }
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         '0x0000000000000000000000000000000000000000000000000000000000000001::string::String',
         'vector<u8>',

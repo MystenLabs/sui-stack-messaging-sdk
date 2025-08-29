@@ -13,6 +13,7 @@ import {
 	CreatorCap,
 	transferMemberCap,
 	transferMemberCaps,
+	transferCreatorCap,
 } from './contracts/sui_messaging/channel';
 
 import { sendMessage } from './contracts/sui_messaging/api';
@@ -233,6 +234,7 @@ export class MessagingClient {
 
 			// Share the channel and transfer creator cap
 			tx.add(shareChannel({ arguments: { self: channel, creatorCap } }));
+			tx.add(transferCreatorCap({ arguments: { cap: creatorCap, recipient: creatorAddress } }));
 			// Transfer MemberCaps
 			tx.add(
 				transferMemberCap({ arguments: { cap: creatorMemberCap, recipient: creatorAddress } }),
@@ -385,7 +387,7 @@ export class MessagingClient {
 	): Promise<TransactionResult> {
 		const attachmentType = this.#packageConfig.packageId
 			? // todo: this needs better handling - it's needed for the integration tests
-				Attachment.name.replace('@local-pkg/sui_messaging', this.#packageConfig.packageId)
+				Attachment.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId)
 			: Attachment.name;
 
 		if (!attachments || attachments.length === 0) {
@@ -505,6 +507,7 @@ export class MessagingClient {
 
 		// Step 2: Get the creator cap from the transaction
 		const creatorCap = await flow.getGeneratedCreatorCap({ digest: channelDigest });
+		console.log('creatorCap', creatorCap);
 
 		// Step 3: Generate and attach encryption key
 		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorCap });

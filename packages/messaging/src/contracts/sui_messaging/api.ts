@@ -34,7 +34,7 @@ export interface SendMessageOptions {
 }
 /** Send a new message to the Channel */
 export function sendMessage(options: SendMessageOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
@@ -66,7 +66,7 @@ export interface AddMembersOptions {
 }
 /** Add new members to the Channel with the default role */
 export function addMembers(options: AddMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
@@ -96,7 +96,7 @@ export interface AddMembersWithRolesOptions {
 }
 /** Add new members to the Channel with specific roles */
 export function addMembersWithRoles(options: AddMembersWithRolesOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
@@ -132,7 +132,7 @@ export interface RemoveMembersOptions {
  * vector
  */
 export function removeMembers(options: RemoveMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
@@ -162,7 +162,7 @@ export interface EditConfigOptions {
 }
 /** Edit Config Helper We could also expose separate functions for each config value */
 export function editConfig(options: EditConfigOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui_messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::channel::MemberCap`,
