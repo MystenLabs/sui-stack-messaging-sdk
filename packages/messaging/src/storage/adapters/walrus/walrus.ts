@@ -1,9 +1,11 @@
+import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
 import { StorageAdapter, StorageConfig, StorageOptions } from '../storage';
 import { WalrusClient } from '@mysten/walrus';
+import { WalrusResponse } from './types';
 
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
-		private readonly client: WalrusClient,
+		private readonly client: ClientWithExtensions<{ walrus: WalrusClient }>,
 		private readonly config: StorageConfig,
 	) {}
 

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { SealClient, SessionKey } from '@mysten/seal';
+import { SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 import { Signer } from '@mysten/sui/cryptography';
 
@@ -36,7 +36,6 @@ export interface SealApproveContract {
 	functionName: string;
 }
 export interface EnvelopeEncryptionConfig {
-	sealClient: SealClient;
 	suiClient: MessagingCompatibleClient;
 	sealApproveContract: SealApproveContract;
 	sessionKey?: SessionKey;
@@ -48,13 +47,12 @@ export interface EnvelopeEncryptionConfig {
 }
 
 /**
- * Core encryption service that handles both single-layer and double-layer envelope encryption
+ * Core envelope encryption service that utilizes Seal
  */
 export class EnvelopeEncryption {
 	#suiClient: MessagingCompatibleClient;
 	#encryptionPrimitives: EncryptionPrimitives;
 	#sessionKey?: SessionKey;
-	#sealClient: SealClient;
 	#sealApproveContract: SealApproveContract;
 	#sessionKeyConfig?: {
 		signer: Signer;
@@ -63,7 +61,6 @@ export class EnvelopeEncryption {
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
-		this.#sealClient = config.sealClient;
 		this.#sealApproveContract = config.sealApproveContract;
 		this.#sessionKey = config.sessionKey;
 		this.#sessionKeyConfig = config.sessionKeyConfig;
@@ -109,7 +106,7 @@ export class EnvelopeEncryption {
 		const nonce = this.#encryptionPrimitives.generateNonce();
 		const sealPolicyBytes = fromHex(channelId); // Using channelId as the policy;
 		const id = toHex(new Uint8Array([...sealPolicyBytes, ...nonce]));
-		const { encryptedObject: encryptedDekBytes } = await this.#sealClient.encrypt({
+		const { encryptedObject: encryptedDekBytes } = await this.#suiClient.seal.encrypt({
 			threshold: 2, // TODO: Magic number --> extract this to an option/config/constant
 			packageId: this.#sealApproveContract.packageId,
 			id,
@@ -478,7 +475,7 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
-		const dekBytes = await this.#sealClient.decrypt({
+		const dekBytes = await this.#suiClient.seal.decrypt({
 			data: encryptedKey.encryptedBytes,
 			sessionKey: await this.getSessionKey(),
 			txBytes,

@@ -1,7 +1,6 @@
 import { Transaction, TransactionResult } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
-import { SealClient } from '@mysten/seal';
 import { ClientWithExtensions } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
@@ -28,7 +27,7 @@ import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } fr
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import { EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
+import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
 import { EncryptionKey } from './contracts/sui_messaging/encryption_key';
 import { RawTransactionArgument } from './contracts/utils';
@@ -42,7 +41,7 @@ export interface MessagingClientExtensionOptions {
 
 export interface MessagingClientOptions extends MessagingClientExtensionOptions {
 	suiClient: MessagingCompatibleClient;
-	storage: (client: WalrusClient) => StorageAdapter;
+	storage: (client: MessagingCompatibleClient) => StorageAdapter;
 }
 
 // Create Channel Flow interfaces
@@ -64,7 +63,7 @@ export interface CreateChannelFlow {
 	getGeneratedCreatorCap: (
 		opts: CreateChannelFlowGetGeneratedCreatorCapOpts,
 	) => Promise<(typeof CreatorCap)['$inferType']>;
-	generateAndAttachEncryptiondKey: (
+	generateAndAttachEncryptionKey: (
 		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
 	) => Promise<Transaction>;
 	getGeneratedEncryptionKey: () => {
@@ -76,13 +75,12 @@ export interface CreateChannelFlow {
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
 	#packageConfig: MessagingPackageConfig;
-	#sealClient: SealClient;
-	#storage: (client: ClientWithExtensions<any>) => StorageAdapter;
+	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
 	#encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 
-	constructor(public options: MessagingClientOptions) {
+	private constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
 		this.#storage = options.storage;
 
@@ -102,16 +100,8 @@ export class MessagingClient {
 			this.#packageConfig = options.packageConfig!;
 		}
 
-		// Get SealClient from the extended client
-		const sealClient = (this.#suiClient as any).seal;
-		if (!sealClient) {
-			throw new MessagingClientError('SealClient extension is required for MessagingClient');
-		}
-		this.#sealClient = sealClient;
-
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
-			sealClient: this.#sealClient,
 			suiClient: this.#suiClient,
 			sealApproveContract: this.#packageConfig.sealApproveContract,
 			sessionKeyConfig: {
@@ -125,16 +115,17 @@ export class MessagingClient {
 		return {
 			name: 'messaging' as const,
 			register: (client: MessagingCompatibleClient) => {
-				// TODO: figure out the Types, so we avoid the use of any
-				const walrusClient = (client as any).walrus;
-				const sealClient = (client as any).seal;
-
-				if (!walrusClient) {
-					throw new MessagingClientError('WalrusClient extension is required for MessagingClient');
-				}
+				const sealClient = client.seal;
 
 				if (!sealClient) {
 					throw new MessagingClientError('SealClient extension is required for MessagingClient');
+				}
+
+				// Check if walrus is required but not available
+				if (!options.storage && !client.walrus) {
+					throw new MessagingClientError(
+						'WalrusClient extension is required for the default StorageAdapter implementation of MessagingClient. Please provide a custom storage adapter or extend the client with the WalrusClient extension.',
+					);
 				}
 
 				let packageConfig = options.packageConfig;
@@ -157,12 +148,19 @@ export class MessagingClient {
 
 				// Handle storage configuration
 				const storage = options.storage
-					? (c: WalrusClient) => options.storage!(c)
-					: (c: WalrusClient) =>
-							new WalrusStorageAdapter(c, {
+					? (c: MessagingCompatibleClient) => options.storage!(c)
+					: (c: MessagingCompatibleClient) => {
+							if (!c.walrus) {
+								throw new MessagingClientError(
+									'WalrusClient extension is required for default storage adapter',
+								);
+							}
+							// Type assertion is safe here because we've checked c.walrus exists
+							return new WalrusStorageAdapter(c as ClientWithExtensions<{ walrus: WalrusClient }>, {
 								publisher: '',
 								aggregator: '',
 							});
+						};
 
 				return new MessagingClient({
 					suiClient: client,
@@ -181,6 +179,10 @@ export class MessagingClient {
 			...request,
 			type: this.#packageConfig.memberCapType,
 		});
+	}
+
+	async decryptMessage(message: DecryptMessageOpts) {
+		return await this.#envelopeEncryption.decryptMessage(message);
 	}
 
 	// ===== Write Path =====
@@ -311,7 +313,7 @@ export class MessagingClient {
 				stepResults.getGeneratedCreatorCap = await getGeneratedCreatorCap(opts);
 				return stepResults.getGeneratedCreatorCap.creatorCap;
 			},
-			generateAndAttachEncryptiondKey: async () => {
+			generateAndAttachEncryptionKey: async () => {
 				stepResults.generateAndAttachEncryptionKey = await generateAndAttachEncryptionKey(
 					getResults('getGeneratedCreatorCap', 'generateAndAttachEncryptionKey'),
 				);
@@ -505,7 +507,7 @@ export class MessagingClient {
 		const creatorCap = await flow.getGeneratedCreatorCap({ digest: channelDigest });
 
 		// Step 3: Generate and attach encryption key
-		const attachKeyTx = await flow.generateAndAttachEncryptiondKey({ creatorCap });
+		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorCap });
 		const { digest: keyDigest } = await this.#executeTransaction(
 			attachKeyTx,
 			signer,
