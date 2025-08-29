@@ -24,7 +24,6 @@ import {
 	EncryptMessageOpts,
 	EncryptTextOpts,
 	GenerateEncryptedChannelDEKopts,
-	MessagingEncryptor,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
@@ -51,7 +50,7 @@ export interface EnvelopeEncryptionConfig {
 /**
  * Core encryption service that handles both single-layer and double-layer envelope encryption
  */
-export class EnvelopeEncryption implements MessagingEncryptor {
+export class EnvelopeEncryption {
 	#suiClient: MessagingCompatibleClient;
 	#encryptionPrimitives: EncryptionPrimitives;
 	#sessionKey?: SessionKey;
@@ -97,7 +96,7 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 		return this.#sessionKey;
 	}
 
-	// ===== MessagingEncryptor methods =====
+	// ===== Encryption methods =====
 	async generateEncryptedChannelDEK({
 		channelId,
 	}: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>> {
@@ -105,7 +104,7 @@ export class EnvelopeEncryption implements MessagingEncryptor {
 			throw new Error('The channelId provided is not a valid Sui Object ID');
 		}
 		// Generate a new DEK
-		const dek = await this.#encryptionPrimitives.generateDEK(length);
+		const dek = await this.#encryptionPrimitives.generateDEK();
 		// Encrypt with Seal before returning
 		const nonce = this.#encryptionPrimitives.generateNonce();
 		const sealPolicyBytes = fromHex(channelId); // Using channelId as the policy;

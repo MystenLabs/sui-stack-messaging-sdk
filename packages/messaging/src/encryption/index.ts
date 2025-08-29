@@ -7,4 +7,4 @@ export * from './envelopeEncryption';
 
 // Re-export specific utilities
 export { WebCryptoPrimitives } from './webCryptoPrimitives';
-export { EnvelopeEncryptionService } from './envelopeEncryption';
+export { EnvelopeEncryption } from './envelopeEncryption';

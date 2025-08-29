@@ -28,7 +28,7 @@ import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } fr
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import { EncryptedSymmetricKey, EnvelopeEncryption, MessagingEncryptor } from './encryption';
+import { EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
 import { EncryptionKey } from './contracts/sui_messaging/encryption_key';
 import { RawTransactionArgument } from './contracts/utils';
@@ -36,14 +36,12 @@ import { RawTransactionArgument } from './contracts/utils';
 export interface MessagingClientExtensionOptions {
 	packageConfig?: MessagingPackageConfig;
 	network?: 'mainnet' | 'testnet';
-	encryptor?: (client: ClientWithExtensions<any>) => MessagingEncryptor;
 	storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
 	signer: Signer;
 }
 
 export interface MessagingClientOptions extends MessagingClientExtensionOptions {
 	suiClient: MessagingCompatibleClient;
-	encryptor: (client: SealClient) => MessagingEncryptor;
 	storage: (client: WalrusClient) => StorageAdapter;
 }
 
@@ -54,7 +52,7 @@ export interface CreateChannelFlowOpts {
 }
 
 export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
-	digest: string; // Transaction digest from the channel creation transaction
+	creatorCap: (typeof CreatorCap)['$inferType'];
 }
 
 export interface CreateChannelFlowGetGeneratedCreatorCapOpts {
@@ -78,14 +76,14 @@ export interface CreateChannelFlow {
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
 	#packageConfig: MessagingPackageConfig;
-	#encryptor: (client: ClientWithExtensions<any>) => MessagingEncryptor;
+	#sealClient: SealClient;
 	#storage: (client: ClientWithExtensions<any>) => StorageAdapter;
+	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
 	#encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 
 	constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
-		this.#encryptor = options.encryptor;
 		this.#storage = options.storage;
 
 		if (options.network && !options.packageConfig) {
@@ -103,6 +101,24 @@ export class MessagingClient {
 		} else {
 			this.#packageConfig = options.packageConfig!;
 		}
+
+		// Get SealClient from the extended client
+		const sealClient = (this.#suiClient as any).seal;
+		if (!sealClient) {
+			throw new MessagingClientError('SealClient extension is required for MessagingClient');
+		}
+		this.#sealClient = sealClient;
+
+		// Initialize EnvelopeEncryption directly
+		this.#envelopeEncryption = new EnvelopeEncryption({
+			sealClient: this.#sealClient,
+			suiClient: this.#suiClient,
+			sealApproveContract: this.#packageConfig.sealApproveContract,
+			sessionKeyConfig: {
+				signer: options.signer,
+				ttlMin: this.#packageConfig.sealSessionKeyTTLmins,
+			},
+		});
 	}
 
 	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
@@ -148,24 +164,9 @@ export class MessagingClient {
 								aggregator: '',
 							});
 
-				// Handle encryptor configuration
-				const encryptor = options.encryptor
-					? (c: SealClient) => options.encryptor!(c)
-					: (c: SealClient) =>
-							new EnvelopeEncryption({
-								sealClient: c,
-								suiClient: client,
-								sealApproveContract: packageConfig.sealApproveContract,
-								sessionKeyConfig: {
-									signer: options.signer,
-									ttlMin: packageConfig.sealSessionKeyTTLmins,
-								},
-							});
-
 				return new MessagingClient({
 					suiClient: client,
 					storage,
-					encryptor,
 					packageConfig,
 					signer: options.signer,
 				});
@@ -251,7 +252,7 @@ export class MessagingClient {
 			creatorCap,
 		}: Awaited<ReturnType<typeof getGeneratedCreatorCap>>) => {
 			// Generate the encrypted channel DEK
-			const encryptedKeyBytes = await this.#encryptor(this.#suiClient).generateEncryptedChannelDEK({
+			const encryptedKeyBytes = await this.#envelopeEncryption.generateEncryptedChannelDEK({
 				channelId: creatorCap.channel_id,
 			});
 
@@ -338,14 +339,14 @@ export class MessagingClient {
 			const encryptedKey = encryptedSymmetricKey ?? (await this.#getEncryptedChannelDEK(channelId));
 
 			// Encrypt the message text
-			const encryptor = this.#encryptor(this.#suiClient);
-			const { encryptedBytes: ciphertext, nonce: textNonce } = await encryptor.encryptText({
-				text: message,
-				channelId,
-				sender,
-				memberCapId,
-				encryptedKey,
-			});
+			const { encryptedBytes: ciphertext, nonce: textNonce } =
+				await this.#envelopeEncryption.encryptText({
+					text: message,
+					channelId,
+					sender,
+					memberCapId,
+					encryptedKey,
+				});
 
 			// Encrypt and upload attachments
 			const attachmentsVec = await this.#createAttachmentsVec(
@@ -395,12 +396,10 @@ export class MessagingClient {
 			});
 		}
 
-		const encryptor = this.#encryptor(this.#suiClient);
-
 		// 1. Encrypt all attachment data in parallel
 		const encryptedDataPayloads = await Promise.all(
 			attachments.map(async (file) => {
-				return encryptor.encryptAttachmentData({
+				return this.#envelopeEncryption.encryptAttachmentData({
 					file,
 					channelId,
 					memberCapId,
@@ -419,7 +418,7 @@ export class MessagingClient {
 		// 3. Encrypt all metadata in parallel
 		const encryptedMetadataPayloads = await Promise.all(
 			attachments.map((file) => {
-				return encryptor.encryptAttachmentMetadata({
+				return this.#envelopeEncryption.encryptAttachmentMetadata({
 					file,
 					channelId,
 					memberCapId,
@@ -481,6 +480,39 @@ export class MessagingClient {
 		}
 
 		return { digest, messageId };
+	}
+
+	async executeCreateChannelTransaction({
+		signer,
+		initialMembers,
+	}: {
+		initialMembers?: string[];
+	} & { signer: Signer }): Promise<{ digest: string; channelId: string }> {
+		const flow = this.createChannelFlow({
+			creatorAddress: signer.toSuiAddress(),
+			initialMemberAddresses: initialMembers,
+		});
+
+		// Step 1: Build and execute the channel creation transaction
+		const channelTx = flow.build();
+		const { digest: channelDigest } = await this.#executeTransaction(
+			channelTx,
+			signer,
+			'create channel',
+		);
+
+		// Step 2: Get the creator cap from the transaction
+		const creatorCap = await flow.getGeneratedCreatorCap({ digest: channelDigest });
+
+		// Step 3: Generate and attach encryption key
+		const attachKeyTx = await flow.generateAndAttachEncryptiondKey({ creatorCap });
+		const { digest: keyDigest } = await this.#executeTransaction(
+			attachKeyTx,
+			signer,
+			'attach encryption key',
+		);
+
+		return { digest: keyDigest, channelId: creatorCap.channel_id };
 	}
 
 	// ===== Private Methods =====

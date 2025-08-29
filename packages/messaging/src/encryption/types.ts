@@ -29,29 +29,6 @@ export interface EncryptionPrimitives {
 	): Promise<Uint8Array<ArrayBuffer>>;
 }
 
-export interface MessagingEncryptor {
-	generateEncryptedChannelDEK(
-		opts: GenerateEncryptedChannelDEKopts,
-	): Promise<Uint8Array<ArrayBuffer>>;
-	decryptChannelDEK(opts: DecryptChannelDEKOpts): Promise<SymmetricKey>;
-	generateNonce(): Uint8Array<ArrayBuffer>;
-	encryptText(opts: EncryptTextOpts): Promise<EncryptedPayload>;
-	decryptText(opts: DecryptTextOpts): Promise<string>;
-	encryptAttachment(opts: EncryptAttachmentOpts): Promise<EncryptedAttachmentPayload>;
-	encryptAttachmentData(opts: EncryptAttachmentOpts): Promise<EncryptedPayload>;
-	encryptAttachmentMetadata(opts: EncryptAttachmentOpts): Promise<EncryptedPayload>;
-	decryptAttachment(opts: DecryptAttachmentOpts): Promise<DecryptAttachmentResult>;
-	decryptAttachmentData(opts: DecryptAttachmentDataOpts): Promise<DecryptAttachmentDataResult>;
-	decryptAttachmentMetadata(
-		opts: DecryptAttachmentMetadataOpts,
-	): Promise<DecryptAttachmentMetadataResult>;
-	// Convenience methods
-	encryptMessage(opts: EncryptMessageOpts): Promise<EncryptedMessagePayload>;
-	decryptMessage(opts: DecryptMessageOpts): Promise<DecryptMessageResult>;
-}
-
-
-
 /**
  * Represents an encryption key that can be used for both encryption and decryption
  */
