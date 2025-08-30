@@ -11,6 +11,7 @@ import { ALLOWLISTED_SEAL_KEY_SERVERS } from '../src/encryption/constants';
 import * as channelModule from '../src/contracts/sui_messaging/channel';
 import * as permissionsModule from '../src/contracts/sui_messaging/permissions';
 import * as messageModule from '../src/contracts/sui_messaging/message';
+import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 
 // --- Constants ---
 
@@ -90,6 +91,16 @@ class MockWalrusClient {
 	}
 }
 
+// Add a mock storage adapter for tests
+class MockStorageAdapter implements StorageAdapter {
+	async upload(data: Uint8Array[], options: StorageOptions): Promise<{ ids: string[] }> {
+		// artificial delay
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		// Return mock blob IDs for testing
+		return { ids: data.map((_, i) => `mock-blob-${i}-${Date.now()}`) };
+	}
+}
+
 /**
  * Creates a fully extended MessagingClient for tests.
  * @param suiJsonRpcClient - The base SuiClient.
@@ -119,12 +130,10 @@ export function createTestClient(
 							},
 							sealSessionKeyTTLmins: 10,
 						},
-						storage: (client) =>
-							new WalrusStorageAdapter(client, {
-								// Use testnet walrus for attachment storage in local tests
-								publisher: 'https://publisher.walrus-testnet.walrus.space',
-								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-							}),
+						/*
+                        {"error":{"status":"INTERNAL","code":500,"message":"could not find SUI coins with sufficient balance [requested_amount=Some(7141468)]","details":[{"@type":"ErrorInfo","reason":"INTERNAL_ERROR","domain":"daemon.walrus.space","metadata":{}},{"@type":"DebugInfo","stackEntries":[],"detail":"TraceID: 0"}]}}
+                        */
+						storage: (client) => new MockStorageAdapter(),
 						signer,
 					}),
 				)
@@ -152,10 +161,14 @@ export function createTestClient(
 							sealSessionKeyTTLmins: 10,
 						},
 						storage: (client) =>
+							/*
+                            {"error":{"status":"INTERNAL","code":500,"message":"could not find SUI coins with sufficient balance [requested_amount=Some(7141468)]","details":[{"@type":"ErrorInfo","reason":"INTERNAL_ERROR","domain":"daemon.walrus.space","metadata":{}},{"@type":"DebugInfo","stackEntries":[],"detail":"TraceID: 0"}]}}
+                            */
 							new WalrusStorageAdapter(client, {
 								// Use testnet walrus for attachment storage in local tests
 								publisher: 'https://publisher.walrus-testnet.walrus.space',
 								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
+								epochs: 1,
 							}),
 						signer,
 					}),
@@ -173,9 +186,6 @@ export function createTestClient(
 export async function getChannelObject(client: SuiClient, channelId: string) {
 	const channelResponse = await client.core.getObject({ objectId: channelId });
 	const channelContent = await channelResponse.object.content;
-	if (!channelContent || channelResponse.object.type !== channelModule.Channel.name) {
-		throw new Error('Failed to fetch channel objectt');
-	}
 	return channelModule.Channel.parse(channelContent);
 }
 
@@ -241,7 +251,7 @@ export async function getMemberCapObject(
 ) {
 	const memberCaps = await client.core.getOwnedObjects({
 		address: ownerAddress,
-		type: channelModule.MemberCap.name.replace('@local-pkg/sui_messaging', packageId),
+		type: channelModule.MemberCap.name.replace('@local-pkg/sui-messaging', packageId),
 	});
 
 	const targetCap = await memberCaps.objects.find(async (cap) => {

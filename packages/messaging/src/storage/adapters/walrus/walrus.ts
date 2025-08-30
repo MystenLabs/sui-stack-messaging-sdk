@@ -15,15 +15,27 @@ export class WalrusStorageAdapter implements StorageAdapter {
 
 	async #uploadQuilts(data: Uint8Array[]): Promise<{ ids: string[] }> {
 		const formData = new FormData();
-		for (const blob of data) {
-			formData.append('file', new Blob([new Uint8Array(blob)]));
+
+		for (let i = 0; i < data.length; i++) {
+			const identifier = `attachment${i}`;
+			const blob = new Blob([new Uint8Array(data[i])]);
+			formData.append(identifier, blob);
 		}
-		const response = await fetch(`${this.config.publisher}/v1/quilts`, {
-			method: 'PUT',
-			body: formData,
-		});
+
+		const response = await fetch(
+			`${this.config.publisher}/v1/quilts?epochs=${this.config.epochs}`,
+			{
+				method: 'PUT',
+				body: formData,
+			},
+		);
 		if (!response.ok) {
-			throw new Error(`Walrus upload failed: ${response.statusText}`);
+			// Read the error response body to get the actual error message
+			const errorText = await response.text();
+			console.error('Error response body:', errorText);
+			throw new Error(
+				`Walrus upload failed: ${response.status} ${response.statusText} - ${errorText}`,
+			);
 		}
 
 		const result = await response.json();

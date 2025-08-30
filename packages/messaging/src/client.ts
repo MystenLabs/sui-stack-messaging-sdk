@@ -1,6 +1,5 @@
 import { Transaction, TransactionResult } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
-import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { ClientWithExtensions } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
@@ -30,7 +29,6 @@ import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
 import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
-import { EncryptionKey } from './contracts/sui_messaging/encryption_key';
 import { RawTransactionArgument } from './contracts/utils';
 
 export interface MessagingClientExtensionOptions {
@@ -79,7 +77,7 @@ export class MessagingClient {
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
-	#encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
+	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 
 	private constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
@@ -158,8 +156,9 @@ export class MessagingClient {
 							}
 							// Type assertion is safe here because we've checked c.walrus exists
 							return new WalrusStorageAdapter(c as ClientWithExtensions<{ walrus: WalrusClient }>, {
-								publisher: '',
-								aggregator: '',
+								publisher: 'https://publisher.walrus-testnet.walrus.space',
+								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
+								epochs: 1,
 							});
 						};
 
@@ -334,13 +333,12 @@ export class MessagingClient {
 		memberCapId: string,
 		sender: string,
 		message: string,
+		encryptedKey: EncryptedSymmetricKey,
 		attachments?: File[],
-		encryptedSymmetricKey?: EncryptedSymmetricKey,
 	) {
 		return async (tx: Transaction) => {
 			const channel = tx.object(channelId);
 			const memberCap = tx.object(memberCapId);
-			const encryptedKey = encryptedSymmetricKey ?? (await this.#getEncryptedChannelDEK(channelId));
 
 			// Encrypt the message text
 			const { encryptedBytes: ciphertext, nonce: textNonce } =
@@ -447,7 +445,7 @@ export class MessagingClient {
 							encryptedMetadata: tx.pure.vector('u8', metadata.encryptedBytes),
 							dataNonce: tx.pure.vector('u8', dataNonce),
 							metadataNonce: tx.pure.vector('u8', metadataNonce),
-							keyVersion: tx.pure('u32', encryptedKey.version),
+							keyVersion: tx.pure('u64', encryptedKey.version),
 						},
 					}),
 				);
@@ -461,10 +459,12 @@ export class MessagingClient {
 		memberCapId,
 		message,
 		attachments,
+		encryptedKey,
 	}: {
 		channelId: string;
 		memberCapId: string;
 		message: string;
+		encryptedKey: EncryptedSymmetricKey;
 		attachments?: File[];
 	} & { signer: Signer }): Promise<{ digest: string; messageId: string }> {
 		const tx = new Transaction();
@@ -473,6 +473,7 @@ export class MessagingClient {
 			memberCapId,
 			signer.toSuiAddress(),
 			message,
+			encryptedKey,
 			attachments,
 		);
 		await sendMessageTxBuilder(tx);
@@ -491,7 +492,12 @@ export class MessagingClient {
 		initialMembers,
 	}: {
 		initialMembers?: string[];
-	} & { signer: Signer }): Promise<{ digest: string; channelId: string }> {
+	} & { signer: Signer }): Promise<{
+		digest: string;
+		channelId: string;
+		creatorCapId: string;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	}> {
 		const flow = this.createChannelFlow({
 			creatorAddress: signer.toSuiAddress(),
 			initialMemberAddresses: initialMembers,
@@ -507,7 +513,6 @@ export class MessagingClient {
 
 		// Step 2: Get the creator cap from the transaction
 		const creatorCap = await flow.getGeneratedCreatorCap({ digest: channelDigest });
-		console.log('creatorCap', creatorCap);
 
 		// Step 3: Generate and attach encryption key
 		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorCap });
@@ -517,7 +522,10 @@ export class MessagingClient {
 			'attach encryption key',
 		);
 
-		return { digest: keyDigest, channelId: creatorCap.channel_id };
+		// Step 4: Get the encrypted key bytes
+		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
+
+		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
 	}
 
 	// ===== Private Methods =====
@@ -545,31 +553,6 @@ export class MessagingClient {
 		}
 
 		return { digest, effects };
-	}
-
-	async #getEncryptedChannelDEK(channelId: string): Promise<EncryptedSymmetricKey> {
-		// The type of the dynamic field's key
-		const keyType = `${this.#packageConfig.packageId}::channel::EncryptionDEKKey`;
-
-		// The key's value, BCS-serialized. For a struct with no fields, this is an empty Uint8Array.
-		const keyValue = new Uint8Array([]);
-
-		// Fetch the latest channel key from chain
-		const dekFieldID = await deriveDynamicFieldID(channelId, keyType, keyValue);
-		const dekObjectRes = await this.#suiClient.core.getObject({
-			objectId: dekFieldID,
-		});
-		// Extract the encrypted DEK bytes and version from the object
-		const dekObjectBytes = await dekObjectRes.object.content;
-		const dekObject = EncryptionKey.parse(dekObjectBytes);
-		const encryptedKey: EncryptedSymmetricKey = {
-			$kind: 'Encrypted',
-			encryptedBytes: new Uint8Array(dekObject.encrypted_key_bytes),
-			version: dekObject.version,
-		};
-
-		this.#encryptedChannelDEKCache.set(channelId, encryptedKey);
-		return encryptedKey;
 	}
 
 	async #getCreatedCreatorCap(digest: string) {

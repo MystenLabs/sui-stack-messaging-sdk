@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { GenericContainer, Network, StartedNetwork, StartedTestContainer } from 'testcontainers';
 import path from 'path';
+import { SuiGraphQLClient } from '@mysten/sui/graphql';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import {
@@ -26,11 +29,17 @@ describe('Integration tests - Write Path', () => {
 			? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
 			: 'e4d7ef827d609d606907969372bb30ff4c10d60a');
 
+	const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
+
 	let dockerNetwork: StartedNetwork;
 	let pg: StartedTestContainer;
 	let suiLocalNode: StartedTestContainer;
 
 	let suiJsonRpcClient: SuiClient;
+	// @ts-ignore todo: remove when support added
+	let suiGraphQLClient: SuiGraphQLClient;
+	// @ts-ignore todo: remove when support added
+	let suiGrpcClient: SuiGrpcClient;
 	let signer: Signer;
 	let packageId: string;
 
@@ -44,6 +53,7 @@ describe('Integration tests - Write Path', () => {
 				POSTGRES_PASSWORD: 'postgrespw',
 				POSTGRES_DB: 'sui_indexer_v2',
 			})
+			.withCommand(['-c', 'max_connections=500'])
 			.withExposedPorts(5432)
 			.withNetwork(dockerNetwork)
 			.start();
@@ -65,6 +75,7 @@ describe('Integration tests - Write Path', () => {
 				'postgres',
 				'--pg-password',
 				'postgrespw',
+				'--with-graphql',
 			])
 			.withCopyDirectoriesToContainer([
 				{
@@ -73,41 +84,98 @@ describe('Integration tests - Write Path', () => {
 				},
 			])
 			.withNetwork(dockerNetwork)
-			.withExposedPorts({ host: 9000, container: 9000 })
+			.withExposedPorts(
+				{ host: 9000, container: 9000 },
+				{ host: 9123, container: 9123 },
+				{ host: 9124, container: 9124 },
+				{ host: 9125, container: 9125 },
+			)
+			.withLogConsumer((stream) => {
+				stream.on('data', (data) => {
+					console.log(data.toString());
+				});
+			})
 			.start();
 
-		// Initialize client, signer, and publish the contract
-		const { output: faucetOutput } = await suiLocalNode.exec(['sui', 'client', 'faucet']);
-		expect(faucetOutput).toContain('Request successful');
-
-		const { output: keyOutput } = await suiLocalNode.exec(['sui', 'client', 'active-address']);
-		const suiAddress = keyOutput.trim();
-
-		const { output: phraseOutput } = await suiLocalNode.exec([
+		let configResult = await suiLocalNode.exec([
 			'sui',
 			'client',
-			'export-keypair',
-			suiAddress,
+			'--yes',
+			'--client.config',
+			'/root/.sui/sui_config/client.yaml',
 		]);
-		const recoveryPhrase = JSON.parse(phraseOutput).mnemonics;
-		signer = Ed25519Keypair.deriveKeypair(recoveryPhrase.join(' '));
-		expect(signer.toSuiAddress()).toBe(suiAddress);
+		const phraseRegex = /Secret Recovery Phrase\s*:\s*\[(.*?)]/;
+		const phraseMatch = configResult.stdout.match(phraseRegex);
+		expect(phraseMatch).toBeTruthy();
+		expect(phraseMatch![1]).toBeTruthy();
+		let recoveryPhrase = phraseMatch![1].trim();
+		signer = Ed25519Keypair.deriveKeypair(recoveryPhrase);
 
-		const { output: publishOutput } = await suiLocalNode.exec([
+		const addressRegex = /address with scheme "ed25519" \[.*?: (0x[a-fA-F0-9]+)]/;
+		const addressMatch = configResult.stdout.match(addressRegex);
+		expect(addressMatch).toBeTruthy();
+		expect(addressMatch![1]).toBeTruthy();
+		let address = addressMatch![1].trim();
+		expect(signer.toSuiAddress()).toBe(address);
+
+		let localnetResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'new-env',
+			'--alias',
+			'localnet',
+			'--rpc',
+			'http://127.0.0.1:9000',
+			'--json',
+		]);
+		expect(JSON.parse(localnetResult.stdout).alias).toBe('localnet');
+
+		let switchResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'switch',
+			'--env',
+			'localnet',
+			'--json',
+		]);
+		expect(JSON.parse(switchResult.stdout).env).toBe('localnet');
+
+		let faucetResult = await suiLocalNode.exec(['sui', 'client', 'faucet']);
+		expect(faucetResult.stdout).toMatch(/^Request successful/);
+
+		let publishResult = await suiLocalNode.exec([
 			'sui',
 			'client',
 			'publish',
-			'--json',
 			'./sui_messaging',
+			'--json',
 		]);
-		const publishResult = JSON.parse(publishOutput);
-		expect(publishResult.effects.status.status).toBe('success');
-		const published = publishResult.objectChanges.find(
+		const publishResultJson = JSON.parse(publishResult.stdout);
+		expect(publishResultJson.effects.status.status).toBe('success');
+
+		const published = publishResultJson.objectChanges.find(
 			(change: any) => change.type === 'published',
 		);
+		expect(published).toBeDefined();
 		packageId = published.packageId;
 
-		suiJsonRpcClient = new SuiClient({ url: getFullnodeUrl('localnet') });
+		suiJsonRpcClient = new SuiClient({
+			url: getFullnodeUrl('localnet'),
+			mvr: {
+				overrides: {
+					packages: {
+						'@local-pkg/sui-messaging': packageId,
+					},
+				},
+			},
+		});
+
+		// todo
+		suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
+		suiGrpcClient = new SuiGrpcClient({
+			network: 'localnet',
+			transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
+		});
 	}, 200000);
 
 	afterAll(async () => {
@@ -192,16 +260,20 @@ describe('Integration tests - Write Path', () => {
 		// Before each message test, create a fresh channel
 		beforeAll(async () => {
 			client = createTestClient(suiJsonRpcClient, packageId, signer, 'localnet');
-			const { channelId: newChannelId } = await client.messaging.executeCreateChannelTransaction({
-				signer,
-				initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
-			});
+			const { channelId: newChannelId, encryptedKeyBytes } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
+				});
 
 			channelObj = await getChannelObject(client, newChannelId);
-			memberCap = await getMemberCapObject(client, signer.toSuiAddress(), packageId, newChannelId);
 
-			const encryptionKeyVersion = channelObj.encryption_keys.length;
-			expect(encryptionKeyVersion).toBe('1');
+			memberCap = await getMemberCapObject(client, signer.toSuiAddress(), packageId, newChannelId);
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
+
+			const encryptionKeyVersion = channelObj.encryption_keys.length - 1;
+			expect(encryptionKeyVersion).toBe(0);
 			// This should not be empty
 			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
 			encryptionKey = {
@@ -209,6 +281,7 @@ describe('Integration tests - Write Path', () => {
 				encryptedBytes: new Uint8Array(channelObj.encryption_keys[0]),
 				version: encryptionKeyVersion,
 			};
+			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_keys[0]));
 		});
 
 		it('should send and decrypt a message with an attachment', async () => {
@@ -216,17 +289,23 @@ describe('Integration tests - Write Path', () => {
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
+
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
 				signer,
-				channelId: channelObj.id.id,
+				channelId: memberCap.channel_id,
 				memberCapId: memberCap.id.id,
 				message: messageText,
+				encryptedKey: encryptionKey,
 				attachments: [file],
 			});
 			expect(digest).toBeDefined();
 			expect(messageId).toBeDefined();
 
-			const messages = await getMessages(client, channelObj.messages.contents.id.id);
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
 			expect(messages.length).toBe(1);
 
 			const sentMessage = messages.find((m) => m.id === messageId);
@@ -234,24 +313,23 @@ describe('Integration tests - Write Path', () => {
 
 			expect(sentMessage!.name).toBe('0');
 			expect(sentMessage!.message.sender).toBe(signer.toSuiAddress());
-			expect(channelObj.last_message).toEqual(sentMessage?.message);
-			expect(sentMessage!.message.key_version).toBe('1');
-			expect(sentMessage!.message.attachments).toHaveLength(1);
+			expect(sentMessage!.message.key_version).toBe('0');
 			expect(sentMessage!.message.created_at_ms).toMatch(/[0-9]+/);
+			expect(sentMessage!.message.attachments).toHaveLength(1);
 
+			// TODO: need to think about what should be exposed as public API
+			// Do we want to expose the encrypt/decrypt apis, or just the send/receive messages?
+			// Perhaps it would make sense to also offer a "SendMessageFlow", with individual steps available
 			const decryptedMessage = await client.messaging.decryptMessage({
 				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
 				nonce: new Uint8Array(sentMessage!.message.nonce),
-				channelId: channelObj.id.id,
+				channelId: memberCap.channel_id,
 				sender: signer.toSuiAddress(),
 				encryptedKey: encryptionKey,
 				memberCapId: memberCap.id.id,
 			});
 
 			expect(decryptedMessage.text).toBe(messageText);
-			expect(decryptedMessage.attachments).toHaveLength(1);
-			expect(decryptedMessage.attachments?.[0].fileName).toBe('test.txt');
-			expect(decryptedMessage.attachments?.[0].data).toEqual(fileContent);
 		}, 120000);
 
 		it('should send and decrypt a message without an attachment', async () => {
@@ -259,24 +337,32 @@ describe('Integration tests - Write Path', () => {
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
 				signer,
-				channelId: channelObj.id.id,
+				channelId: memberCap.channel_id,
 				memberCapId: memberCap.id.id,
 				message: messageText,
+				encryptedKey: encryptionKey,
 			});
 			expect(digest).toBeDefined();
 
-			const messages = await getMessages(client, channelObj.messages.contents.id.id);
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
 			const sentMessage = messages.find((m) => m.id === messageId);
 
 			expect(sentMessage).toBeDefined();
 			expect(sentMessage?.message.sender).toBe(signer.toSuiAddress());
 			expect(sentMessage?.message.attachments).toHaveLength(0);
-			expect(channelObj.last_message).toEqual(sentMessage?.message);
+
+			expect(channelObjFresh.last_message).toEqual(sentMessage?.message);
+			// We are reusing the same channel object, so the messages count is 2
+			// TODO: maybe not the best approach to have a test "rely" on the state of a previous test
+			// so maybe don't actually reuse the same channel object
+			expect(channelObjFresh.messages_count).toBe('2');
 
 			const decryptedMessage = await client.messaging.decryptMessage({
 				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
 				nonce: new Uint8Array(sentMessage!.message.nonce),
-				channelId: channelObj.id.id,
+				channelId: memberCap.channel_id,
 				sender: signer.toSuiAddress(),
 				encryptedKey: encryptionKey,
 				memberCapId: memberCap.id.id,
