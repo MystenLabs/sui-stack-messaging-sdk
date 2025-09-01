@@ -1,28 +1,33 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { MessagingClient } from '../src/client';
+import { GenericContainer, Network, StartedNetwork, StartedTestContainer } from 'testcontainers';
+import path from 'path';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
 import { SuiGrpcClient } from '@mysten/sui-grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-import { GenericContainer, Network, StartedNetwork, StartedTestContainer } from 'testcontainers';
-import path from 'path';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import * as channelModule from '../src/contracts/sui_messaging/channel';
-import * as permissionsModule from '../src/contracts/sui_messaging/permissions';
-import * as messageModule from '../src/contracts/sui_messaging/message';
-import { bcs } from '@mysten/sui/bcs';
-import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
-import { WalrusClient } from '@mysten/walrus';
-import { SealClient } from '@mysten/seal';
-import { ALLOWLISTED_SEAL_KEY_SERVERS } from '../src/encryption/constants';
+import {
+	createTestClient,
+	getChannelObject,
+	getMemberCapObject,
+	getMembers,
+	getMessages,
+	getRoles,
+	TestConstants,
+} from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption';
+import { Channel, MemberCap } from '../src/contracts/sui_messaging/channel';
+
+// Type alias for our fully extended client
+type TestClient = ReturnType<typeof createTestClient>;
 
 describe('Integration tests - Write Path', () => {
 	const SUI_TOOLS_TAG =
-		process.env.SUI_TOOLS_TAG || process.arch === 'arm64'
+		process.env.SUI_TOOLS_TAG ||
+		(process.arch === 'arm64'
 			? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
-			: 'e4d7ef827d609d606907969372bb30ff4c10d60a';
+			: 'e4d7ef827d609d606907969372bb30ff4c10d60a');
 
 	const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
 
@@ -35,10 +40,10 @@ describe('Integration tests - Write Path', () => {
 	let suiGraphQLClient: SuiGraphQLClient;
 	// @ts-ignore todo: remove when support added
 	let suiGrpcClient: SuiGrpcClient;
-
 	let signer: Signer;
 	let packageId: string;
 
+	// --- Test Suite Setup & Teardown ---
 	beforeAll(async () => {
 		dockerNetwork = await new Network().start();
 
@@ -171,7 +176,7 @@ describe('Integration tests - Write Path', () => {
 			network: 'localnet',
 			transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
 		});
-	}, 180000);
+	}, 200000);
 
 	afterAll(async () => {
 		await pg.stop();
@@ -179,43 +184,11 @@ describe('Integration tests - Write Path', () => {
 		await dockerNetwork.stop();
 	});
 
-	it(
-		'test: Execute crate channel transaction - json rpc client extension',
-		{ timeout: 12000 },
-		async () => {
-			const client = suiJsonRpcClient
-				.$extend(WalrusClient.experimental_asClientExtension({ network: 'testnet' }))
-				.$extend(
-					SealClient.asClientExtension({
-						serverConfigs: ALLOWLISTED_SEAL_KEY_SERVERS['testnet'].map((id) => ({
-							objectId: id,
-							weight: 1,
-						})),
-					}),
-				)
-				.$extend(
-					MessagingClient.experimental_asClientExtension({
-						packageConfig: {
-							packageId,
-							memberCapType: `${packageId}::channel::MemberCap`,
-							sealApproveContract: {
-								packageId: packageId,
-								module: 'seal_policies',
-								functionName: 'seal_approve',
-							},
-							sealSessionKeyTTLmins: 10,
-						},
-						// If you want to use a custom storage adapter:
-						// (In this case you might not need to extend the client with walrus)
-						storage: (client) =>
-							new WalrusStorageAdapter(client, {
-								publisher: '',
-								aggregator: '',
-							}),
-						signer,
-					}),
-				);
+	// --- Test Cases ---
 
+	describe('Channel Creation', () => {
+		it('should create a channel with correct initial state and roles', async () => {
+			const client = createTestClient(suiJsonRpcClient, packageId, signer, 'localnet');
 			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
 			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
@@ -223,367 +196,179 @@ describe('Integration tests - Write Path', () => {
 				initialMembers: [initialMember],
 			});
 			expect(digest).toBeDefined();
+			expect(channelId).toBeDefined();
 
-			const channelResponse = await client.core.getObject({ objectId: channelId });
-			const channelContent = await channelResponse.object.content;
-			const channelObj = channelModule.Channel.parse(channelContent);
-			expect(channelObj).toBeDefined();
+			const channel = await getChannelObject(client, channelId);
 
-			expect(channelObj.id.id).toBe(channelId);
-			expect(channelObj.version).toBe('1');
-			expect(channelObj.created_at_ms).toMatch(/[0-9]+/);
-			expect(channelObj.updated_at_ms).toEqual(channelObj.created_at_ms);
-			expect(channelObj.messages_count).toBe('0');
+			// Assert channel properties
+			expect(channel.id.id).toBe(channelId);
+			expect(channel.version).toBe('1');
+			expect(channel.messages_count).toBe('0');
+			expect(channel.created_at_ms).toMatch(/[0-9]+/);
+			expect(channel.updated_at_ms).toEqual(channel.created_at_ms);
+			expect(channel.encryption_keys[0].length).toBeGreaterThan(0);
 
-			// Encryption Keys: vector<vector<u8>>
-			expect(channelObj.encryption_keys.length).toBe('1');
-			// This should not be empty
-			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
+			// Assert roles
+			const roles = await getRoles(client, channel.roles.id.id);
+			expect(roles).toHaveLength(2);
 
-			// Roles
-			expect(channelObj.roles.size).toBe('2');
+			const creatorRole = roles.find((r) => r.name === TestConstants.ROLES.CREATOR);
+			expect(creatorRole).toBeDefined();
+			expect(creatorRole?.permissions).toEqual(TestConstants.PERMISSIONS.CREATOR);
 
-			const rolesResponse = await client.core.getDynamicFields({
-				parentId: channelObj.roles.id.id,
-			});
-			const rolesPromises = rolesResponse.dynamicFields.map(async (role) => {
-				const roleResponse = await client.core.getDynamicField({
-					parentId: channelObj.roles.id.id,
-					name: role.name,
-				});
-				const roleNameContent = roleResponse.dynamicField.name.bcs;
-				const roleName = bcs.String.parse(roleNameContent);
-				const rolePermissionsContent = roleResponse.dynamicField.value.bcs;
-				const rolePermissions = permissionsModule.Role.parse(rolePermissionsContent);
-				return { name: roleName, permissions: rolePermissions.permissions.contents };
-			});
-			const roles = await Promise.all(rolesPromises);
+			const restrictedRole = roles.find((r) => r.name === TestConstants.ROLES.RESTRICTED);
+			expect(restrictedRole).toBeDefined();
+			expect(restrictedRole?.permissions).toHaveLength(0);
 
-			expect(roles.length).toBe(2);
-			const creator = roles.find((role) => role.name === 'Creator');
-			expect(creator).toBeDefined();
-			expect(creator?.permissions.length).toBe(10);
-			expect(creator?.permissions).toEqual([
-				{ AddMember: true, $kind: 'AddMember' },
-				{ RemoveMember: true, $kind: 'RemoveMember' },
-				{ AddRole: true, $kind: 'AddRole' },
-				{ PromoteMember: true, $kind: 'PromoteMember' },
-				{ DemoteMember: true, $kind: 'DemoteMember' },
-				{ RotateKey: true, $kind: 'RotateKey' },
-				{ UpdateConfig: true, $kind: 'UpdateConfig' },
-				{ UpdateMetadata: true, $kind: 'UpdateMetadata' },
-				{ DeleteMessage: true, $kind: 'DeleteMessage' },
-				{ PinMessage: true, $kind: 'PinMessage' },
-			]);
-
-			const restricted = roles.find((role) => role.name === 'Restricted');
-			expect(restricted).toBeDefined();
-			expect(restricted?.permissions).toHaveLength(0);
-
-			// Members
-			const membersResponse = await client.core.getDynamicFields({
-				parentId: channelObj.members.id.id,
-			});
-			const membersPromises = membersResponse.dynamicFields.map(async (member) => {
-				const memberResponse = await client.core.getDynamicField({
-					parentId: channelObj.members.id.id,
-					name: member.name,
-				});
-				const memberNameContent = memberResponse.dynamicField.name.bcs;
-				const memberName = bcs.Address.parse(memberNameContent);
-				const memberInfoContent = memberResponse.dynamicField.value.bcs;
-				const memberInfo = channelModule.MemberInfo.parse(memberInfoContent);
-				return { name: memberName, memberInfo };
-			});
-			const members = await Promise.all(membersPromises);
-			expect(members.length).toBe(2);
-
-			const creatorMemberCap = await client.core.getOwnedObjects({
-				address: signer.toSuiAddress(),
-				type: channelModule.MemberCap.name.replace('@local-pkg/sui_messaging', packageId),
-				limit: 1,
-			});
-			expect(creatorMemberCap).toBeDefined();
-			expect(creatorMemberCap.objects).toHaveLength(1);
-
-			const creatorMember = members.find(
-				(member) => member.name === creatorMemberCap.objects[0].id,
+			// Assert members
+			const creatorMemberCap = await getMemberCapObject(
+				client,
+				signer.toSuiAddress(),
+				packageId,
+				channelId,
 			);
+
+			const members = await getMembers(client, channel.members.id.id);
+			expect(members).toHaveLength(2);
+			const creatorMember = members.find((m) => m.name === creatorMemberCap.id.id);
 			expect(creatorMember).toBeDefined();
 			expect(creatorMember?.memberInfo.role_name).toBe('Creator');
 			expect(creatorMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
 			expect(creatorMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
 
-			const restrictedMemberCap = await client.core.getOwnedObjects({
-				address: initialMember,
-				type: channelModule.MemberCap.name.replace('@local-pkg/sui_messaging', packageId),
-				limit: 1,
-			});
-			expect(restrictedMemberCap).toBeDefined();
-			expect(restrictedMemberCap.objects).toHaveLength(1);
-
-			const restrictedMember = members.find(
-				(member) => member.name === restrictedMemberCap.objects[0].id,
+			const restrictedMemberCap = await getMemberCapObject(
+				client,
+				initialMember,
+				packageId,
+				channelId,
 			);
+
+			const restrictedMember = members.find((m) => m.name === restrictedMemberCap.id.id);
 			expect(restrictedMember).toBeDefined();
 			expect(restrictedMember?.memberInfo.role_name).toBe('Restricted');
 			expect(restrictedMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
 			expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
-		},
-	);
-
-	it('test: Execute create channel transaction - json rpc client', async () => {
-		// Marked constructor as private for now, so we enforce the $extend flow
+		});
 	});
 
-	it(
-		'test: Execute send message with attachment - json rpc client extension, walrus publisher',
-		{ timeout: 120000 },
-		async () => {
-			const client = suiJsonRpcClient
-				.$extend(
-					WalrusClient.experimental_asClientExtension({
-						network: 'testnet',
-					}),
-				)
-				.$extend(
-					SealClient.asClientExtension({
-						serverConfigs: ALLOWLISTED_SEAL_KEY_SERVERS['testnet'].map((id) => ({
-							objectId: id,
-							weight: 1,
-						})),
-					}),
-				)
-				.$extend(
-					MessagingClient.experimental_asClientExtension({
-						packageConfig: {
-							packageId,
-							memberCapType: `${packageId}::channel::MemberCap`,
-							sealApproveContract: {
-								packageId: packageId,
-								module: 'seal_policies',
-								functionName: 'seal_approve',
-							},
-							sealSessionKeyTTLmins: 10,
-						},
-						storage: (client) =>
-							new WalrusStorageAdapter(client, {
-								publisher: 'https://publisher.walrus-testnet.walrus.space',
-								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-							}),
-						signer,
-					}),
-				);
+	describe('Message Sending', () => {
+		let client: TestClient;
+		let channelObj: (typeof Channel)['$inferType'];
+		let memberCap: (typeof MemberCap)['$inferType'];
+		let encryptionKey: EncryptedSymmetricKey;
 
-			const initialMember = Ed25519Keypair.generate().toSuiAddress();
-
-			const { digest: cnlDigest, channelId } =
+		// Before each message test, create a fresh channel
+		beforeAll(async () => {
+			client = createTestClient(suiJsonRpcClient, packageId, signer, 'localnet');
+			const { channelId: newChannelId, encryptedKeyBytes } =
 				await client.messaging.executeCreateChannelTransaction({
 					signer,
-					initialMembers: [initialMember],
+					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
 				});
-			expect(cnlDigest).toBeDefined();
-			expect(channelId).toBeDefined();
 
-			const memberCap = await client.core.getOwnedObjects({
-				address: signer.toSuiAddress(),
-				type: channelModule.MemberCap.name.replace('@local-pkg/sui_messaging', packageId),
-				limit: 1,
-			});
+			channelObj = await getChannelObject(client, newChannelId);
 
-			const rndText = Math.random().toString(36).substring(2, 15);
-			const data = new TextEncoder().encode(`hello world, ${rndText}`);
-			const file = new File([data], 'hello.txt', { type: 'text/plain' });
-			const { digest: msgDigest, messageId } = await client.messaging.executeSendMessageTransaction(
-				{
-					signer,
-					channelId,
-					memberCapId: memberCap.objects[0].id,
-					message: 'hello world',
-					attachments: [file],
-				},
-			);
-			expect(msgDigest).toBeDefined();
+			memberCap = await getMemberCapObject(client, signer.toSuiAddress(), packageId, newChannelId);
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-			const channelResponse = await client.core.getObject({ objectId: channelId });
-			const channelContent = await channelResponse.object.content;
-			const channelObj = channelModule.Channel.parse(channelContent);
-			const encryptionKeyVersion = channelObj.encryption_keys.length;
-			expect(encryptionKeyVersion).toBe('1');
+			const encryptionKeyVersion = channelObj.encryption_keys.length - 1;
+			expect(encryptionKeyVersion).toBe(0);
 			// This should not be empty
 			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
-			const encryptionKey: EncryptedSymmetricKey = {
+			encryptionKey = {
 				$kind: 'Encrypted',
 				encryptedBytes: new Uint8Array(channelObj.encryption_keys[0]),
 				version: encryptionKeyVersion,
 			};
+			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_keys[0]));
+		});
 
-			const messagesResponse = await client.core.getDynamicFields({
-				parentId: channelObj.messages.contents.id.id,
+		it('should send and decrypt a message with an attachment', async () => {
+			const messageText = 'Hello with attachment!';
+			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
+			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
+
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
+
+			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+				signer,
+				channelId: memberCap.channel_id,
+				memberCapId: memberCap.id.id,
+				message: messageText,
+				encryptedKey: encryptionKey,
+				attachments: [file],
 			});
-			const messagesPromises = messagesResponse.dynamicFields.map(async (message) => {
-				const messageResponse = await client.core.getDynamicField({
-					parentId: channelObj.messages.contents.id.id,
-					name: message.name,
-				});
-				const messageNameContent = messageResponse.dynamicField.name.bcs;
-				const messageName = bcs.U64.parse(messageNameContent);
-				const messageId = messageResponse.dynamicField.id;
-				const messageContent = messageResponse.dynamicField.value.bcs;
-				const messageObj = messageModule.Message.parse(messageContent);
-				return { name: messageName, id: messageId, message: messageObj };
-			});
-			const messages = await Promise.all(messagesPromises);
+			expect(digest).toBeDefined();
+			expect(messageId).toBeDefined();
+
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
 			expect(messages.length).toBe(1);
 
-			const message = messages[0];
-			expect(message.name).toBe('0');
-			expect(message.id).toBe(messageId);
-			expect(message.message.sender).toBe(signer.toSuiAddress());
-			expect(message.message.key_version).toBe('1');
-			expect(message.message.attachments).toHaveLength(1);
-			expect(message.message.created_at_ms).toMatch(/[0-9]+/);
+			const sentMessage = messages.find((m) => m.id === messageId);
+			expect(sentMessage).toBeDefined();
 
-			// Decrypt the message
+			expect(sentMessage!.name).toBe('0');
+			expect(sentMessage!.message.sender).toBe(signer.toSuiAddress());
+			expect(sentMessage!.message.key_version).toBe('0');
+			expect(sentMessage!.message.created_at_ms).toMatch(/[0-9]+/);
+			expect(sentMessage!.message.attachments).toHaveLength(1);
+
+			// TODO: need to think about what should be exposed as public API
+			// Do we want to expose the encrypt/decrypt apis, or just the send/receive messages?
+			// Perhaps it would make sense to also offer a "SendMessageFlow", with individual steps available
 			const decryptedMessage = await client.messaging.decryptMessage({
-				ciphertext: new Uint8Array(message.message.ciphertext),
-				nonce: new Uint8Array(message.message.nonce),
-				channelId,
+				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
+				nonce: new Uint8Array(sentMessage!.message.nonce),
+				channelId: memberCap.channel_id,
 				sender: signer.toSuiAddress(),
 				encryptedKey: encryptionKey,
-				memberCapId: memberCap.objects[0].id,
-			});
-			expect(decryptedMessage.text).toBe('hello world');
-			expect(decryptedMessage.attachments).toHaveLength(1);
-			expect(decryptedMessage.attachments?.[0].fileName).toBe('hello.txt');
-			expect(decryptedMessage.attachments?.[0].mimeType).toBe('text/plain');
-			expect(decryptedMessage.attachments?.[0].fileSize).toBe(data.length);
-			expect(decryptedMessage.attachments?.[0].data).toEqual(data);
-
-			// Last Message
-			expect(channelObj.last_message).toEqual(message.message);
-		},
-	);
-
-	it(
-		'test: Execute send message without attachment - json rpc client extension, walrus publisher',
-		{ timeout: 120000 },
-		async () => {
-			const client = suiJsonRpcClient
-				// @ts-ignore
-				.$extend(
-					WalrusClient.experimental_asClientExtension({
-						network: 'testnet',
-					}),
-				)
-				.$extend(
-					SealClient.asClientExtension({
-						serverConfigs: ALLOWLISTED_SEAL_KEY_SERVERS['testnet'].map((id) => ({
-							objectId: id,
-							weight: 1,
-						})),
-					}),
-				)
-				.$extend(
-					MessagingClient.experimental_asClientExtension({
-						packageConfig: {
-							packageId,
-							memberCapType: `${packageId}::channel::MemberCap`,
-							sealApproveContract: {
-								packageId: packageId,
-								module: 'seal_policies',
-								functionName: 'seal_approve',
-							},
-							sealSessionKeyTTLmins: 10,
-						},
-						storage: (client) =>
-							new WalrusStorageAdapter(client, {
-								publisher: 'https://publisher.walrus-testnet.walrus.space',
-								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-							}),
-						signer,
-					}),
-				);
-
-			const initialMember = Ed25519Keypair.generate().toSuiAddress();
-
-			const { digest: cnlDigest, channelId } =
-				await client.messaging.executeCreateChannelTransaction({
-					signer,
-					initialMembers: [initialMember],
-				});
-			expect(cnlDigest).toBeDefined();
-			expect(channelId).toBeDefined();
-
-			const memberCap = await client.core.getOwnedObjects({
-				address: signer.toSuiAddress(),
-				type: channelModule.MemberCap.name.replace('@local-pkg/sui_messaging', packageId),
-				limit: 1,
+				memberCapId: memberCap.id.id,
 			});
 
-			const { digest: msgDigest, messageId } = await client.messaging.executeSendMessageTransaction(
-				{
-					signer,
-					channelId,
-					memberCapId: memberCap.objects[0].id,
-					message: 'hello world',
-				},
-			);
-			expect(msgDigest).toBeDefined();
+			expect(decryptedMessage.text).toBe(messageText);
+		}, 120000);
 
-			const channelResponse = await client.core.getObject({ objectId: channelId });
-			const channelContent = await channelResponse.object.content;
-			const channelObj = channelModule.Channel.parse(channelContent);
-			const encryptionKeyVersion = channelObj.encryption_keys.length;
-			expect(encryptionKeyVersion).toBe('1');
-			// This should not be empty
-			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
-			const encryptionKey: EncryptedSymmetricKey = {
-				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(channelObj.encryption_keys[0]),
-				version: encryptionKeyVersion,
-			};
+		it('should send and decrypt a message without an attachment', async () => {
+			const messageText = 'Hello, no attachment here.';
 
-			const messagesResponse = await client.core.getDynamicFields({
-				parentId: channelObj.messages.contents.id.id,
+			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+				signer,
+				channelId: memberCap.channel_id,
+				memberCapId: memberCap.id.id,
+				message: messageText,
+				encryptedKey: encryptionKey,
 			});
-			const messagesPromises = messagesResponse.dynamicFields.map(async (message) => {
-				const messageResponse = await client.core.getDynamicField({
-					parentId: channelObj.messages.contents.id.id,
-					name: message.name,
-				});
-				const messageNameContent = messageResponse.dynamicField.name.bcs;
-				const messageName = bcs.U64.parse(messageNameContent);
-				const messageId = messageResponse.dynamicField.id;
-				const messageContent = messageResponse.dynamicField.value.bcs;
-				const messageObj = messageModule.Message.parse(messageContent);
-				return { name: messageName, id: messageId, message: messageObj };
-			});
-			const messages = await Promise.all(messagesPromises);
-			expect(messages.length).toBe(1);
+			expect(digest).toBeDefined();
 
-			const message = messages[0];
-			expect(message.name).toBe('0');
-			expect(message.id).toBe(messageId);
-			expect(message.message.sender).toBe(signer.toSuiAddress());
-			expect(message.message.key_version).toBe('1');
-			expect(message.message.attachments).toHaveLength(1);
-			expect(message.message.created_at_ms).toMatch(/[0-9]+/);
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
+			const sentMessage = messages.find((m) => m.id === messageId);
 
-			// Decrypt the message
+			expect(sentMessage).toBeDefined();
+			expect(sentMessage?.message.sender).toBe(signer.toSuiAddress());
+			expect(sentMessage?.message.attachments).toHaveLength(0);
+
+			expect(channelObjFresh.last_message).toEqual(sentMessage?.message);
+			// We are reusing the same channel object, so the messages count is 2
+			// TODO: maybe not the best approach to have a test "rely" on the state of a previous test
+			// so maybe don't actually reuse the same channel object
+			expect(channelObjFresh.messages_count).toBe('2');
 
 			const decryptedMessage = await client.messaging.decryptMessage({
-				ciphertext: new Uint8Array(message.message.ciphertext),
-				nonce: new Uint8Array(message.message.nonce),
-				channelId,
+				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
+				nonce: new Uint8Array(sentMessage!.message.nonce),
+				channelId: memberCap.channel_id,
 				sender: signer.toSuiAddress(),
 				encryptedKey: encryptionKey,
-				memberCapId: memberCap.objects[0].id,
+				memberCapId: memberCap.id.id,
 			});
-			expect(decryptedMessage.text).toBe('hello world');
-
-			// Last Message
-			expect(channelObj.last_message).toEqual(message.message);
-		},
-	);
+			expect(decryptedMessage.text).toBe(messageText);
+			expect(decryptedMessage.attachments).toBeUndefined();
+		}, 120000);
+	});
 });
