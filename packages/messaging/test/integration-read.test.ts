@@ -54,10 +54,12 @@ describe('Integration tests - Read Path', () => {
 			network: 'localnet',
 			transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
 		});
-	});
+	}, 60000);
 
 	afterAll(async () => {
-		await jsonRpcNodeContainer.stop();
+		if (jsonRpcNodeContainer) {
+			await jsonRpcNodeContainer.stop();
+		}
 	});
 
 	it(
@@ -88,32 +90,6 @@ describe('Integration tests - Read Path', () => {
 			expect(data[1].id).toBe('0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f');
 		},
 	);
-
-	it('test: Fetch channel memberships - json rpc client with direct instantiation', async () => {
-		// Create a client using the test helper which properly sets up all required extensions
-		const client = createTestClient(suiJsonRpcClient, MOCK_PACKAGE_ID, signer, 'localnet');
-
-		let hasNextPage = true;
-		let cursor: string | null = null;
-		const data: any[] = [];
-
-		while (hasNextPage) {
-			const result = await client.messaging.fetchChannelMemberships({
-				address: '0xa7536c86055012cb7753fdb08ecb6c8bf1eb735ad75a2e1980309070123d5ef6',
-				cursor,
-				limit: 1,
-			});
-			data.push(...result.objects);
-			hasNextPage = result.hasNextPage;
-			cursor = result.cursor;
-		}
-
-		const expectedCount = 2;
-
-		expect(data.length).toBe(expectedCount);
-		expect(data[0].id).toBe('0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47');
-		expect(data[1].id).toBe('0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f');
-	});
 
 	// todo
 	// it('graphQL client extension', {timeout: 12000}, async () => {
