@@ -20,6 +20,7 @@ const EChannelInvalidPromise: u64 = 203;
 const EChannelNoPermission: u64 = 204;
 const EChannelTooManyMembers: u64 = 205;
 const EChannelTooManyRoles: u64 = 206;
+const EChannelNoEncryptionKey: u64 = 207;
 
 // Message Errors
 const EMessageTooManyChars: u64 = 300;
@@ -61,6 +62,8 @@ public(package) fun e_channel_no_permission(): u64 { EChannelNoPermission }
 public(package) fun e_channel_too_many_members(): u64 { EChannelTooManyMembers }
 
 public(package) fun e_channel_too_many_roles(): u64 { EChannelTooManyRoles }
+
+public(package) fun e_channel_no_encryption_key(): u64 { EChannelNoEncryptionKey }
 
 public(package) fun e_message_too_many_chars(): u64 { EMessageTooManyChars }
 

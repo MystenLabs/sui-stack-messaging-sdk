@@ -3,10 +3,9 @@ module sui_messaging::channel;
 use std::string::String;
 use sui::clock::Clock;
 use sui::dynamic_field as df;
-use sui::event::emit;
 use sui::table::{Self, Table};
 use sui::table_vec::{Self, TableVec};
-use sui::vec_map::VecMap;
+use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
 use sui_messaging::admin;
 use sui_messaging::attachment::Attachment;
@@ -28,8 +27,8 @@ public enum Presense has copy, drop, store {
 /// Can act as a "super admin" for the channel.
 /// Used for initializing the Channel
 /// Only one per channel.
-/// Can be transferred.
-public struct CreatorCap has key, store {
+/// Can be transferred via custom transfer function.
+public struct CreatorCap has key {
     id: UID,
     channel_id: ID,
 }
@@ -39,9 +38,33 @@ public struct CreatorCap has key, store {
 /// Gets transferred to someone when they join the channel.
 /// Can be used for retrieving conversations/channels that
 /// they are a member of.
+///
+/// Note: Soul Bound - can only be transferred via custom transfer function
 public struct MemberCap has key {
     id: UID,
     channel_id: ID,
+}
+
+// === Custom Transfer Functions ===
+
+/// Transfer a CreatorCap to a new owner
+/// This is the only way to transfer a CreatorCap since it's key-only
+public fun transfer_creator_cap(cap: CreatorCap, recipient: address) {
+    transfer::transfer(cap, recipient)
+}
+
+/// Transfer a MemberCap to a new owner
+/// This is the only way to transfer a MemberCap since it's key-only
+public fun transfer_member_cap(cap: MemberCap, recipient: address) {
+    transfer::transfer(cap, recipient)
+}
+
+public fun transfer_member_caps(mut member_caps_map: VecMap<address, MemberCap>) {
+    while (!member_caps_map.is_empty()) {
+        let (member_address, member_cap) = member_caps_map.pop();
+        transfer_member_cap(member_cap, member_address);
+    };
+    member_caps_map.destroy_empty();
 }
 
 // === Structs ===
@@ -50,8 +73,9 @@ public struct MemberCap has key {
 ///
 /// Dynamic fields:
 /// - `config: ConfigKey<C> -> C`
+/// - `encryption_key: EncryptionKey -> bool`
 /// - `rotated_kek_history` keep a history of rotated keys for accessing older messages?
-/// otherwise we can re-encrypted each message's DEK with the new KEK, however, since
+/// otherwise we can re-encrypte each message's DEK with the new KEK, however, since
 /// this is potentially costly(need to do this for the entire history), let's give it
 /// as an option. We could even provide an option for full re-encryption for cases of
 /// extra sensitivity.
@@ -87,14 +111,6 @@ public struct Channel has key {
     /// Utilize this for efficient fetching e.g. list of conversations showing
     /// the latest message and the user who sent it
     last_message: Option<Message>,
-    /// The encrypted key encryption key (KEK) for this channel, encrypted via `Seal`.
-    ///
-    /// This key is required to decrypt the DEK of each message.
-    wrapped_kek: vector<u8>,
-    /// The version number for the KEK.
-    ///
-    /// This is incremented each time the key is rotated.
-    kek_version: u64,
     // /// We need a way to include custom seal policy in addition to the "MemberList" one
     // /// Probably via a dynamic field
     // policy_id: ID,
@@ -103,6 +119,19 @@ public struct Channel has key {
     /// The timestamp (in milliseconds) when the channel was last updated.
     /// (e.g. change in metadata, members, admins, keys)
     updated_at_ms: u64,
+    /// History of Encryption keys
+    ///
+    /// Each entry holds the encrypted bytes of the channel encryption key
+    /// index == key_version
+    /// The latest entry holds the latest/active key.
+    /// If the vector is empty, it means that no enryption key has been added
+    /// on the channel, and therefore the channel is considered in an invalid state
+    /// TODO: vector limits - how often do we expect to rotate a key?
+    /// Other than an interval of once per year, we also want to rotate the key
+    /// when kicking a member from the channel
+    /// What should we do when reaching the limit? Re-encrypt older messages?
+    /// Alternatively, we can use a TableVec to overcome this issue
+    encryption_keys: vector<vector<u8>>,
 }
 
 /// Information about a channel member, including their role and joint time.
@@ -128,16 +157,10 @@ public struct ConfigReturnPromise {
 public struct ConfigKey<phantom TConfig>() has copy, drop, store;
 
 // === Events ===
-public struct MessageSent has copy, drop {
-    sender: address,
-    timestamp_ms: u64,
-}
 
 // === Method Aliases ===
 use fun df::add as UID.add;
 use fun df::borrow as UID.borrow;
-// use fun df::borrow_mut as UID.borrow_mut;
-// use fun df::exists_ as UID.exists_;
 use fun df::remove as UID.remove;
 // === Public Functions ===
 
@@ -149,7 +172,10 @@ use fun df::remove as UID.remove;
 /// new() -> (optionally set_initial_roles())
 ///       -> (optionally set_initial_members())
 ///       -> (optionally add_config())
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
+///       -> share()
+///       -> client generate a DEK and encrypt it with Seal using the ChannelID as identity bytes
+///       -> add_encrypted_key(CreatorCap)
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
     let channel_uid = object::new(ctx);
     let mut channel = Channel {
         id: channel_uid,
@@ -159,21 +185,19 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap) {
         messages: table_vec::empty<Message>(ctx),
         messages_count: 0,
         last_message: option::none<Message>(),
-        wrapped_kek: vector::empty(),
-        kek_version: 1,
         created_at_ms: clock.timestamp_ms(),
         updated_at_ms: clock.timestamp_ms(),
+        encryption_keys: vector::empty<vector<u8>>(),
     };
 
     // Mint CreatorCap
     let creator_cap_uid = object::new(ctx);
     let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
 
-    // TODO: should we make this a configurable option?
-    // Add Creator to Channel.members and Mint&transfer a MemberCap to their address
-    channel.add_creator_to_members(&creator_cap, clock, ctx);
+    // Add Creator to Channel.members and return their MemberCap
+    let creator_member_cap = channel.add_creator_to_members(&creator_cap, clock, ctx);
 
-    (channel, creator_cap)
+    (channel, creator_cap, creator_member_cap)
 }
 
 // Builder pattern
@@ -194,17 +218,7 @@ public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     };
 }
 
-public fun add_wrapped_kek(self: &mut Channel, creator_cap: &CreatorCap, wrapped_kek: vector<u8>) {
-    // Assert correct channel-promise
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    self.wrapped_kek = wrapped_kek;
-}
-
-public fun share(self: Channel, creator_cap: &CreatorCap) {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    transfer::share_object(self);
-}
-
+/// Add custom roles to the Channel, overwriting the default ones
 public fun with_initial_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
@@ -227,26 +241,33 @@ public fun with_initial_roles(
     }
 }
 
+/// Add initial member to the Channel, with custom assigned roles.
+/// Note1: the role_names must already exist in the Channel.
+/// Note2: the creator is already automatically added as a member, so no need to include them here.
+/// Returns a VecMap mapping member addresses to their MemberCaps.
 public fun with_initial_members_with_roles(
     self: &mut Channel,
     creator_cap: &CreatorCap,
     initial_members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-    self.add_members_with_roles_internal(initial_members, clock, ctx);
+    self.add_members_with_roles_internal(initial_members, clock, ctx)
 }
 
+/// Add initial member to the Channel, with the default role.
+/// Note1: the creator is already automatically added as a member, so no need to include them here.
+/// Returns a VecMap mapping member addresses to their MemberCaps.
 public fun with_initial_members(
     self: &mut Channel,
     creator_cap: &CreatorCap,
     initial_members: vector<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-    self.add_members_with_default_role_internal(vec_set::from_keys(initial_members), clock, ctx);
+    self.add_members_with_default_role_internal(vec_set::from_keys(initial_members), clock, ctx)
 }
 
 /// Attach a dynamic config object to the Channel.
@@ -255,47 +276,30 @@ public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, con
     config::assert_is_valid_config(&config);
 
     // Add a new Config
+    // TODO: overwrite existing config
     self.id.add(ConfigKey<Config>(), config);
 }
 
-/// Add an initial message to the Channel when creating it
-public fun with_initial_message(
+/// Share the Channel object
+/// Note: at this point the client needs to attach an encrypted DEK
+/// Otherwise, it is considered in an invalid state, and cannot be interacted with.
+public fun share(self: Channel, creator_cap: &CreatorCap) {
+    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
+    transfer::share_object(self);
+}
+
+/// Add the encrypted Channel Key (a key encrypted with Seal) to the Channel.
+///
+/// This function is meant to be called only once, right after creating and sharing the Channel.
+/// This is because we need the ChannelID available on the client side, to use as identity bytes
+/// when encrypting the Channel's Data Encryption Key with Seal.
+public fun add_encrypted_key(
     self: &mut Channel,
     creator_cap: &CreatorCap,
-    ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
-    nonce: vector<u8>,
-    clock: &Clock,
-    ctx: &mut TxContext,
+    encrypted_key_bytes: vector<u8>,
 ) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-
-    self.add_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
-    self.set_last_message_internal(ciphertext, wrapped_dek, nonce, vector::empty(), clock, ctx);
-    self.increase_messages_count();
-    emit_message_sent(clock, ctx);
-}
-
-public fun return_config(
-    self: &mut Channel,
-    member_cap: &MemberCap,
-    config: Config,
-    promise: ConfigReturnPromise,
-) {
-    assert!(
-        self.has_permission(member_cap, permission_update_config()),
-        errors::e_channel_no_permission(),
-    );
-    config::assert_is_valid_config(&config);
-
-    // Burn ConfigReturnPromise
-    let ConfigReturnPromise { channel_id, member_cap_id } = promise;
-
-    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
-    assert!(member_cap.id.to_inner() == member_cap_id, errors::e_channel_not_member());
-
-    // Add the new Config
-    self.id.add(ConfigKey<Config>(), config);
+    self.encryption_keys.push_back(encrypted_key_bytes);
 }
 
 /// Borrow the dynamic config object. (Read-only)
@@ -319,12 +323,46 @@ public fun remove_config_for_editing(
     )
 }
 
-// === View Functions ===
-public fun kek_version(self: &Channel): u64 {
-    self.kek_version
+/// Reattach a Config to the Channel after editing it.
+/// Burns the `ConfigReturnPromise`.
+public fun return_config(
+    self: &mut Channel,
+    member_cap: &MemberCap,
+    config: Config,
+    promise: ConfigReturnPromise,
+) {
+    assert!(
+        self.has_permission(member_cap, permission_update_config()),
+        errors::e_channel_no_permission(),
+    );
+    config::assert_is_valid_config(&config);
+
+    // Burn ConfigReturnPromise
+    let ConfigReturnPromise { channel_id, member_cap_id } = promise;
+
+    assert!(self.id.to_inner() == channel_id, errors::e_channel_invalid_promise());
+    assert!(member_cap.id.to_inner() == member_cap_id, errors::e_channel_not_member());
+
+    // Add the new Config
+    self.id.add(ConfigKey<Config>(), config);
 }
 
-// utilized by seal_policies
+// === View Functions ===
+
+/// Borrow the channel's latest encryption key. (read-only)
+public fun latest_encryption_key(self: &Channel): &vector<u8> {
+    let latest_key_index = self.latest_encryption_key_version();
+    self.encryption_keys.borrow(latest_key_index)
+}
+
+/// Get the current version of the encryption key.
+public fun latest_encryption_key_version(self: &Channel): u64 {
+    self.encryption_keys.length() - 1
+}
+
+/// Returns a namespace for the channel to be
+/// utilized by seal_policies
+/// In this case we use the Channel's UID bytes
 public fun namespace(self: &Channel): vector<u8> {
     self.id.to_bytes()
 }
@@ -354,8 +392,15 @@ public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     self.members.contains(member_cap.id.to_inner())
 }
 
+/// Check if a `CreatorCap` is the creator of this Channel.
 public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
     self.id.to_inner() == creator_cap.channel_id
+}
+
+/// Check if this Channel has an encryption key.
+/// An ecnryption key should be added to the Channel right after creating & sharing it.
+public(package) fun has_encryption_key(self: &Channel): bool {
+    !self.encryption_keys.is_empty()
 }
 
 // Setters
@@ -369,7 +414,9 @@ public(package) fun add_members_with_roles_internal(
     members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
+    let mut member_caps = vec_map::empty();
+
     while (!members.is_empty()) {
         let (member_address, role_name) = members.pop();
         let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
@@ -386,8 +433,10 @@ public(package) fun add_members_with_roles_internal(
                     presense: Presense::Offline,
                 },
             );
-        transfer::transfer(member_cap, member_address)
+        member_caps.insert(member_address, member_cap);
     };
+
+    member_caps
 }
 
 public(package) fun add_members_with_default_role_internal(
@@ -395,7 +444,9 @@ public(package) fun add_members_with_default_role_internal(
     members: VecSet<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
+    let mut member_caps = vec_map::empty();
+
     members.into_keys().do!(|member_address| {
         let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
         self
@@ -408,8 +459,10 @@ public(package) fun add_members_with_default_role_internal(
                     presense: Presense::Offline,
                 },
             );
-        transfer::transfer(member_cap, member_address)
+        member_caps.insert(member_address, member_cap);
     });
+
+    member_caps
 }
 
 public(package) fun remove_members_internal(
@@ -426,56 +479,48 @@ public(package) fun remove_members_internal(
 public(package) fun add_message_internal(
     self: &mut Channel,
     ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
     attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &TxContext,
 ) {
+    let key_version = self.latest_encryption_key_version();
     self
         .messages
         .push_back(
             message::new(
                 ctx.sender(),
                 ciphertext,
-                wrapped_dek,
                 nonce,
-                self.kek_version,
+                key_version,
                 attachments,
                 clock,
             ),
         );
+
+    self.messages_count = self.messages_count + 1;
 }
 
 public(package) fun set_last_message_internal(
     self: &mut Channel,
     ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
     attachments: vector<Attachment>,
     clock: &Clock,
     ctx: &TxContext,
 ) {
+    let key_version = self.latest_encryption_key_version();
     self.last_message =
         option::some(
             message::new(
                 ctx.sender(),
                 ciphertext,
-                wrapped_dek,
                 nonce,
-                self.kek_version,
+                key_version,
                 attachments,
                 clock,
             ),
         );
-}
-
-public(package) fun increase_messages_count(self: &mut Channel) {
-    self.messages_count = self.messages_count + 1;
-}
-
-public(package) fun emit_message_sent(clock: &Clock, ctx: &TxContext) {
-    emit(MessageSent { sender: ctx.sender(), timestamp_ms: clock.timestamp_ms() });
 }
 
 public(package) fun has_permission(
@@ -490,7 +535,7 @@ public(package) fun has_permission(
     let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
     let role = self.roles.borrow(role_name);
 
-    // Assert permission
+    // Check permission
     role.permissions().contains(&permission)
 }
 
@@ -500,7 +545,7 @@ fun add_creator_to_members(
     creator_cap: &CreatorCap,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): MemberCap {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     // Ensure the creator is also added as a Member
     let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
@@ -515,5 +560,6 @@ fun add_creator_to_members(
                 presense: Presense::Offline,
             },
         );
-    transfer::transfer(member_cap, ctx.sender());
+
+    member_cap
 }

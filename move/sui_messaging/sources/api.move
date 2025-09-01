@@ -12,18 +12,18 @@ use sui::clock::Clock;
 use sui::vec_map::VecMap;
 use sui::vec_set::VecSet;
 use sui_messaging::attachment::Attachment;
-use sui_messaging::channel::{Self, Channel, MemberCap};
+use sui_messaging::channel::{Channel, MemberCap};
 use sui_messaging::config::Config;
 use sui_messaging::errors;
 use sui_messaging::permissions;
 
 // TODO: should these be entry instead of public fun?
 
+/// Send a new message to the Channel
 public fun send_message(
     self: &mut Channel,
     member_cap: &MemberCap,
     ciphertext: vector<u8>,
-    wrapped_dek: vector<u8>,
     nonce: vector<u8>,
     attachments: vector<Attachment>,
     clock: &Clock,
@@ -31,39 +31,49 @@ public fun send_message(
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
     // assert has_write_permission???
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
 
-    self.add_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
+    self.add_message_internal(ciphertext, nonce, attachments, clock, ctx);
 
-    self.set_last_message_internal(ciphertext, wrapped_dek, nonce, attachments, clock, ctx);
-
-    // emit event
-    channel::emit_message_sent(clock, ctx);
+    self.set_last_message_internal(ciphertext, nonce, attachments, clock, ctx);
 }
 
+/// Add new members to the Channel with the default role
 public fun add_members(
     self: &mut Channel,
     member_cap: &MemberCap,
     members: VecSet<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
-    assert!(self.has_permission(member_cap, permissions::permission_add_member()));
-    self.add_members_with_default_role_internal(members, clock, ctx);
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
+    assert!(
+        self.has_permission(member_cap, permissions::permission_add_member()),
+        errors::e_channel_no_permission(),
+    );
+    self.add_members_with_default_role_internal(members, clock, ctx)
 }
 
+/// Add new members to the Channel with specific roles
 public fun add_members_with_roles(
     self: &mut Channel,
     member_cap: &MemberCap,
     members: &mut VecMap<address, String>, // address -> role_name
     clock: &Clock,
     ctx: &mut TxContext,
-) {
+): VecMap<address, MemberCap> {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
     assert!(self.has_permission(member_cap, permissions::permission_add_member()));
-    self.add_members_with_roles_internal(members, clock, ctx);
+    self.add_members_with_roles_internal(members, clock, ctx)
 }
 
+/// Remove members from the Channel
+///
+/// TODO: Require a key rotation after removal
+/// key rotation == generate a new Seal-encrypted key client-side
+/// and push it back on the channel.encryption_keys vector
 public fun remove_members(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -71,43 +81,24 @@ public fun remove_members(
     clock: &Clock,
 ) {
     assert!(self.is_member(member_cap), errors::e_channel_not_member());
-    assert!(self.has_permission(member_cap, permissions::permission_remove_member()));
+    assert!(self.has_encryption_key(), errors::e_channel_no_encryption_key());
+    assert!(
+        self.has_permission(member_cap, permissions::permission_remove_member()),
+        errors::e_channel_no_permission(),
+    );
     self.remove_members_internal(members_to_remove, clock);
 }
 
 /// Edit Config Helper
-/// Looks like a candidate for `api.move` module
 /// We could also expose separate functions for each config value
 public fun edit_config(self: &mut Channel, member_cap: &MemberCap, config: Config) {
+    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(
+        self.has_permission(member_cap, permissions::permission_update_config()),
+        errors::e_channel_no_permission(),
+    );
     let (_editable_config, promise) = self.remove_config_for_editing(member_cap);
     self.return_config(member_cap, config, promise);
-}
-
-// Helper for creating a default channel
-// TBD if we should keep this
-entry fun create_default_channel(
-    initial_member_addresses: vector<address>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    let (mut channel, creator_cap) = channel::new(clock, ctx);
-    // In the proper e2e flow, we should generate a key in the client, encrypt it with seal
-    // and then add it to the channel
-    let wrapped_kek = channel.namespace();
-    channel.add_wrapped_kek(&creator_cap, wrapped_kek);
-    channel.with_defaults(&creator_cap);
-
-    if (!initial_member_addresses.is_empty()) {
-        channel.with_initial_members(
-            &creator_cap,
-            (initial_member_addresses),
-            clock,
-            ctx,
-        );
-    };
-
-    channel.share(&creator_cap);
-    transfer::public_transfer(creator_cap, ctx.sender());
 }
 
 // === Test Functions ===
@@ -118,7 +109,11 @@ use sui::test_scenario::{Self as ts};
 use sui::vec_map;
 
 #[test_only]
-use sui_messaging::{attachment, channel::CreatorCap, permissions::{Role, restricted_role_name}};
+use sui_messaging::{
+    attachment,
+    channel::{Self, CreatorCap, transfer_creator_cap, transfer_member_cap},
+    permissions::{Role},
+};
 
 #[test_only]
 use fun send_message as Channel.send_message;
@@ -141,14 +136,11 @@ fun test_new_with_defaults() {
     scenario.next_tx(sender_address);
     {
         // create new channel
-        let (mut channel, creator_cap) = channel::new(
+        let (mut channel, creator_cap, creator_member_cap) = channel::new(
             &clock,
             scenario.ctx(),
         );
         assert!(channel::is_creator(&channel, &creator_cap), errors::e_channel_not_creator());
-
-        let wrapped_kek = channel.namespace();
-        channel.add_wrapped_kek(&creator_cap, wrapped_kek);
 
         // add defaults
         channel.with_defaults(&creator_cap);
@@ -159,6 +151,7 @@ fun test_new_with_defaults() {
         // === Set initial roles ===
         let mut initial_roles = vec_map::empty<String, Role>();
         initial_roles.insert(b"Admin".to_string(), permissions::new_role(permissions::all()));
+        initial_roles.insert(b"User".to_string(), permissions::new_role(permissions::empty()));
 
         channel.with_initial_roles(&creator_cap, &mut initial_roles);
 
@@ -166,9 +159,9 @@ fun test_new_with_defaults() {
 
         // === Set initial members ===
         let mut initial_members = vec_map::empty<address, String>();
-        initial_members.insert(recipient_address, restricted_role_name());
+        initial_members.insert(recipient_address, b"User".to_string());
 
-        channel.with_initial_members_with_roles(
+        let mut member_caps_map = channel.with_initial_members_with_roles(
             &creator_cap,
             &mut initial_members,
             &clock,
@@ -177,31 +170,44 @@ fun test_new_with_defaults() {
 
         std::debug::print(channel.members());
 
-        // === Set initial message ===
-        let ciphertext = b"Some text";
-        let wrapped_dek = vector[0, 1, 0, 1];
-        let nonce = vector[9, 0, 9, 0];
-        channel.with_initial_message(
-            &creator_cap,
-            ciphertext,
-            wrapped_dek,
-            nonce,
-            &clock,
-            scenario.ctx(),
-        );
-
         channel.share(&creator_cap);
-        transfer::public_transfer(creator_cap, sender_address);
+
+        // transfer CreatorCap to sender
+        transfer_creator_cap(creator_cap, sender_address);
+        // transfer creator's MemberCap to sender
+        transfer_member_cap(creator_member_cap, sender_address);
+
+        // transfer MemberCaps to initial_member_addresses
+        while (!member_caps_map.is_empty()) {
+            let (member_address, member_cap) = member_caps_map.pop();
+            transfer_member_cap(member_cap, member_address);
+        };
+        // destroy the member_caps_map
+        // At this point it should be empty
+        member_caps_map.destroy_empty();
     };
 
-    // === Send message ===
+    // === Add a wrapped KEK on the Channel ===
+    scenario.next_tx(sender_address);
+    {
+        let mut channel = scenario.take_shared<Channel>();
+        let creator_cap = scenario.take_from_sender<CreatorCap>();
+
+        // At this stage we are supposed to use Seal
+        let encrypted_key_bytes = channel.namespace();
+        channel.add_encrypted_key(&creator_cap, encrypted_key_bytes);
+
+        channel.share(&creator_cap);
+        scenario.return_to_sender<CreatorCap>(creator_cap);
+    };
+
+    // === Send message to the Channel ===
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();
         let creator_cap = scenario.take_from_sender<CreatorCap>();
         let member_cap = scenario.take_from_sender<MemberCap>();
         let ciphertext = b"Some text";
-        let wrapped_dek = vector[0, 1, 0, 1];
         let nonce = vector[9, 0, 9, 0];
         let n: u64 = 2;
         let mut attachments: vector<Attachment> = vector::empty();
@@ -210,11 +216,9 @@ fun test_new_with_defaults() {
                 attachment::new(
                     i.to_string(),
                     vector[1, 2, 3, 4],
-                    vector[5, 6, 7, 8],
-                    channel.kek_version(),
                     vector[9, 10, 11, 12],
                     vector[13, 14, 15, 16],
-                    vector[17, 18, 19, 20],
+                    channel.latest_encryption_key_version(),
                 ),
             );
         });
@@ -222,7 +226,6 @@ fun test_new_with_defaults() {
         channel.send_message(
             &member_cap,
             ciphertext,
-            wrapped_dek,
             nonce,
             attachments,
             &clock,

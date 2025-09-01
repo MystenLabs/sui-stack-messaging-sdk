@@ -1,482 +1,374 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest';
-import { MessagingCompatibleClient } from '../src/types';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { MessagingClient } from '../src/client';
+import { GenericContainer, Network, StartedNetwork, StartedTestContainer } from 'testcontainers';
+import path from 'path';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
 import { SuiGrpcClient } from '@mysten/sui-grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-import { GenericContainer, Network, StartedNetwork, StartedTestContainer } from "testcontainers";
-import path from 'path';
-import { Signer } from "@mysten/sui/cryptography";
+import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import * as channelModule from '../src/contracts/sui_messaging/channel';
-import * as permissionsModule from "../src/contracts/sui_messaging/permissions";
-import * as messageModule from "../src/contracts/sui_messaging/message";
-import { bcs } from "@mysten/sui/bcs";
+import {
+	createTestClient,
+	getChannelObject,
+	getMemberCapObject,
+	getMembers,
+	getMessages,
+	getRoles,
+	TestConstants,
+} from './test-helpers';
+import { EncryptedSymmetricKey } from '../src/encryption';
+import { Channel, MemberCap } from '../src/contracts/sui_messaging/channel';
+
+// Type alias for our fully extended client
+type TestClient = ReturnType<typeof createTestClient>;
 
 describe('Integration tests - Write Path', () => {
+	const SUI_TOOLS_TAG =
+		process.env.SUI_TOOLS_TAG ||
+		(process.arch === 'arm64'
+			? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
+			: 'e4d7ef827d609d606907969372bb30ff4c10d60a');
 
-  const SUI_TOOLS_TAG =
-    process.env.SUI_TOOLS_TAG || process.arch === 'arm64'
-      ? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
-      : 'e4d7ef827d609d606907969372bb30ff4c10d60a';
+	const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
 
-  const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
+	let dockerNetwork: StartedNetwork;
+	let pg: StartedTestContainer;
+	let suiLocalNode: StartedTestContainer;
 
-  let dockerNetwork: StartedNetwork;
-  let pg: StartedTestContainer;
-  let suiLocalNode: StartedTestContainer;
+	let suiJsonRpcClient: SuiClient;
+	// @ts-ignore todo: remove when support added
+	let suiGraphQLClient: SuiGraphQLClient;
+	// @ts-ignore todo: remove when support added
+	let suiGrpcClient: SuiGrpcClient;
+	let signer: Signer;
+	let packageId: string;
 
-  let suiJsonRpcClient: MessagingCompatibleClient;
-  // @ts-ignore todo: remove when support added
-  let suiGraphQLClient: MessagingCompatibleClient;
-  // @ts-ignore todo: remove when support added
-  let suiGrpcClient: MessagingCompatibleClient;
+	// --- Test Suite Setup & Teardown ---
+	beforeAll(async () => {
+		dockerNetwork = await new Network().start();
 
-  let signer: Signer;
-  let packageId: string;
+		pg = await new GenericContainer('postgres')
+			.withEnvironment({
+				POSTGRES_USER: 'postgres',
+				POSTGRES_PASSWORD: 'postgrespw',
+				POSTGRES_DB: 'sui_indexer_v2',
+			})
+			.withCommand(['-c', 'max_connections=500'])
+			.withExposedPorts(5432)
+			.withNetwork(dockerNetwork)
+			.start();
 
-  beforeAll(async () => {
-    dockerNetwork = await new Network().start();
+		suiLocalNode = await new GenericContainer(`mysten/sui-tools:${SUI_TOOLS_TAG}`)
+			.withCommand([
+				'sui',
+				'start',
+				'--with-faucet',
+				'--force-regenesis',
+				'--with-indexer',
+				'--pg-port',
+				'5432',
+				'--pg-db-name',
+				'sui_indexer_v2',
+				'--pg-host',
+				pg.getIpAddress(dockerNetwork.getName()),
+				'--pg-user',
+				'postgres',
+				'--pg-password',
+				'postgrespw',
+				'--with-graphql',
+			])
+			.withCopyDirectoriesToContainer([
+				{
+					source: path.resolve(__dirname, '../../../move/sui_messaging'),
+					target: '/sui/sui_messaging',
+				},
+			])
+			.withNetwork(dockerNetwork)
+			.withExposedPorts(
+				{ host: 9000, container: 9000 },
+				{ host: 9123, container: 9123 },
+				{ host: 9124, container: 9124 },
+				{ host: 9125, container: 9125 },
+			)
+			.withLogConsumer((stream) => {
+				stream.on('data', (data) => {
+					console.log(data.toString());
+				});
+			})
+			.start();
 
-    pg = await new GenericContainer('postgres')
-      .withEnvironment({
-        POSTGRES_USER: 'postgres',
-        POSTGRES_PASSWORD: 'postgrespw',
-        POSTGRES_DB: 'sui_indexer_v2',
-      })
-      .withCommand(['-c', 'max_connections=500'])
-      .withExposedPorts(5432)
-      .withNetwork(dockerNetwork)
-      .start();
+		let configResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'--yes',
+			'--client.config',
+			'/root/.sui/sui_config/client.yaml',
+		]);
+		const phraseRegex = /Secret Recovery Phrase\s*:\s*\[(.*?)]/;
+		const phraseMatch = configResult.stdout.match(phraseRegex);
+		expect(phraseMatch).toBeTruthy();
+		expect(phraseMatch![1]).toBeTruthy();
+		let recoveryPhrase = phraseMatch![1].trim();
+		signer = Ed25519Keypair.deriveKeypair(recoveryPhrase);
 
-    suiLocalNode = await new GenericContainer(`mysten/sui-tools:${SUI_TOOLS_TAG}`)
-      .withCommand([
-        'sui',
-        'start',
-        '--with-faucet',
-        '--force-regenesis',
-        '--with-indexer',
-        '--pg-port',
-        '5432',
-        '--pg-db-name',
-        'sui_indexer_v2',
-        '--pg-host',
-        pg.getIpAddress(dockerNetwork.getName()),
-        '--pg-user',
-        'postgres',
-        '--pg-password',
-        'postgrespw',
-        '--with-graphql',
-      ])
-      .withCopyDirectoriesToContainer([
-        { source: path.resolve(__dirname, '../../../move/sui_messaging'), target: '/sui/sui_messaging' },
-      ])
-      .withNetwork(dockerNetwork)
-      .withExposedPorts(
-        {host: 9000, container: 9000},
-        {host: 9123, container: 9123},
-        {host: 9124, container: 9124},
-        {host: 9125, container: 9125},
-      )
-      .withLogConsumer((stream) => {
-        stream.on('data', (data) => {
-          console.log(data.toString());
-        });
-      })
-      .start();
+		const addressRegex = /address with scheme "ed25519" \[.*?: (0x[a-fA-F0-9]+)]/;
+		const addressMatch = configResult.stdout.match(addressRegex);
+		expect(addressMatch).toBeTruthy();
+		expect(addressMatch![1]).toBeTruthy();
+		let address = addressMatch![1].trim();
+		expect(signer.toSuiAddress()).toBe(address);
 
-    let configResult = await suiLocalNode.exec([
-      'sui',
-      'client',
-      '--yes',
-      '--client.config',
-      '/root/.sui/sui_config/client.yaml',
-    ]);
-    const phraseRegex = /Secret Recovery Phrase\s*:\s*\[(.*?)]/;
-    const phraseMatch = configResult.stdout.match(phraseRegex);
-    expect(phraseMatch).toBeTruthy();
-    expect(phraseMatch![1]).toBeTruthy();
-    let recoveryPhrase = phraseMatch![1].trim();
-    signer = Ed25519Keypair.deriveKeypair(recoveryPhrase);
+		let localnetResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'new-env',
+			'--alias',
+			'localnet',
+			'--rpc',
+			'http://127.0.0.1:9000',
+			'--json',
+		]);
+		expect(JSON.parse(localnetResult.stdout).alias).toBe('localnet');
 
-    const addressRegex = /address with scheme "ed25519" \[.*?: (0x[a-fA-F0-9]+)]/;
-    const addressMatch = configResult.stdout.match(addressRegex);
-    expect(addressMatch).toBeTruthy();
-    expect(addressMatch![1]).toBeTruthy();
-    let address = addressMatch![1].trim();
-    expect(signer.toSuiAddress()).toBe(address);
+		let switchResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'switch',
+			'--env',
+			'localnet',
+			'--json',
+		]);
+		expect(JSON.parse(switchResult.stdout).env).toBe('localnet');
 
-    let localnetResult = await suiLocalNode.exec([
-      'sui',
-      'client',
-      'new-env',
-      '--alias',
-      'localnet',
-      '--rpc',
-      'http://127.0.0.1:9000',
-      '--json',
-    ]);
-    expect(JSON.parse(localnetResult.stdout).alias).toBe("localnet");
+		let faucetResult = await suiLocalNode.exec(['sui', 'client', 'faucet']);
+		expect(faucetResult.stdout).toMatch(/^Request successful/);
 
-    let switchResult = await suiLocalNode.exec(['sui', 'client', 'switch', '--env', 'localnet', '--json',]);
-    expect(JSON.parse(switchResult.stdout).env).toBe("localnet");
+		let publishResult = await suiLocalNode.exec([
+			'sui',
+			'client',
+			'publish',
+			'./sui_messaging',
+			'--json',
+		]);
+		const publishResultJson = JSON.parse(publishResult.stdout);
+		expect(publishResultJson.effects.status.status).toBe('success');
 
-    let faucetResult = await suiLocalNode.exec(['sui', 'client', 'faucet']);
-    expect(faucetResult.stdout).toMatch(/^Request successful/);
+		const published = publishResultJson.objectChanges.find(
+			(change: any) => change.type === 'published',
+		);
+		expect(published).toBeDefined();
+		packageId = published.packageId;
 
-    let publishResult = await suiLocalNode.exec([
-      'sui',
-      'client',
-      'publish',
-      './sui_messaging',
-      '--json',
-    ]);
-    const publishResultJson = JSON.parse(publishResult.stdout);
-    expect(publishResultJson.effects.status.status).toBe("success")
+		suiJsonRpcClient = new SuiClient({
+			url: getFullnodeUrl('localnet'),
+			mvr: {
+				overrides: {
+					packages: {
+						'@local-pkg/sui-messaging': packageId,
+					},
+				},
+			},
+		});
 
-    const published = publishResultJson.objectChanges.find((change: any) => change.type === 'published');
-    expect(published).toBeDefined();
-    packageId = published.packageId;
+		// todo
+		suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
+		suiGrpcClient = new SuiGrpcClient({
+			network: 'localnet',
+			transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
+		});
+	}, 200000);
 
-    suiJsonRpcClient = new SuiClient({ url: getFullnodeUrl('localnet') });
+	afterAll(async () => {
+		await pg.stop();
+		await suiLocalNode.stop();
+		await dockerNetwork.stop();
+	});
 
-    // todo
-    suiGraphQLClient = new SuiGraphQLClient({ url: DEFAULT_GRAPHQL_URL });
-    suiGrpcClient = new SuiGrpcClient({
-      network: 'localnet',
-      transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
-    });
-  }, 180000);
+	// --- Test Cases ---
 
-  afterAll(async () => {
-    await pg.stop();
-    await suiLocalNode.stop();
-    await dockerNetwork.stop();
-  });
+	describe('Channel Creation', () => {
+		it('should create a channel with correct initial state and roles', async () => {
+			const client = createTestClient(suiJsonRpcClient, packageId, signer, 'localnet');
+			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
-  it('test: Execute crate channel transaction - json rpc client extension', { timeout: 12000 }, async () => {
-    const client = suiJsonRpcClient.$extend(
-      MessagingClient.experimental_asClientExtension({
-        packageConfig: {
-          packageId,
-          memberCapType: `${packageId}::channel::MemberCap`,
-        },
-      }),
-    );
+			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [initialMember],
+			});
+			expect(digest).toBeDefined();
+			expect(channelId).toBeDefined();
 
-    const initialMember = Ed25519Keypair.generate().toSuiAddress();
+			const channel = await getChannelObject(client, channelId);
 
-    const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
-      signer,
-      initialMembers: [initialMember],
-      initialMessage: 'hello world'
-    });
-    expect(digest).toBeDefined();
+			// Assert channel properties
+			expect(channel.id.id).toBe(channelId);
+			expect(channel.version).toBe('1');
+			expect(channel.messages_count).toBe('0');
+			expect(channel.created_at_ms).toMatch(/[0-9]+/);
+			expect(channel.updated_at_ms).toEqual(channel.created_at_ms);
+			expect(channel.encryption_keys[0].length).toBeGreaterThan(0);
 
-    const channelResponse = await client.core.getObject({objectId: channelId});
-    const channelContent = await channelResponse.object.content;
-    const channelObj = channelModule.Channel.parse(channelContent);
-    expect(channelObj).toBeDefined();
+			// Assert roles
+			const roles = await getRoles(client, channel.roles.id.id);
+			expect(roles).toHaveLength(2);
 
-    expect(channelObj.id.id).toBe(channelId);
-    expect(channelObj.version).toBe("1");
-    expect(channelObj.kek_version).toBe("1");
-    expect(channelObj.created_at_ms).toMatch(/[0-9]+/);
-    expect(channelObj.updated_at_ms).toEqual(channelObj.created_at_ms);
-    expect(channelObj.wrapped_kek).toEqual([1, 2, 3]);
-    expect(channelObj.messages_count).toBe("1");
+			const creatorRole = roles.find((r) => r.name === TestConstants.ROLES.CREATOR);
+			expect(creatorRole).toBeDefined();
+			expect(creatorRole?.permissions).toEqual(TestConstants.PERMISSIONS.CREATOR);
 
-    // Roles
-    expect(channelObj.roles.size).toBe("2");
+			const restrictedRole = roles.find((r) => r.name === TestConstants.ROLES.RESTRICTED);
+			expect(restrictedRole).toBeDefined();
+			expect(restrictedRole?.permissions).toHaveLength(0);
 
-    const rolesResponse = await client.core.getDynamicFields({parentId: channelObj.roles.id.id});
-    const rolesPromises = rolesResponse.dynamicFields.map(
-      async (role) => {
-        const roleResponse = await client.core.getDynamicField({
-          parentId: channelObj.roles.id.id,
-          name: role.name,
-        });
-        const roleNameContent = roleResponse.dynamicField.name.bcs;
-        const roleName = bcs.String.parse(roleNameContent);
-        const rolePermissionsContent = roleResponse.dynamicField.value.bcs;
-        const rolePermissions = permissionsModule.Role.parse(rolePermissionsContent);
-        return {name: roleName, permissions: rolePermissions.permissions.contents};
-    });
-    const roles = await Promise.all(rolesPromises);
+			// Assert members
+			const creatorMemberCap = await getMemberCapObject(
+				client,
+				signer.toSuiAddress(),
+				packageId,
+				channelId,
+			);
 
-    expect(roles.length).toBe(2);
-    const creator = roles.find((role) =>
-      role.name === "Creator"
-    );
-    expect(creator).toBeDefined();
-    expect(creator?.permissions.length).toBe(10);
-    expect(creator?.permissions).toEqual(
-      [
-        {"AddMember": true, "$kind": "AddMember"},
-        {"RemoveMember": true, "$kind": "RemoveMember"},
-        {"AddRole": true, "$kind": "AddRole"},
-        {"PromoteMember": true, "$kind": "PromoteMember"},
-        {"DemoteMember": true, "$kind": "DemoteMember"},
-        {"RotateKey": true, "$kind": "RotateKey"},
-        {"UpdateConfig": true, "$kind": "UpdateConfig"},
-        {"UpdateMetadata": true, "$kind": "UpdateMetadata"},
-        {"DeleteMessage": true, "$kind": "DeleteMessage"},
-        {"PinMessage": true, "$kind": "PinMessage"},
-      ],
-    );
+			const members = await getMembers(client, channel.members.id.id);
+			expect(members).toHaveLength(2);
+			const creatorMember = members.find((m) => m.name === creatorMemberCap.id.id);
+			expect(creatorMember).toBeDefined();
+			expect(creatorMember?.memberInfo.role_name).toBe('Creator');
+			expect(creatorMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
+			expect(creatorMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
 
-    const restricted = roles.find((role) =>
-      role.name === "Restricted"
-    );
-    expect(restricted).toBeDefined();
-    expect(restricted?.permissions).toHaveLength(0);
+			const restrictedMemberCap = await getMemberCapObject(
+				client,
+				initialMember,
+				packageId,
+				channelId,
+			);
 
-    // Members
-    const membersResponse = await client.core.getDynamicFields({
-      parentId: channelObj.members.id.id
-    });
-    const membersPromises = membersResponse.dynamicFields.map(
-      async (member) => {
-        const memberResponse = await client.core.getDynamicField({
-          parentId: channelObj.members.id.id,
-          name: member.name,
-        });
-        const memberNameContent = memberResponse.dynamicField.name.bcs;
-        const memberName = bcs.Address.parse(memberNameContent);
-        const memberInfoContent = memberResponse.dynamicField.value.bcs;
-        const memberInfo = channelModule.MemberInfo.parse(memberInfoContent);
-        return {name: memberName, memberInfo};
-      });
-    const members = await Promise.all(membersPromises);
-    expect(members.length).toBe(2);
+			const restrictedMember = members.find((m) => m.name === restrictedMemberCap.id.id);
+			expect(restrictedMember).toBeDefined();
+			expect(restrictedMember?.memberInfo.role_name).toBe('Restricted');
+			expect(restrictedMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
+			expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
+		});
+	});
 
-    const creatorMemberCap = await client.core.getOwnedObjects({
-      address: signer.toSuiAddress(),
-      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
-      limit: 1,
-    });
-    expect(creatorMemberCap).toBeDefined();
-    expect(creatorMemberCap.objects).toHaveLength(1);
+	describe('Message Sending', () => {
+		let client: TestClient;
+		let channelObj: (typeof Channel)['$inferType'];
+		let memberCap: (typeof MemberCap)['$inferType'];
+		let encryptionKey: EncryptedSymmetricKey;
 
-    const creatorMember = members.find((member) =>
-      member.name === creatorMemberCap.objects[0].id
-    );
-    expect(creatorMember).toBeDefined();
-    expect(creatorMember?.memberInfo.role_name).toBe("Creator");
-    expect(creatorMember?.memberInfo.presense).toEqual({Offline: true, '$kind': 'Offline'});
-    expect(creatorMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
+		// Before each message test, create a fresh channel
+		beforeAll(async () => {
+			client = createTestClient(suiJsonRpcClient, packageId, signer, 'localnet');
+			const { channelId: newChannelId, encryptedKeyBytes } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
+				});
 
-    const restrictedMemberCap = await client.core.getOwnedObjects({
-      address: initialMember,
-      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
-      limit: 1,
-    });
-    expect(restrictedMemberCap).toBeDefined();
-    expect(restrictedMemberCap.objects).toHaveLength(1);
+			channelObj = await getChannelObject(client, newChannelId);
 
-    const restrictedMember = members.find(
-      (member) => member.name === restrictedMemberCap.objects[0].id
-    );
-    expect(restrictedMember).toBeDefined();
-    expect(restrictedMember?.memberInfo.role_name).toBe("Restricted");
-    expect(restrictedMember?.memberInfo.presense).toEqual({Offline: true, '$kind': 'Offline'});
-    expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
+			memberCap = await getMemberCapObject(client, signer.toSuiAddress(), packageId, newChannelId);
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-    // Messages
-    const messagesResponse = await client.core.getDynamicFields({
-      parentId: channelObj.messages.contents.id.id
-    });
-    const messagesPromises = messagesResponse.dynamicFields.map(
-      async (message) => {
-        const messageResponse = await client.core.getDynamicField({
-          parentId: channelObj.messages.contents.id.id,
-          name: message.name,
-        });
-        const messageNameContent = messageResponse.dynamicField.name.bcs;
-        const messageName = bcs.U64.parse(messageNameContent);
-        const messageContent = messageResponse.dynamicField.value.bcs;
-        const messageObj = messageModule.Message.parse(messageContent);
-        return {name: messageName, message: messageObj};
-      });
-    const messages = await Promise.all(messagesPromises);
-    expect(messages.length).toBe(1);
+			const encryptionKeyVersion = channelObj.encryption_keys.length - 1;
+			expect(encryptionKeyVersion).toBe(0);
+			// This should not be empty
+			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
+			encryptionKey = {
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(channelObj.encryption_keys[0]),
+				version: encryptionKeyVersion,
+			};
+			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_keys[0]));
+		});
 
-    const initialMessage = messages[0];
-    expect(initialMessage.name).toBe("0");
-    expect(initialMessage.message.sender).toBe(signer.toSuiAddress());
-    expect(initialMessage.message.nonce).toEqual([9, 0, 9, 0]);
-    expect(new TextDecoder().decode(new Uint8Array(messages[0].message.ciphertext)))
-      .toBe("hello world");
-    expect(initialMessage.message.wrapped_dek).toEqual([1, 2, 3]);
-    expect(initialMessage.message.kek_version).toBe("1");
-    expect(initialMessage.message.attachments).toHaveLength(0);
-    expect(initialMessage.message.created_at_ms).toMatch(/[0-9]+/);
+		it('should send and decrypt a message with an attachment', async () => {
+			const messageText = 'Hello with attachment!';
+			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
+			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-    // Last Message
-    expect(channelObj.last_message).toEqual(initialMessage.message);
-  });
+			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-  it('test: Execute crate channel transaction - json rpc client', async () => {
-    const client = new MessagingClient({
-      suiClient: suiJsonRpcClient,
-      packageConfig: {
-        packageId,
-        memberCapType: `${packageId}::channel::MemberCap`,
-      },
-    });
+			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+				signer,
+				channelId: memberCap.channel_id,
+				memberCapId: memberCap.id.id,
+				message: messageText,
+				encryptedKey: encryptionKey,
+				attachments: [file],
+			});
+			expect(digest).toBeDefined();
+			expect(messageId).toBeDefined();
 
-    const initialMember = Ed25519Keypair.generate().toSuiAddress();
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
+			expect(messages.length).toBe(1);
 
-    const { digest, channelId } = await client.executeCreateChannelTransaction({
-      signer,
-      initialMembers: [initialMember],
-      initialMessage: 'hello world'
-    });
-    expect(digest).toBeDefined();
+			const sentMessage = messages.find((m) => m.id === messageId);
+			expect(sentMessage).toBeDefined();
 
-    const channelResponse = await client.options.suiClient.core.getObject({objectId: channelId});
-    const channelContent = await channelResponse.object.content;
-    const channelObj = channelModule.Channel.parse(channelContent);
-    expect(channelObj).toBeDefined();
+			expect(sentMessage!.name).toBe('0');
+			expect(sentMessage!.message.sender).toBe(signer.toSuiAddress());
+			expect(sentMessage!.message.key_version).toBe('0');
+			expect(sentMessage!.message.created_at_ms).toMatch(/[0-9]+/);
+			expect(sentMessage!.message.attachments).toHaveLength(1);
 
-    expect(channelObj.id.id).toBe(channelId);
-    expect(channelObj.version).toBe("1");
-    expect(channelObj.kek_version).toBe("1");
-    expect(channelObj.created_at_ms).toMatch(/[0-9]+/);
-    expect(channelObj.updated_at_ms).toEqual(channelObj.created_at_ms);
-    expect(channelObj.wrapped_kek).toEqual([1, 2, 3]);
-    expect(channelObj.messages_count).toBe("1");
+			// TODO: need to think about what should be exposed as public API
+			// Do we want to expose the encrypt/decrypt apis, or just the send/receive messages?
+			// Perhaps it would make sense to also offer a "SendMessageFlow", with individual steps available
+			const decryptedMessage = await client.messaging.decryptMessage({
+				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
+				nonce: new Uint8Array(sentMessage!.message.nonce),
+				channelId: memberCap.channel_id,
+				sender: signer.toSuiAddress(),
+				encryptedKey: encryptionKey,
+				memberCapId: memberCap.id.id,
+			});
 
-    // Roles
-    expect(channelObj.roles.size).toBe("2");
+			expect(decryptedMessage.text).toBe(messageText);
+		}, 120000);
 
-    const rolesResponse = await client.options.suiClient.core.getDynamicFields({
-      parentId: channelObj.roles.id.id
-    });
-    const rolesPromises = rolesResponse.dynamicFields.map(
-      async (role) => {
-        const roleResponse = await client.options.suiClient.core.getDynamicField({
-          parentId: channelObj.roles.id.id,
-          name: role.name,
-        });
-        const roleNameContent = roleResponse.dynamicField.name.bcs;
-        const roleName = bcs.String.parse(roleNameContent);
-        const rolePermissionsContent = roleResponse.dynamicField.value.bcs;
-        const rolePermissions = permissionsModule.Role.parse(rolePermissionsContent);
-        return {name: roleName, permissions: rolePermissions.permissions.contents};
-      });
-    const roles = await Promise.all(rolesPromises);
+		it('should send and decrypt a message without an attachment', async () => {
+			const messageText = 'Hello, no attachment here.';
 
-    expect(roles.length).toBe(2);
-    const creator = roles.find((role) =>
-      role.name === "Creator"
-    );
-    expect(creator).toBeDefined();
-    expect(creator?.permissions.length).toBe(10);
-    expect(creator?.permissions).toEqual(
-      [
-        {"AddMember": true, "$kind": "AddMember"},
-        {"RemoveMember": true, "$kind": "RemoveMember"},
-        {"AddRole": true, "$kind": "AddRole"},
-        {"PromoteMember": true, "$kind": "PromoteMember"},
-        {"DemoteMember": true, "$kind": "DemoteMember"},
-        {"RotateKey": true, "$kind": "RotateKey"},
-        {"UpdateConfig": true, "$kind": "UpdateConfig"},
-        {"UpdateMetadata": true, "$kind": "UpdateMetadata"},
-        {"DeleteMessage": true, "$kind": "DeleteMessage"},
-        {"PinMessage": true, "$kind": "PinMessage"},
-      ],
-    );
+			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+				signer,
+				channelId: memberCap.channel_id,
+				memberCapId: memberCap.id.id,
+				message: messageText,
+				encryptedKey: encryptionKey,
+			});
+			expect(digest).toBeDefined();
 
-    const restricted = roles.find((role) =>
-      role.name === "Restricted"
-    );
-    expect(restricted).toBeDefined();
-    expect(restricted?.permissions).toHaveLength(0);
+			// Refetch channel object to check for last_message
+			let channelObjFresh = await getChannelObject(client, memberCap.channel_id);
+			const messages = await getMessages(client, channelObjFresh.messages.contents.id.id);
+			const sentMessage = messages.find((m) => m.id === messageId);
 
-    // Members
-    const membersResponse = await client.options.suiClient.core.getDynamicFields({
-      parentId: channelObj.members.id.id
-    });
-    const membersPromises = membersResponse.dynamicFields.map(
-      async (member) => {
-        const memberResponse = await client.options.suiClient.core.getDynamicField({
-          parentId: channelObj.members.id.id,
-          name: member.name,
-        });
-        const memberNameContent = memberResponse.dynamicField.name.bcs;
-        const memberName = bcs.Address.parse(memberNameContent);
-        const memberInfoContent = memberResponse.dynamicField.value.bcs;
-        const memberInfo = channelModule.MemberInfo.parse(memberInfoContent);
-        return {name: memberName, memberInfo};
-      });
-    const members = await Promise.all(membersPromises);
-    expect(members.length).toBe(2);
+			expect(sentMessage).toBeDefined();
+			expect(sentMessage?.message.sender).toBe(signer.toSuiAddress());
+			expect(sentMessage?.message.attachments).toHaveLength(0);
 
-    const creatorMemberCap = await client.options.suiClient.core.getOwnedObjects({
-      address: signer.toSuiAddress(),
-      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
-      limit: 1,
-    });
-    expect(creatorMemberCap).toBeDefined();
-    expect(creatorMemberCap.objects).toHaveLength(1);
+			expect(channelObjFresh.last_message).toEqual(sentMessage?.message);
+			// We are reusing the same channel object, so the messages count is 2
+			// TODO: maybe not the best approach to have a test "rely" on the state of a previous test
+			// so maybe don't actually reuse the same channel object
+			expect(channelObjFresh.messages_count).toBe('2');
 
-    const creatorMember = members.find((member) =>
-      member.name === creatorMemberCap.objects[0].id
-    );
-    expect(creatorMember).toBeDefined();
-    expect(creatorMember?.memberInfo.role_name).toBe("Creator");
-    expect(creatorMember?.memberInfo.presense).toEqual({Offline: true, '$kind': 'Offline'});
-    expect(creatorMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
-
-    const restrictedMemberCap = await client.options.suiClient.core.getOwnedObjects({
-      address: initialMember,
-      type: channelModule.MemberCap.name.replace("@local-pkg/sui_messaging", packageId),
-      limit: 1,
-    });
-    expect(restrictedMemberCap).toBeDefined();
-    expect(restrictedMemberCap.objects).toHaveLength(1);
-
-    const restrictedMember = members.find(
-      (member) => member.name === restrictedMemberCap.objects[0].id
-    );
-    expect(restrictedMember).toBeDefined();
-    expect(restrictedMember?.memberInfo.role_name).toBe("Restricted");
-    expect(restrictedMember?.memberInfo.presense).toEqual({Offline: true, '$kind': 'Offline'});
-    expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
-
-    // Messages
-    const messagesResponse = await client.options.suiClient.core.getDynamicFields({
-      parentId: channelObj.messages.contents.id.id
-    });
-    const messagesPromises = messagesResponse.dynamicFields.map(
-      async (message) => {
-        const messageResponse = await client.options.suiClient.core.getDynamicField({
-          parentId: channelObj.messages.contents.id.id,
-          name: message.name,
-        });
-        const messageNameContent = messageResponse.dynamicField.name.bcs;
-        const messageName = bcs.U64.parse(messageNameContent);
-        const messageContent = messageResponse.dynamicField.value.bcs;
-        const messageObj = messageModule.Message.parse(messageContent);
-        return {name: messageName, message: messageObj};
-      });
-    const messages = await Promise.all(messagesPromises);
-    expect(messages.length).toBe(1);
-
-    const initialMessage = messages[0];
-    expect(initialMessage.name).toBe("0");
-    expect(initialMessage.message.sender).toBe(signer.toSuiAddress());
-    expect(initialMessage.message.nonce).toEqual([9, 0, 9, 0]);
-    expect(new TextDecoder().decode(new Uint8Array(messages[0].message.ciphertext)))
-      .toBe("hello world");
-    expect(initialMessage.message.wrapped_dek).toEqual([1, 2, 3]);
-    expect(initialMessage.message.kek_version).toBe("1");
-    expect(initialMessage.message.attachments).toHaveLength(0);
-    expect(initialMessage.message.created_at_ms).toMatch(/[0-9]+/);
-
-    // Last Message
-    expect(channelObj.last_message).toEqual(initialMessage.message);
-  });
+			const decryptedMessage = await client.messaging.decryptMessage({
+				ciphertext: new Uint8Array(sentMessage!.message.ciphertext),
+				nonce: new Uint8Array(sentMessage!.message.nonce),
+				channelId: memberCap.channel_id,
+				sender: signer.toSuiAddress(),
+				encryptedKey: encryptionKey,
+				memberCapId: memberCap.id.id,
+			});
+			expect(decryptedMessage.text).toBe(messageText);
+			expect(decryptedMessage.attachments).toBeUndefined();
+		}, 120000);
+	});
 });

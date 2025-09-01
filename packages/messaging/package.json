@@ -47,16 +47,18 @@
 	"dependencies": {
 		"@mysten/bcs": "^1.7.0",
 		"@mysten/build-scripts": "workspace:*",
-		"@mysten/sui": "^1.37.1",
-		"@mysten/sui-grpc": "^0.0.12",
+		"@mysten/seal": "^0.5.0",
+		"@mysten/sui": "^1.37.5",
+		"@mysten/sui-grpc": "^0.0.16",
+		"@mysten/walrus": "^0.6.5",
 		"@protobuf-ts/grpcweb-transport": "^2.11.1"
 	},
 	"devDependencies": {
-		"@mysten/codegen": "^0.3.0",
+		"@mysten/codegen": "^0.4.4",
 		"@protobuf-ts/plugin": "^2.11.1",
-		"@types/node": "^24.0.15",
-		"testcontainers": "^11.3.2",
-		"typescript": "^5.8.3",
+		"@types/node": "^24.3.0",
+		"testcontainers": "^11.5.1",
+		"typescript": "^5.9.2",
 		"vitest": "^3.2.4"
 	}
 }

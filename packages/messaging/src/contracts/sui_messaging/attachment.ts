@@ -4,67 +4,45 @@
 import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
-const $moduleName = '@local-pkg/sui_messaging::attachment';
-export const Attachment = new MoveStruct({
-  name: `${$moduleName}::Attachment`,
-  fields: {
-    blob_ref: bcs.string(),
-    wrapped_dek: bcs.vector(bcs.u8()),
-    nonce: bcs.vector(bcs.u8()),
-    kek_version: bcs.u64(),
-    encrypted_filename: bcs.vector(bcs.u8()),
-    encrypted_mimetype: bcs.vector(bcs.u8()),
-    encrypted_filesize: bcs.vector(bcs.u8()),
-  },
-});
+const $moduleName = '@local-pkg/sui-messaging::attachment';
+export const Attachment = new MoveStruct({ name: `${$moduleName}::Attachment`, fields: {
+        blob_ref: bcs.string(),
+        encrypted_metadata: bcs.vector(bcs.u8()),
+        data_nonce: bcs.vector(bcs.u8()),
+        metadata_nonce: bcs.vector(bcs.u8()),
+        key_version: bcs.u64()
+    } });
 export interface NewArguments {
-  blobRef: RawTransactionArgument<string>;
-  wrappedDek: RawTransactionArgument<number[]>;
-  nonce: RawTransactionArgument<number[]>;
-  kekVersion: RawTransactionArgument<number | bigint>;
-  encryptedFilename: RawTransactionArgument<number[]>;
-  encryptedMimetype: RawTransactionArgument<number[]>;
-  encryptedFilesize: RawTransactionArgument<number[]>;
+    blobRef: RawTransactionArgument<string>;
+    encryptedMetadata: RawTransactionArgument<number[]>;
+    dataNonce: RawTransactionArgument<number[]>;
+    metadataNonce: RawTransactionArgument<number[]>;
+    keyVersion: RawTransactionArgument<number | bigint>;
 }
 export interface NewOptions {
-  package?: string;
-  arguments:
-    | NewArguments
-    | [
+    package?: string;
+    arguments: NewArguments | [
         blobRef: RawTransactionArgument<string>,
-        wrappedDek: RawTransactionArgument<number[]>,
-        nonce: RawTransactionArgument<number[]>,
-        kekVersion: RawTransactionArgument<number | bigint>,
-        encryptedFilename: RawTransactionArgument<number[]>,
-        encryptedMimetype: RawTransactionArgument<number[]>,
-        encryptedFilesize: RawTransactionArgument<number[]>,
-      ];
+        encryptedMetadata: RawTransactionArgument<number[]>,
+        dataNonce: RawTransactionArgument<number[]>,
+        metadataNonce: RawTransactionArgument<number[]>,
+        keyVersion: RawTransactionArgument<number | bigint>
+    ];
 }
 export function _new(options: NewOptions) {
-  const packageAddress = options.package ?? '@local-pkg/sui_messaging';
-  const argumentsTypes = [
-    '0x0000000000000000000000000000000000000000000000000000000000000001::string::String',
-    'vector<u8>',
-    'vector<u8>',
-    'u64',
-    'vector<u8>',
-    'vector<u8>',
-    'vector<u8>',
-  ] satisfies string[];
-  const parameterNames = [
-    'blobRef',
-    'wrappedDek',
-    'nonce',
-    'kekVersion',
-    'encryptedFilename',
-    'encryptedMimetype',
-    'encryptedFilesize',
-  ];
-  return (tx: Transaction) =>
-    tx.moveCall({
-      package: packageAddress,
-      module: 'attachment',
-      function: 'new',
-      arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        '0x0000000000000000000000000000000000000000000000000000000000000001::string::String',
+        'vector<u8>',
+        'vector<u8>',
+        'vector<u8>',
+        'u64'
+    ] satisfies string[];
+    const parameterNames = ["blobRef", "encryptedMetadata", "dataNonce", "metadataNonce", "keyVersion"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'attachment',
+        function: 'new',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
