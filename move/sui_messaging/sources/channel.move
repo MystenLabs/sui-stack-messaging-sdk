@@ -485,20 +485,20 @@ public(package) fun add_message_internal(
     ctx: &TxContext,
 ) {
     let key_version = self.latest_encryption_key_version();
-    self
-        .messages
-        .push_back(
-            message::new(
-                ctx.sender(),
-                ciphertext,
-                nonce,
-                key_version,
-                attachments,
-                clock,
-            ),
-        );
-
+    let message = message::new(
+        ctx.sender(),
+        ciphertext,
+        nonce,
+        key_version,
+        attachments,
+        clock,
+    );
     self.messages_count = self.messages_count + 1;
+
+    if (self.config().config_emit_events()) {
+        message.emit_event(self.id.to_inner(), self.messages_count - 1);
+    };
+    self.messages.push_back(message);
 }
 
 public(package) fun set_last_message_internal(

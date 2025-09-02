@@ -11,7 +11,8 @@ export const Config = new MoveStruct({ name: `${$moduleName}::Config`, fields: {
         max_message_text_chars: bcs.u64(),
         max_message_attachments: bcs.u64(),
         require_invitation: bcs.bool(),
-        require_request: bcs.bool()
+        require_request: bcs.bool(),
+        emit_events: bcs.bool()
     } });
 export interface DefaultOptions {
     package?: string;
@@ -33,6 +34,7 @@ export interface NewArguments {
     maxMessageAttachments: RawTransactionArgument<number | bigint>;
     requireInvitation: RawTransactionArgument<boolean>;
     requireRequest: RawTransactionArgument<boolean>;
+    emitEvents: RawTransactionArgument<boolean>;
 }
 export interface NewOptions {
     package?: string;
@@ -42,7 +44,8 @@ export interface NewOptions {
         maxMessageTextChars: RawTransactionArgument<number | bigint>,
         maxMessageAttachments: RawTransactionArgument<number | bigint>,
         requireInvitation: RawTransactionArgument<boolean>,
-        requireRequest: RawTransactionArgument<boolean>
+        requireRequest: RawTransactionArgument<boolean>,
+        emitEvents: RawTransactionArgument<boolean>
     ];
 }
 export function _new(options: NewOptions) {
@@ -53,9 +56,10 @@ export function _new(options: NewOptions) {
         'u64',
         'u64',
         'bool',
+        'bool',
         'bool'
     ] satisfies string[];
-    const parameterNames = ["maxChannelMembers", "maxChannelRoles", "maxMessageTextChars", "maxMessageAttachments", "requireInvitation", "requireRequest"];
+    const parameterNames = ["maxChannelMembers", "maxChannelRoles", "maxMessageTextChars", "maxMessageAttachments", "requireInvitation", "requireRequest", "emitEvents"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'config',
@@ -214,6 +218,28 @@ export function configRequireRequest(options: ConfigRequireRequestOptions) {
         package: packageAddress,
         module: 'config',
         function: 'config_require_request',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface ConfigEmitEventsArguments {
+    self: RawTransactionArgument<string>;
+}
+export interface ConfigEmitEventsOptions {
+    package?: string;
+    arguments: ConfigEmitEventsArguments | [
+        self: RawTransactionArgument<string>
+    ];
+}
+export function configEmitEvents(options: ConfigEmitEventsOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        `${packageAddress}::config::Config`
+    ] satisfies string[];
+    const parameterNames = ["self"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'config',
+        function: 'config_emit_events',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }

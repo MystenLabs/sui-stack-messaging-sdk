@@ -38,6 +38,10 @@ public fun new(
 }
 // === View Functions ===
 
+public fun get_blob_ref(self: &Attachment): String {
+    self.blob_ref
+}
+
 // === Admin Functions ===
 
 // === Package Functions ===

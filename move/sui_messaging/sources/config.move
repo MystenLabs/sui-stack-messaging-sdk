@@ -12,6 +12,7 @@ const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
 const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
 const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
+const EMIT_EVENTS: bool = false;
 
 // === Structs ===
 public struct Config has drop, store {
@@ -21,6 +22,7 @@ public struct Config has drop, store {
     max_message_attachments: u64,
     require_invitation: bool,
     require_request: bool,
+    emit_events: bool,
 }
 
 // === Events ===
@@ -41,7 +43,8 @@ public fun default(): Config {
         max_message_text_chars: MAX_MESSAGE_TEXT_SIZE_IN_CHARS,
         max_message_attachments: MAX_MESSAGE_ATTACHMENTS,
         require_invitation: REQUIRE_INVITATION,
-        require_request: REQUIRE_REQUEST,
+        require_request: REQUIRE_REQUEST,   
+        emit_events: EMIT_EVENTS,
     }
 }
 
@@ -52,6 +55,7 @@ public fun new(
     max_message_attachments: u64,
     require_invitation: bool,
     require_request: bool,
+    emit_events: bool,
 ): Config {
     Config {
         max_channel_members,
@@ -60,6 +64,7 @@ public fun new(
         max_message_attachments,
         require_invitation,
         require_request,
+        emit_events,
     }
 }
 
@@ -83,6 +88,8 @@ public fun config_require_invitation(self: &Config): bool { self.require_invitat
 
 public fun config_require_request(self: &Config): bool { self.require_request }
 
+public fun config_emit_events(self: &Config): bool { self.emit_events }
+
 // === Package Functions ===
 public(package) fun max_channel_members(): u64 { MAX_CHANNEL_MEMBERS }
 
@@ -95,6 +102,8 @@ public(package) fun max_message_text_atachments(): u64 { MAX_MESSAGE_ATTACHMENTS
 public(package) fun require_invitation(): bool { REQUIRE_INVITATION }
 
 public(package) fun require_request(): bool { REQUIRE_REQUEST }
+
+public(package) fun emit_events(): bool { EMIT_EVENTS }
 
 public(package) fun assert_is_valid_config(self: &Config) {
     assert!(self.max_channel_members <= MAX_CHANNEL_MEMBERS, errors::e_config_too_many_members());
