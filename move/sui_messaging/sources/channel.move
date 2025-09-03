@@ -12,6 +12,7 @@ use sui_messaging::attachment::Attachment;
 use sui_messaging::auth::{Self, Auth};
 use sui_messaging::config::{Self, Config};
 use sui_messaging::creator_cap::{Self, CreatorCap};
+use sui_messaging::encryption_key_history::{Self, EncryptionKeyHistory};
 use sui_messaging::errors;
 use sui_messaging::member_cap::{Self, MemberCap};
 use sui_messaging::message::{Self, Message};
@@ -29,7 +30,7 @@ public struct Channel has key {
     /// The version of this object, for handling updgrades.
     version: u64, // Maybe move this to the Config, or utilize the sui::versioned module
     /// The Authorization struct, gating actions to member permissions.
-    /// Note: It also keeps tracks of the members
+    /// Note: It also, practically, keeps tracks of the members (MemberCap ID -> Permissions)
     auth: Auth,
     /// The message history of the channel.
     ///
@@ -48,15 +49,11 @@ public struct Channel has key {
     /// The timestamp (in milliseconds) when the channel was last updated.
     /// (e.g. change in metadata, members, admins, keys)
     updated_at_ms: u64,
-    // TODO: split into separate module
     /// History of Encryption keys
     ///
-    /// Each entry holds the encrypted bytes of the channel encryption key
-    /// index == key_version
-    /// The latest entry holds the latest/active key.
-    /// If the vector is empty, it means that no enryption key has been added
-    /// on the channel, and therefore the channel is considered in an invalid state
-    encryption_key_history: TableVec<vector<u8>>,
+    /// Holds the latest key, the latest_version,
+    /// and a TableVec of the historical keys
+    encryption_key_history: EncryptionKeyHistory,
 }
 
 // === Potatos ===
@@ -95,8 +92,18 @@ use fun df::remove as UID.remove;
 public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
     let channel_uid = object::new(ctx);
     let creator_cap = creator_cap::mint(channel_uid.to_inner(), ctx);
-    let creator_member_stamp = member_stamp::mint(channel_uid.to_inner(), ctx);
-    let auth = auth::new(ctx);
+    let creator_member_cap = member_cap::mint(channel_uid.to_inner(), ctx);
+
+    // create the initial Auth struct
+    // when calling new(), we automatically add the creator on the permissions map, granting them
+    // the EditPermissions() permission.
+    // So at this point, the creator can grant permissions to the initial members that can be added
+    // with a "set_initial_members" call
+    let auth = auth::new(object::id(&creator_member_cap), ctx);
+
+    // create the Channel object, with an empty encryption_key_history
+    // An encryption key MUST be added later on, in order for the Channel object
+    // to be considered in a valid state/interactable.
     let channel = Channel {
         id: channel_uid,
         version: admin::version(),
@@ -106,10 +113,10 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, Member
         last_message: option::none<Message>(),
         created_at_ms: clock.timestamp_ms(),
         updated_at_ms: clock.timestamp_ms(),
-        encryption_keys: table_vec::empty<vector<u8>>(ctx),
+        encryption_key_history: encryption_key_history::empty(ctx),
     };
 
-    (channel, creator_cap, creator_member_stamp)
+    (channel, creator_cap, creator_member_cap)
 }
 
 // Setters
@@ -207,17 +214,6 @@ public fun return_config(
 
 // === View Functions ===
 
-/// View the channel's latest encryption key. (read-only)
-public fun latest_encryption_key(self: &Channel): &vector<u8> {
-    let latest_key_index = self.latest_encryption_key_version();
-    self.encryption_keys.borrow(latest_key_index)
-}
-
-/// Get the current version of the encryption key.
-public fun latest_encryption_key_version(self: &Channel): u64 {
-    self.encryption_keys.length() - 1
-}
-
 /// Returns a namespace for the channel to be
 /// utilized by seal_policies
 /// In this case we use the Channel's UID bytes
@@ -232,16 +228,12 @@ public(package) fun version(self: &Channel): u64 {
     self.version
 }
 
-public(package) fun messages(self: &Channel): &TableVec<Message> {
-    &self.messages
-}
-
 // The default, minimum Permission that is granted to initial members
 public struct SimpleMessenger() has drop;
 
 /// Check if a `MemberCap` id is a member of this Channel.
-public(package) fun is_member(self: &Channel, member: address): bool {
-    self.auth.has_permission<SimpleMessenger>(member)
+public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
+    self.auth.has_permission<SimpleMessenger>(object::id(member_cap))
 }
 
 /// Check if a `CreatorCap` is the creator of this Channel.
@@ -249,81 +241,15 @@ public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
     self.id.to_inner() == creator_cap.channel_id()
 }
 
-/// Check if this Channel has an encryption key.
-/// An ecnryption key should be added to the Channel right after creating & sharing it.
-public(package) fun has_encryption_key(self: &Channel): bool {
-    !self.encryption_keys.is_empty()
-}
-
 // Setters
-
-// TODO: there is no protection against duplicate members
-// We are keeping track of MemberCap IDs, not addresses,
-// so even if we used a VecSet we would have an issue
-// Only solution I can think of is keeping track of addresses instead
-public(package) fun add_members_with_roles_internal(
-    self: &mut Channel,
-    members: &mut VecMap<address, String>, // address -> role_name
-    clock: &Clock,
-    ctx: &mut TxContext,
-): VecMap<address, MemberCap> {
-    let mut member_caps = vec_map::empty();
-
-    while (!members.is_empty()) {
-        let (member_address, role_name) = members.pop();
-        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
-
-        assert!(self.roles.contains(role_name), errors::e_channel_role_does_not_exist());
-
-        self
-            .members
-            .add(
-                member_cap.id.to_inner(),
-                MemberInfo {
-                    role_name,
-                    joined_at_ms: clock.timestamp_ms(),
-                    presense: Presence::Offline,
-                },
-            );
-        member_caps.insert(member_address, member_cap);
-    };
-
-    member_caps
-}
-
-public(package) fun add_members_with_default_role_internal(
-    self: &mut Channel,
-    members: VecSet<address>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-): VecMap<address, MemberCap> {
-    let mut member_caps = vec_map::empty();
-
-    members.into_keys().do!(|member_address| {
-        let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
-        self
-            .members
-            .add(
-                member_cap.id.to_inner(),
-                MemberInfo {
-                    role_name: permissions::restricted_role_name(),
-                    joined_at_ms: clock.timestamp_ms(),
-                    presense: Presence::Offline,
-                },
-            );
-        member_caps.insert(member_address, member_cap);
-    });
-
-    member_caps
-}
 
 public(package) fun remove_members_internal(
     self: &mut Channel,
     members_to_remove: vector<ID>, // MemberCap IDs
     clock: &Clock,
 ) {
-    members_to_remove.do!(|member_cap_id| {
-        self.members.remove(member_cap_id);
+    members_to_remove.do!(|member_id| {
+        self
     });
     self.updated_at_ms = clock.timestamp_ms();
 }
@@ -336,7 +262,7 @@ public(package) fun add_message_internal(
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    let key_version = self.latest_encryption_key_version();
+    let key_version = self.encryption_key_history.latest_key_version();
     self
         .messages
         .push_back(
@@ -351,17 +277,7 @@ public(package) fun add_message_internal(
         );
 
     self.messages_count = self.messages_count + 1;
-}
 
-public(package) fun set_last_message_internal(
-    self: &mut Channel,
-    ciphertext: vector<u8>,
-    nonce: vector<u8>,
-    attachments: vector<Attachment>,
-    clock: &Clock,
-    ctx: &TxContext,
-) {
-    let key_version = self.latest_encryption_key_version();
     self.last_message =
         option::some(
             message::new(
@@ -373,22 +289,6 @@ public(package) fun set_last_message_internal(
                 clock,
             ),
         );
-}
-
-public(package) fun has_permission(
-    self: &Channel,
-    member_cap: &MemberCap,
-    permission: Permission,
-): bool {
-    // Assert is member
-    assert!(self.is_member(member_cap), errors::e_channel_not_member());
-
-    // Get member's role
-    let role_name = self.members.borrow(member_cap.id.to_inner()).role_name;
-    let role = self.roles.borrow(role_name);
-
-    // Check permission
-    role.permissions().contains(&permission)
 }
 
 // === Private Functions ===

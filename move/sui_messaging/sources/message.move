@@ -17,7 +17,7 @@ public struct Message has drop, store {
     /// The nonce used for the encryption of the content.
     nonce: vector<u8>,
     /// The version of the DEK(Data Encryption Key) that was used to encrypt this Message
-    key_version: u64,
+    key_version: u32,
     /// A vector of attachments associated with this message.
     attachments: vector<Attachment>,
     /// Timestamp in milliseconds when the message was created.
@@ -34,7 +34,7 @@ public fun new(
     sender: address,
     ciphertext: vector<u8>,
     nonce: vector<u8>,
-    key_version: u64,
+    key_version: u32,
     attachments: vector<Attachment>,
     clock: &Clock,
 ): Message {

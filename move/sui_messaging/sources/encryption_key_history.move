@@ -38,9 +38,18 @@ public(package) fun initial(
 }
 
 /// Get the latest encryption key version, where the first version is the number 1.
-/// If the version is 0, we can consider that no key is attached
 public(package) fun latest_key_version(self: &EncryptionKeyHistory): u32 {
     self.latest_version
+}
+
+/// Get the latest encryption key
+public(package) fun latest_key(self: &EncryptionKeyHistory): vector<u8> {
+    self.latest
+}
+
+/// Check if an encryption key has been attached
+public(package) fun has_encryption_key(self: &EncryptionKeyHistory): bool {
+    self.latest_version > 0 && !self.latest.is_empty()
 }
 
 /// A Channel's encryption key is supposed to be rotated
@@ -54,7 +63,7 @@ public(package) fun latest_key_version(self: &EncryptionKeyHistory): u32 {
 /// On each message, we keep track of the version of the key
 /// that was used to encrypt it. That way, we can query the
 /// encryption key history, in order to decrypt older messages.
-public(package) fun rotate(
+public(package) fun rotate_key(
     self: &mut EncryptionKeyHistory,
     auth: &Auth,
     member_cap_id: ID,
