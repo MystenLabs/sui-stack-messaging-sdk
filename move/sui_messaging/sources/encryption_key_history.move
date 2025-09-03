@@ -24,19 +24,6 @@ public(package) fun empty(ctx: &mut TxContext): EncryptionKeyHistory {
     }
 }
 
-public(package) fun initial(
-    encryption_key_bytes: vector<u8>,
-    ctx: &mut TxContext,
-): EncryptionKeyHistory {
-    // limit the size of the key
-    assert!(encryption_key_bytes.length() <= MAX_KEY_BYTES, EEncryptionKeyBytesTooLong);
-    EncryptionKeyHistory {
-        latest: encryption_key_bytes,
-        latest_version: 1,
-        history: table_vec::empty(ctx),
-    }
-}
-
 /// Get the latest encryption key version, where the first version is the number 1.
 public(package) fun latest_key_version(self: &EncryptionKeyHistory): u32 {
     self.latest_version
@@ -70,8 +57,11 @@ public(package) fun rotate_key(
     new_encryption_key_bytes: vector<u8>,
 ) {
     assert!(auth.has_permission<EditEncryptionKey>(member_cap_id), ENotPermitted);
-    let existing_key = self.latest;
-    self.history.push_back(existing_key);
+    assert!(new_encryption_key_bytes.length() <= MAX_KEY_BYTES, EEncryptionKeyBytesTooLong);
+    if (self.has_encryption_key()) {
+        let existing_key = self.latest;
+        self.history.push_back(existing_key);
+    };
     self.latest_version = self.latest_version + 1;
     self.latest = new_encryption_key_bytes;
 }

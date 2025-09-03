@@ -17,7 +17,7 @@ export const Message = new MoveStruct({ name: `${$moduleName}::Message`, fields:
          * The version of the DEK(Data Encryption Key) that was used to encrypt this
          * Message
          */
-        key_version: bcs.u64(),
+        key_version: bcs.u32(),
         /** A vector of attachments associated with this message. */
         attachments: bcs.vector(attachment.Attachment),
         /** Timestamp in milliseconds when the message was created. */
@@ -27,7 +27,7 @@ export interface NewArguments {
     sender: RawTransactionArgument<string>;
     ciphertext: RawTransactionArgument<number[]>;
     nonce: RawTransactionArgument<number[]>;
-    keyVersion: RawTransactionArgument<number | bigint>;
+    keyVersion: RawTransactionArgument<number>;
     attachments: RawTransactionArgument<string[]>;
 }
 export interface NewOptions {
@@ -36,7 +36,7 @@ export interface NewOptions {
         sender: RawTransactionArgument<string>,
         ciphertext: RawTransactionArgument<number[]>,
         nonce: RawTransactionArgument<number[]>,
-        keyVersion: RawTransactionArgument<number | bigint>,
+        keyVersion: RawTransactionArgument<number>,
         attachments: RawTransactionArgument<string[]>
     ];
 }
@@ -46,7 +46,7 @@ export function _new(options: NewOptions) {
         'address',
         'vector<u8>',
         'vector<u8>',
-        'u64',
+        'u32',
         `vector<${packageAddress}::attachment::Attachment>`,
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
     ] satisfies string[];

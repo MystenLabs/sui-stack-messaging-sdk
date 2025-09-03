@@ -8,9 +8,7 @@
  * version Change limit constants
  */
 
-import { MoveStruct } from '../utils/index.js';
+import { MoveTuple } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 const $moduleName = '@local-pkg/sui-messaging::admin';
-export const Admin = new MoveStruct({ name: `${$moduleName}::Admin`, fields: {
-        dummy_field: bcs.bool()
-    } });
+export const Admin = new MoveTuple({ name: `${$moduleName}::Admin`, fields: [bcs.bool()] });

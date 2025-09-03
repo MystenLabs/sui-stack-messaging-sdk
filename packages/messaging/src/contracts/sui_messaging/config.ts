@@ -1,10 +1,11 @@
 /**************************************************************
  * THIS FILE IS GENERATED AND SHOULD NOT BE MANUALLY MODIFIED *
  **************************************************************/
-import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
+import { MoveTuple, MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
 const $moduleName = '@local-pkg/sui-messaging::config';
+export const EditConfig = new MoveTuple({ name: `${$moduleName}::EditConfig`, fields: [bcs.bool()] });
 export const Config = new MoveStruct({ name: `${$moduleName}::Config`, fields: {
         max_channel_members: bcs.u64(),
         max_channel_roles: bcs.u64(),

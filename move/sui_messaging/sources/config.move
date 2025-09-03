@@ -13,6 +13,9 @@ const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
 const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
 
+// === Witnesses ===
+public struct EditConfig() has drop;
+
 // === Structs ===
 public struct Config has drop, store {
     max_channel_members: u64,
@@ -84,6 +87,7 @@ public fun config_require_invitation(self: &Config): bool { self.require_invitat
 public fun config_require_request(self: &Config): bool { self.require_request }
 
 // === Package Functions ===
+
 public(package) fun max_channel_members(): u64 { MAX_CHANNEL_MEMBERS }
 
 public(package) fun max_channel_roles(): u64 { MAX_CHANNEL_ROLES }
