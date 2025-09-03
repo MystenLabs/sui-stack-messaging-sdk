@@ -1,11 +1,9 @@
 module sui_messaging::message;
 
+use std::string::String;
 use sui::clock::Clock;
 use sui::event;
-
 use sui_messaging::attachment::Attachment;
-use std::string::String;
-
 
 // === Errors ===
 
@@ -37,7 +35,8 @@ public struct MessageAddedEvent has copy, drop {
     ciphertext: vector<u8>,
     nonce: vector<u8>,
     key_version: u64,
-    attachments: vector<String>,
+    attachment_refs: vector<String>,
+    attachment_nonces: vector<vector<u8>>,
     created_at_ms: u64,
 }
 
@@ -77,7 +76,8 @@ public fun emit_event(self: &Message, channel_id: ID, message_index: u64) {
         ciphertext: self.ciphertext,
         nonce: self.nonce,
         key_version: self.key_version,
-        attachments: self.attachments.map!(|attachment| attachment.get_blob_ref()),
+        attachment_refs: self.attachments.map!(|attachment| attachment.blob_ref()),
+        attachment_nonces: self.attachments.map!(|attachment| attachment.data_nonce()),
         created_at_ms: self.created_at_ms,
     };
     event::emit(event)

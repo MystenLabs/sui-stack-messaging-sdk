@@ -38,8 +38,12 @@ public fun new(
 }
 // === View Functions ===
 
-public fun get_blob_ref(self: &Attachment): String {
+public fun blob_ref(self: &Attachment): String {
     self.blob_ref
+}
+
+public fun data_nonce(self: &Attachment): vector<u8> {
+    self.data_nonce
 }
 
 // === Admin Functions ===
