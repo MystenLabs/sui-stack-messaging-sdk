@@ -23,6 +23,16 @@ export const Message = new MoveStruct({ name: `${$moduleName}::Message`, fields:
         /** Timestamp in milliseconds when the message was created. */
         created_at_ms: bcs.u64()
     } });
+export const MessageAddedEvent = new MoveStruct({ name: `${$moduleName}::MessageAddedEvent`, fields: {
+        channel_id: bcs.Address,
+        message_index: bcs.u64(),
+        sender: bcs.Address,
+        ciphertext: bcs.vector(bcs.u8()),
+        nonce: bcs.vector(bcs.u8()),
+        key_version: bcs.u64(),
+        attachments: bcs.vector(bcs.string()),
+        created_at_ms: bcs.u64()
+    } });
 export interface NewArguments {
     sender: RawTransactionArgument<string>;
     ciphertext: RawTransactionArgument<number[]>;
@@ -55,6 +65,34 @@ export function _new(options: NewOptions) {
         package: packageAddress,
         module: 'message',
         function: 'new',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface EmitEventArguments {
+    self: RawTransactionArgument<string>;
+    channelId: RawTransactionArgument<string>;
+    messageIndex: RawTransactionArgument<number | bigint>;
+}
+export interface EmitEventOptions {
+    package?: string;
+    arguments: EmitEventArguments | [
+        self: RawTransactionArgument<string>,
+        channelId: RawTransactionArgument<string>,
+        messageIndex: RawTransactionArgument<number | bigint>
+    ];
+}
+export function emitEvent(options: EmitEventOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        `${packageAddress}::message::Message`,
+        '0x0000000000000000000000000000000000000000000000000000000000000002::object::ID',
+        'u64'
+    ] satisfies string[];
+    const parameterNames = ["self", "channelId", "messageIndex"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'message',
+        function: 'emit_event',
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }

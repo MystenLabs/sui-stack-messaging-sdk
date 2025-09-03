@@ -46,3 +46,25 @@ export function _new(options: NewOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface GetBlobRefArguments {
+    self: RawTransactionArgument<string>;
+}
+export interface GetBlobRefOptions {
+    package?: string;
+    arguments: GetBlobRefArguments | [
+        self: RawTransactionArgument<string>
+    ];
+}
+export function getBlobRef(options: GetBlobRefOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        `${packageAddress}::attachment::Attachment`
+    ] satisfies string[];
+    const parameterNames = ["self"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'attachment',
+        function: 'get_blob_ref',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
