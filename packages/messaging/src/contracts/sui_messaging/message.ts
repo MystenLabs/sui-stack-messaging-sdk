@@ -30,7 +30,8 @@ export const MessageAddedEvent = new MoveStruct({ name: `${$moduleName}::Message
         ciphertext: bcs.vector(bcs.u8()),
         nonce: bcs.vector(bcs.u8()),
         key_version: bcs.u64(),
-        attachments: bcs.vector(bcs.string()),
+        attachment_refs: bcs.vector(bcs.string()),
+        attachment_nonces: bcs.vector(bcs.vector(bcs.u8())),
         created_at_ms: bcs.u64()
     } });
 export interface NewArguments {
