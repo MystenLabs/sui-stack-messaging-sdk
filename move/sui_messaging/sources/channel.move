@@ -9,9 +9,11 @@ use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
 use sui_messaging::admin;
 use sui_messaging::attachment::Attachment;
-use sui_messaging::auth::Auth;
+use sui_messaging::auth::{Self, Auth};
 use sui_messaging::config::{Self, Config};
+use sui_messaging::creator_cap::{Self, CreatorCap};
 use sui_messaging::errors;
+use sui_messaging::member_stamp::{Self, MemberStamp};
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
@@ -26,7 +28,8 @@ public struct Channel has key {
     id: UID,
     /// The version of this object, for handling updgrades.
     version: u64, // Maybe move this to the Config, or utilize the sui::versioned module
-    /// The Authorization struct, gating actions to permissions
+    /// The Authorization struct, gating actions to member permissions.
+    /// Note: It also keeps tracks of the members
     auth: Auth,
     /// The message history of the channel.
     ///
@@ -83,93 +86,32 @@ use fun df::remove as UID.remove;
 /// Adds the creator as a member.
 ///
 /// The flow is:
-/// new() -> (optionally set_initial_roles())
-///       -> (optionally set_initial_members())
-///       -> (optionally add_config())
+/// new() -> (optionally set initial config)
+///       -> (optionally set initial members)
 ///       -> share()
 ///       -> client generate a DEK and encrypt it with Seal using the ChannelID as identity bytes
 ///       -> add_encrypted_key(CreatorCap)
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberStamp) {
     let channel_uid = object::new(ctx);
-    let mut channel = Channel {
+    let creator_cap = creator_cap::mint(channel_uid.to_inner(), ctx);
+    let creator_member_stamp = member_stamp::mint(channel_uid.to_inner(), ctx);
+    let auth = auth::new(ctx);
+    let channel = Channel {
         id: channel_uid,
         version: admin::version(),
-        roles: table::new<String, Role>(ctx),
-        members: table::new<ID, MemberInfo>(ctx),
+        auth,
         messages: table_vec::empty<Message>(ctx),
         messages_count: 0,
         last_message: option::none<Message>(),
         created_at_ms: clock.timestamp_ms(),
         updated_at_ms: clock.timestamp_ms(),
-        encryption_keys: vector::empty<vector<u8>>(),
+        encryption_keys: table_vec::empty<vector<u8>>(ctx),
     };
 
-    // Mint CreatorCap
-    let creator_cap_uid = object::new(ctx);
-    let creator_cap = CreatorCap { id: creator_cap_uid, channel_id: channel.id.to_inner() };
-
-    // Add Creator to Channel.members and return their MemberCap
-    let creator_member_cap = channel.add_creator_to_members(&creator_cap, clock, ctx);
-
-    (channel, creator_cap, creator_member_cap)
+    (channel, creator_cap, creator_member_stamp)
 }
 
 // Builder pattern
-
-/// Take a Channel,
-/// add default Config and default Roles,
-/// Remove this, and just split it into the separate functions
-public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-    // Add default config
-    self.id.add(ConfigKey<Config>(), config::default());
-
-    // Add default Roles: Creator, Restricted
-    let mut default_roles = permissions::default_roles();
-
-    while (!default_roles.is_empty()) {
-        let (name, role) = default_roles.pop();
-        self.roles.add(name, role);
-    };
-}
-
-/// Add custom roles to the Channel, overwriting the default ones
-public fun with_initial_roles(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    roles: &mut VecMap<String, Role>,
-) {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-
-    // overwrite the default roles with the ones provided here
-    if (!self.roles.is_empty()) {
-        let mut default_roles = permissions::default_roles();
-        while (!default_roles.is_empty()) {
-            let (name, _) = default_roles.pop();
-            self.roles.remove(name);
-        };
-    };
-
-    while (!roles.is_empty()) {
-        let (role_name, role) = roles.pop();
-        self.roles.add(role_name, role);
-    }
-}
-
-/// Add initial member to the Channel, with custom assigned roles.
-/// Note1: the role_names must already exist in the Channel.
-/// Note2: the creator is already automatically added as a member, so no need to include them here.
-/// Returns a VecMap mapping member addresses to their MemberCaps.
-public fun with_initial_members_with_roles(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    initial_members: &mut VecMap<address, String>, // address -> role_name
-    clock: &Clock,
-    ctx: &mut TxContext,
-): VecMap<address, MemberCap> {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
-    self.add_members_with_roles_internal(initial_members, clock, ctx)
-}
 
 /// Add initial member to the Channel, with the default role.
 /// Note1: the creator is already automatically added as a member, so no need to include them here.
@@ -180,8 +122,8 @@ public fun with_initial_members(
     initial_members: vector<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-): VecMap<address, MemberCap> {
-    assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
+): VecMap<address, MemberStamp> {
+    assert!(self.id.to_inner() == creator_cap.channel_id(), errors::e_channel_not_creator());
     self.add_members_with_default_role_internal(vec_set::from_keys(initial_members), clock, ctx)
 }
 
@@ -450,26 +392,3 @@ public(package) fun has_permission(
 }
 
 // === Private Functions ===
-fun add_creator_to_members(
-    self: &mut Channel,
-    creator_cap: &CreatorCap,
-    clock: &Clock,
-    ctx: &mut TxContext,
-): MemberCap {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
-    // Ensure the creator is also added as a Member
-    let member_cap = MemberCap { id: object::new(ctx), channel_id: self.id.to_inner() };
-
-    self
-        .members
-        .add(
-            member_cap.id.to_inner(),
-            MemberInfo {
-                role_name: permissions::creator_role_name(),
-                joined_at_ms: clock.timestamp_ms(),
-                presense: Presence::Offline,
-            },
-        );
-
-    member_cap
-}
