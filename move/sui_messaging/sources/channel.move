@@ -13,7 +13,7 @@ use sui_messaging::auth::{Self, Auth};
 use sui_messaging::config::{Self, Config};
 use sui_messaging::creator_cap::{Self, CreatorCap};
 use sui_messaging::errors;
-use sui_messaging::member_stamp::{Self, MemberStamp};
+use sui_messaging::member_cap::{Self, MemberCap};
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
@@ -48,6 +48,7 @@ public struct Channel has key {
     /// The timestamp (in milliseconds) when the channel was last updated.
     /// (e.g. change in metadata, members, admins, keys)
     updated_at_ms: u64,
+    // TODO: split into separate module
     /// History of Encryption keys
     ///
     /// Each entry holds the encrypted bytes of the channel encryption key
@@ -55,7 +56,7 @@ public struct Channel has key {
     /// The latest entry holds the latest/active key.
     /// If the vector is empty, it means that no enryption key has been added
     /// on the channel, and therefore the channel is considered in an invalid state
-    encryption_keys: TableVec<vector<u8>>,
+    encryption_key_history: TableVec<vector<u8>>,
 }
 
 // === Potatos ===
@@ -91,7 +92,7 @@ use fun df::remove as UID.remove;
 ///       -> share()
 ///       -> client generate a DEK and encrypt it with Seal using the ChannelID as identity bytes
 ///       -> add_encrypted_key(CreatorCap)
-public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberStamp) {
+public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, MemberCap) {
     let channel_uid = object::new(ctx);
     let creator_cap = creator_cap::mint(channel_uid.to_inner(), ctx);
     let creator_member_stamp = member_stamp::mint(channel_uid.to_inner(), ctx);
@@ -111,24 +112,24 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, Member
     (channel, creator_cap, creator_member_stamp)
 }
 
-// Builder pattern
+// Setters
 
 /// Add initial member to the Channel, with the default role.
 /// Note1: the creator is already automatically added as a member, so no need to include them here.
 /// Returns a VecMap mapping member addresses to their MemberCaps.
-public fun with_initial_members(
+public fun set_initial_members(
     self: &mut Channel,
     creator_cap: &CreatorCap,
     initial_members: vector<address>,
     clock: &Clock,
     ctx: &mut TxContext,
-): VecMap<address, MemberStamp> {
+): VecMap<address, MemberCap> {
     assert!(self.id.to_inner() == creator_cap.channel_id(), errors::e_channel_not_creator());
     self.add_members_with_default_role_internal(vec_set::from_keys(initial_members), clock, ctx)
 }
 
 /// Attach a dynamic config object to the Channel.
-public fun with_initial_config(self: &mut Channel, creator_cap: &CreatorCap, config: Config) {
+public fun set_initial_config(self: &mut Channel, creator_cap: &CreatorCap, config: Config) {
     assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
     config::assert_is_valid_config(&config);
 
@@ -236,17 +237,16 @@ public(package) fun messages(self: &Channel): &TableVec<Message> {
 }
 
 // The default, minimum Permission that is granted to initial members
-public struct Messenger() has drop;
+public struct SimpleMessenger() has drop;
 
 /// Check if a `MemberCap` id is a member of this Channel.
-public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
-    self.id.to_inner() == member_cap.channel_id &&
-    self.auth.has_permission<Messenger>(object::id(member_cap))
+public(package) fun is_member(self: &Channel, member: address): bool {
+    self.auth.has_permission<SimpleMessenger>(member)
 }
 
 /// Check if a `CreatorCap` is the creator of this Channel.
 public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
-    self.id.to_inner() == creator_cap.channel_id
+    self.id.to_inner() == creator_cap.channel_id()
 }
 
 /// Check if this Channel has an encryption key.

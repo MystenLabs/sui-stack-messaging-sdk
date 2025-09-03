@@ -1,4 +1,4 @@
-module sui_messaging::member_stamp;
+module sui_messaging::member_cap;
 
 use sui::vec_map::VecMap;
 use sui_messaging::creator_cap::CreatorCap;
@@ -9,37 +9,37 @@ const EWrongChannelCreator: u64 = 0;
 ///
 /// Can be used for retrieving conversations/channels that
 /// they are a member of.
-public struct MemberStamp has key {
+public struct MemberCap has key {
     id: UID,
     channel_id: ID,
 }
 
-/// Mint a new MemberStamp with the specified channel_id
+/// Mint a new MemberCap with the specified channel_id
 /// This should be callable only when adding members to a Channel
-public(package) fun mint(channel_id: ID, ctx: &mut TxContext): MemberStamp {
-    MemberStamp { id: object::new(ctx), channel_id }
+public(package) fun mint(channel_id: ID, ctx: &mut TxContext): MemberCap {
+    MemberCap { id: object::new(ctx), channel_id }
 }
 
-/// Burn the MemberStamp
+/// Burn the MemberCap
 /// This should only be callable by a channel.leave function,
-/// because we don't want to arbitrarily allow people to burn their MemberStamp.
+/// because we don't want to arbitrarily allow people to burn their MemberCap.
 /// We also want to handle any relevant tracking in the internals of the Channel object.
-public(package) fun burn(stamp: MemberStamp) {
-    let MemberStamp { id, channel_id: _ } = stamp;
+public(package) fun burn(stamp: MemberCap) {
+    let MemberCap { id, channel_id: _ } = stamp;
     object::delete(id)
 }
 
-/// Transfer a MemberStamp to the specified address.
+/// Transfer a MemberCap to the specified address.
 /// Should only be called by a Channel Creator, after a Channel is created and shared.
-public fun transfer_to_recipient(stamp: MemberStamp, creator_cap: &CreatorCap, recipient: address) {
+public fun transfer_to_recipient(stamp: MemberCap, creator_cap: &CreatorCap, recipient: address) {
     assert!(stamp.channel_id == creator_cap.channel_id(), EWrongChannelCreator);
     transfer::transfer(stamp, recipient)
 }
 
-/// Transfer MemberStamps to the associated addresses
+/// Transfer MemberCaps to the associated addresses
 /// Should only be called by a Channel Creator, after a Channel is created and shared.
 public fun transfer_member_stamps(
-    mut member_stamps_map: VecMap<address, MemberStamp>,
+    mut member_stamps_map: VecMap<address, MemberCap>,
     creator_cap: &CreatorCap,
 ) {
     while (!member_stamps_map.is_empty()) {
