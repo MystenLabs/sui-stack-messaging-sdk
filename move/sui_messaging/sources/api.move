@@ -17,8 +17,6 @@ use sui_messaging::config::Config;
 use sui_messaging::errors;
 use sui_messaging::permissions;
 
-// TODO: should these be entry instead of public fun?
-
 /// Send a new message to the Channel
 public fun send_message(
     self: &mut Channel,

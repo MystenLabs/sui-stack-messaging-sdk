@@ -16,7 +16,7 @@ const VERSION: u64 = 1;
 // === Witnesses ===
 
 /// The authorization witness.
-public struct Admin has drop {}
+public struct Admin() has drop;
 
 // === Capabilities ===
 

@@ -9,96 +9,25 @@ use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
 use sui_messaging::admin;
 use sui_messaging::attachment::Attachment;
+use sui_messaging::auth::Auth;
 use sui_messaging::config::{Self, Config};
 use sui_messaging::errors;
 use sui_messaging::message::{Self, Message};
 use sui_messaging::permissions::{Self, Role, Permission, permission_update_config};
 
 // === Enums ===
-public enum Presense has copy, drop, store {
-    Online,
-    Offline,
-}
 
 // === Capabilities ===
-
-/// Channel Creator Capability
-///
-/// Can act as a "super admin" for the channel.
-/// Used for initializing the Channel
-/// Only one per channel.
-/// Can be transferred via custom transfer function.
-public struct CreatorCap has key {
-    id: UID,
-    channel_id: ID,
-}
-
-/// Channel Member Capability
-///
-/// Gets transferred to someone when they join the channel.
-/// Can be used for retrieving conversations/channels that
-/// they are a member of.
-///
-/// Note: Soul Bound - can only be transferred via custom transfer function
-public struct MemberCap has key {
-    id: UID,
-    channel_id: ID,
-}
-
-// === Custom Transfer Functions ===
-
-/// Transfer a CreatorCap to a new owner
-/// This is the only way to transfer a CreatorCap since it's key-only
-public fun transfer_creator_cap(cap: CreatorCap, recipient: address) {
-    transfer::transfer(cap, recipient)
-}
-
-/// Transfer a MemberCap to a new owner
-/// This is the only way to transfer a MemberCap since it's key-only
-public fun transfer_member_cap(cap: MemberCap, recipient: address) {
-    transfer::transfer(cap, recipient)
-}
-
-public fun transfer_member_caps(mut member_caps_map: VecMap<address, MemberCap>) {
-    while (!member_caps_map.is_empty()) {
-        let (member_address, member_cap) = member_caps_map.pop();
-        transfer_member_cap(member_cap, member_address);
-    };
-    member_caps_map.destroy_empty();
-}
 
 // === Structs ===
 
 /// A Shared object representing a group-communication channel.
-///
-/// Dynamic fields:
-/// - `config: ConfigKey<C> -> C`
-/// - `encryption_key: EncryptionKey -> bool`
-/// - `rotated_kek_history` keep a history of rotated keys for accessing older messages?
-/// otherwise we can re-encrypte each message's DEK with the new KEK, however, since
-/// this is potentially costly(need to do this for the entire history), let's give it
-/// as an option. We could even provide an option for full re-encryption for cases of
-/// extra sensitivity.
-/// Alternatively, we can leave the responisbility of the rotated_kek_history off-chain
-/// by emitting events.
 public struct Channel has key {
     id: UID,
     /// The version of this object, for handling updgrades.
     version: u64, // Maybe move this to the Config, or utilize the sui::versioned module
-    // Do we need to keep track of this?
-    // creator_cap_id: ID,
-    /// Maps custom role names(e.g. "Moderator") to `Role` structs containing
-    /// a granular set of permissions.
-    roles: Table<String, Role>,
-    /// A table mapping `MemberCap` ids to their roles and join timestamps.
-    /// We do not include the MemberInfo in the `MemberCap` because we want
-    /// to be able to change permissions.
-    ///
-    /// We do not need to worry with burning the MemberCap, since we can simply
-    /// remove the MemberCap ID from the members Table and
-    /// rotate the KEK when a member is removed from the channel.
-    members: Table<ID, MemberInfo>,
-    // members_count: u64,
+    /// The Authorization struct, gating actions to permissions
+    auth: Auth,
     /// The message history of the channel.
     ///
     /// Using `TableVec` to avoid the object size limit.
@@ -111,9 +40,6 @@ public struct Channel has key {
     /// Utilize this for efficient fetching e.g. list of conversations showing
     /// the latest message and the user who sent it
     last_message: Option<Message>,
-    // /// We need a way to include custom seal policy in addition to the "MemberList" one
-    // /// Probably via a dynamic field
-    // policy_id: ID,
     /// The timestamp (in milliseconds) when the channel was created.
     created_at_ms: u64,
     /// The timestamp (in milliseconds) when the channel was last updated.
@@ -126,19 +52,7 @@ public struct Channel has key {
     /// The latest entry holds the latest/active key.
     /// If the vector is empty, it means that no enryption key has been added
     /// on the channel, and therefore the channel is considered in an invalid state
-    /// TODO: vector limits - how often do we expect to rotate a key?
-    /// Other than an interval of once per year, we also want to rotate the key
-    /// when kicking a member from the channel
-    /// What should we do when reaching the limit? Re-encrypt older messages?
-    /// Alternatively, we can use a TableVec to overcome this issue
-    encryption_keys: vector<vector<u8>>,
-}
-
-/// Information about a channel member, including their role and joint time.
-public struct MemberInfo has drop, store {
-    role_name: String,
-    joined_at_ms: u64,
-    presense: Presense,
+    encryption_keys: TableVec<vector<u8>>,
 }
 
 // === Potatos ===
@@ -204,6 +118,7 @@ public fun new(clock: &Clock, ctx: &mut TxContext): (Channel, CreatorCap, Member
 
 /// Take a Channel,
 /// add default Config and default Roles,
+/// Remove this, and just split it into the separate functions
 public fun with_defaults(self: &mut Channel, creator_cap: &CreatorCap) {
     assert!(self.id.to_inner() == creator_cap.channel_id, errors::e_channel_not_creator());
     // Add default config
@@ -349,7 +264,7 @@ public fun return_config(
 
 // === View Functions ===
 
-/// Borrow the channel's latest encryption key. (read-only)
+/// View the channel's latest encryption key. (read-only)
 public fun latest_encryption_key(self: &Channel): &vector<u8> {
     let latest_key_index = self.latest_encryption_key_version();
     self.encryption_keys.borrow(latest_key_index)
@@ -374,22 +289,17 @@ public(package) fun version(self: &Channel): u64 {
     self.version
 }
 
-public(package) fun roles(self: &Channel): &Table<String, Role> {
-    &self.roles
-}
-
-public(package) fun members(self: &Channel): &Table<ID, MemberInfo> {
-    &self.members
-}
-
 public(package) fun messages(self: &Channel): &TableVec<Message> {
     &self.messages
 }
 
+// The default, minimum Permission that is granted to initial members
+public struct Messenger() has drop;
+
 /// Check if a `MemberCap` id is a member of this Channel.
 public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     self.id.to_inner() == member_cap.channel_id &&
-    self.members.contains(member_cap.id.to_inner())
+    self.auth.has_permission<Messenger>(object::id(member_cap))
 }
 
 /// Check if a `CreatorCap` is the creator of this Channel.
@@ -430,7 +340,7 @@ public(package) fun add_members_with_roles_internal(
                 MemberInfo {
                     role_name,
                     joined_at_ms: clock.timestamp_ms(),
-                    presense: Presense::Offline,
+                    presense: Presence::Offline,
                 },
             );
         member_caps.insert(member_address, member_cap);
@@ -456,7 +366,7 @@ public(package) fun add_members_with_default_role_internal(
                 MemberInfo {
                     role_name: permissions::restricted_role_name(),
                     joined_at_ms: clock.timestamp_ms(),
-                    presense: Presense::Offline,
+                    presense: Presence::Offline,
                 },
             );
         member_caps.insert(member_address, member_cap);
@@ -557,7 +467,7 @@ fun add_creator_to_members(
             MemberInfo {
                 role_name: permissions::creator_role_name(),
                 joined_at_ms: clock.timestamp_ms(),
-                presense: Presense::Offline,
+                presense: Presence::Offline,
             },
         );
 
