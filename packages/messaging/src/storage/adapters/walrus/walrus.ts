@@ -5,11 +5,13 @@ import { WalrusResponse } from './types';
 
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
-		private readonly client: ClientWithExtensions<{ walrus: WalrusClient }>,
+		// Client parameter kept for future implementation - currently unused
+		// @ts-ignore TS6138 - intentionally unused parameter for future implementation
+		private readonly _client: ClientWithExtensions<{ walrus: WalrusClient }>,
 		private readonly config: StorageConfig,
 	) {}
 
-	async upload(data: Uint8Array[], options: StorageOptions): Promise<{ ids: string[] }> {
+	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
 		return await this.#uploadQuilts(data); // todo: option handling for blobs vs quilts
 	}
 

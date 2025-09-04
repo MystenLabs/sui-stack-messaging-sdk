@@ -7,15 +7,10 @@ import {
 	_new as newChannel,
 	addEncryptedKey,
 	share as shareChannel,
-	withDefaults,
-	withInitialMembers,
-	CreatorCap,
-	transferMemberCap,
-	transferMemberCaps,
-	transferCreatorCap,
+	sendMessage,
+	addMembers,
 } from './contracts/sui_messaging/channel';
 
-import { sendMessage } from './contracts/sui_messaging/api';
 import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment';
 
 import {
@@ -30,6 +25,16 @@ import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
 import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
 import { RawTransactionArgument } from './contracts/utils';
+import {
+	CreatorCap,
+	transferToSender as transferCreatorCap,
+} from './contracts/sui_messaging/creator_cap';
+import {
+	MemberCap,
+	transferMemberCaps,
+	transferToRecipient as transferMemberCap,
+} from './contracts/sui_messaging/member_cap';
+import { none as noneConfig } from './contracts/sui_messaging/config';
 
 export interface MessagingClientExtensionOptions {
 	packageConfig?: MessagingPackageConfig;
@@ -50,18 +55,20 @@ export interface CreateChannelFlowOpts {
 }
 
 export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
-	creatorCap: (typeof CreatorCap)['$inferType'];
+	creatorMemberCap: (typeof MemberCap)['$inferType'];
 }
 
-export interface CreateChannelFlowGetGeneratedCreatorCapOpts {
+export interface CreateChannelFlowGetGeneratedCapsOpts {
 	digest: string; // Transaction digest from the channel creation transaction
 }
 
 export interface CreateChannelFlow {
 	build: () => Transaction;
-	getGeneratedCreatorCap: (
-		opts: CreateChannelFlowGetGeneratedCreatorCapOpts,
-	) => Promise<(typeof CreatorCap)['$inferType']>;
+	getGeneratedCaps: (opts: CreateChannelFlowGetGeneratedCapsOpts) => Promise<{
+		creatorCap: (typeof CreatorCap)['$inferType'];
+		creatorMemberCap: (typeof MemberCap)['$inferType'];
+		additionalMemberCaps: (typeof MemberCap)['$inferType'][];
+	}>;
 	generateAndAttachEncryptionKey: (
 		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
 	) => Promise<Transaction>;
@@ -208,24 +215,18 @@ export class MessagingClient {
 	}: CreateChannelFlowOpts): CreateChannelFlow {
 		const build = () => {
 			const tx = new Transaction();
-			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel());
-
-			// Apply defaults
-			tx.add(
-				withDefaults({
-					arguments: { self: channel, creatorCap },
-				}),
-			);
+			const config = tx.add(noneConfig());
+			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
 
 			// Add initial members if provided
 			let memberCaps: RawTransactionArgument<string> | null = null;
 			if (initialMemberAddresses && initialMemberAddresses.length > 0) {
 				memberCaps = tx.add(
-					withInitialMembers({
+					addMembers({
 						arguments: {
 							self: channel,
-							creatorCap,
-							initialMembers: tx.pure.vector('address', initialMemberAddresses),
+							memberCap: creatorMemberCap,
+							n: initialMemberAddresses.length,
 						},
 					}),
 				);
@@ -233,27 +234,37 @@ export class MessagingClient {
 
 			// Share the channel and transfer creator cap
 			tx.add(shareChannel({ arguments: { self: channel, creatorCap } }));
-			tx.add(transferCreatorCap({ arguments: { cap: creatorCap, recipient: creatorAddress } }));
 			// Transfer MemberCaps
 			tx.add(
-				transferMemberCap({ arguments: { cap: creatorMemberCap, recipient: creatorAddress } }),
+				transferMemberCap({
+					arguments: { cap: creatorMemberCap, creatorCap, recipient: creatorAddress },
+				}),
 			);
 			if (memberCaps !== null) {
-				tx.add(transferMemberCaps({ arguments: { memberCapsMap: memberCaps } }));
+				tx.add(
+					transferMemberCaps({
+						arguments: {
+							memberAddresses: tx.pure.vector('address', initialMemberAddresses!),
+							memberCaps,
+							creatorCap,
+						},
+					}),
+				);
 			}
+
+			tx.add(transferCreatorCap({ arguments: { self: creatorCap } }));
 
 			return tx;
 		};
 
-		const getGeneratedCreatorCap = async ({
-			digest,
-		}: CreateChannelFlowGetGeneratedCreatorCapOpts) => {
-			return { creatorCap: await this.#getCreatedCreatorCap(digest) };
+		const getGeneratedCaps = async ({ digest }: CreateChannelFlowGetGeneratedCapsOpts) => {
+			return await this.#getGeneratedCaps(digest);
 		};
 
 		const generateAndAttachEncryptionKey = async ({
 			creatorCap,
-		}: Awaited<ReturnType<typeof getGeneratedCreatorCap>>) => {
+			creatorMemberCap,
+		}: Awaited<ReturnType<typeof getGeneratedCaps>>) => {
 			// Generate the encrypted channel DEK
 			const encryptedKeyBytes = await this.#envelopeEncryption.generateEncryptedChannelDEK({
 				channelId: creatorCap.channel_id,
@@ -265,8 +276,8 @@ export class MessagingClient {
 				addEncryptedKey({
 					arguments: {
 						self: tx.object(creatorCap.channel_id),
-						creatorCap: tx.object(creatorCap.id.id),
-						encryptedKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
+						memberCap: tx.object(creatorMemberCap.id.id),
+						newEncryptionKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
 					},
 				}),
 			);
@@ -287,7 +298,7 @@ export class MessagingClient {
 
 		const stepResults: {
 			build?: ReturnType<typeof build>;
-			getGeneratedCreatorCap?: Awaited<ReturnType<typeof getGeneratedCreatorCap>>;
+			getGeneratedCaps?: Awaited<ReturnType<typeof getGeneratedCaps>>;
 			generateAndAttachEncryptionKey?: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>;
 			getGeneratedEncryptionKey?: never;
 		} = {};
@@ -309,14 +320,14 @@ export class MessagingClient {
 				}
 				return stepResults.build;
 			},
-			getGeneratedCreatorCap: async (opts: CreateChannelFlowGetGeneratedCreatorCapOpts) => {
-				getResults('build', 'getGeneratedCreatorCap');
-				stepResults.getGeneratedCreatorCap = await getGeneratedCreatorCap(opts);
-				return stepResults.getGeneratedCreatorCap.creatorCap;
+			getGeneratedCaps: async (opts: CreateChannelFlowGetGeneratedCapsOpts) => {
+				getResults('build', 'getGeneratedCaps');
+				stepResults.getGeneratedCaps = await getGeneratedCaps(opts);
+				return stepResults.getGeneratedCaps;
 			},
 			generateAndAttachEncryptionKey: async () => {
 				stepResults.generateAndAttachEncryptionKey = await generateAndAttachEncryptionKey(
-					getResults('getGeneratedCreatorCap', 'generateAndAttachEncryptionKey'),
+					getResults('getGeneratedCaps', 'generateAndAttachEncryptionKey'),
 				);
 				return stepResults.generateAndAttachEncryptionKey.transaction;
 			},
@@ -445,7 +456,7 @@ export class MessagingClient {
 							encryptedMetadata: tx.pure.vector('u8', metadata.encryptedBytes),
 							dataNonce: tx.pure.vector('u8', dataNonce),
 							metadataNonce: tx.pure.vector('u8', metadataNonce),
-							keyVersion: tx.pure('u64', encryptedKey.version),
+							keyVersion: tx.pure('u32', encryptedKey.version),
 						},
 					}),
 				);
@@ -512,10 +523,16 @@ export class MessagingClient {
 		);
 
 		// Step 2: Get the creator cap from the transaction
-		const creatorCap = await flow.getGeneratedCreatorCap({ digest: channelDigest });
+		const {
+			creatorCap,
+			creatorMemberCap,
+			additionalMemberCaps: _,
+		} = await flow.getGeneratedCaps({
+			digest: channelDigest,
+		});
 
 		// Step 3: Generate and attach encryption key
-		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorCap });
+		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorMemberCap });
 		const { digest: keyDigest } = await this.#executeTransaction(
 			attachKeyTx,
 			signer,
@@ -555,8 +572,19 @@ export class MessagingClient {
 		return { digest, effects };
 	}
 
-	async #getCreatedCreatorCap(digest: string) {
-		const creatorCapType = `${this.#packageConfig.packageId}::channel::CreatorCap`;
+	async #getGeneratedCaps(digest: string) {
+		const creatorCapType = CreatorCap.name.replace(
+			'@local-pkg/sui-messaging',
+			this.#packageConfig.packageId,
+		);
+		const creatorMemberCapType = MemberCap.name.replace(
+			'@local-pkg/sui-messaging',
+			this.#packageConfig.packageId,
+		);
+		const additionalMemberCapType = MemberCap.name.replace(
+			'@local-pkg/sui-messaging',
+			this.#packageConfig.packageId,
+		);
 
 		const {
 			transaction: { effects },
@@ -582,6 +610,47 @@ export class MessagingClient {
 			);
 		}
 
-		return CreatorCap.parse(await suiCreatorCapObject.content);
+		const creatorCapParsed = CreatorCap.parse(await suiCreatorCapObject.content);
+
+		const suiCreatorMemberCapObject = createdObjects.objects.find(
+			(object) =>
+				!(object instanceof Error) &&
+				object.type === creatorMemberCapType &&
+				// only get the creator's member cap
+				object.owner.$kind === 'AddressOwner' &&
+				suiCreatorCapObject.owner.$kind === 'AddressOwner' &&
+				object.owner.AddressOwner === suiCreatorCapObject.owner.AddressOwner,
+		);
+
+		if (suiCreatorMemberCapObject instanceof Error || !suiCreatorMemberCapObject) {
+			throw new MessagingClientError(
+				`CreatorMemberCap object not found in transaction effects for transaction (${digest})`,
+			);
+		}
+
+		const creatorMemberCapParsed = MemberCap.parse(await suiCreatorMemberCapObject.content);
+
+		const suiAdditionalMemberCapsObjects = createdObjects.objects.filter(
+			(object) => !(object instanceof Error) && object.type === additionalMemberCapType,
+		);
+
+		// exclude the creator's member cap from the additional member caps
+		const additionalMemberCapsParsed = await Promise.all(
+			suiAdditionalMemberCapsObjects.map(async (object) => {
+				if (object instanceof Error) {
+					throw new MessagingClientError(
+						`AdditionalMemberCap object not found in transaction effects for transaction (${digest})`,
+					);
+				}
+				return MemberCap.parse(await object.content);
+			}),
+		);
+		additionalMemberCapsParsed.filter((cap) => cap.id.id !== creatorMemberCapParsed.id.id);
+
+		return {
+			creatorCap: creatorCapParsed,
+			creatorMemberCap: creatorMemberCapParsed,
+			additionalMemberCaps: additionalMemberCapsParsed,
+		};
 	}
 }

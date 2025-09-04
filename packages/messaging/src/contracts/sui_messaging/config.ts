@@ -64,6 +64,19 @@ export function _new(options: NewOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface NoneOptions {
+    package?: string;
+    arguments?: [
+    ];
+}
+export function none(options: NoneOptions = {}) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'config',
+        function: 'none',
+    });
+}
 export interface IsValidConfigArguments {
     config: RawTransactionArgument<string>;
 }

@@ -24,17 +24,13 @@ import {
 	EncryptMessageOpts,
 	EncryptTextOpts,
 	GenerateEncryptedChannelDEKopts,
+	SealApproveContract,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
 import { Transaction } from '@mysten/sui/transactions';
 import { MessagingCompatibleClient } from '../types';
 
-export interface SealApproveContract {
-	packageId: string;
-	module: string;
-	functionName: string;
-}
 export interface EnvelopeEncryptionConfig {
 	suiClient: MessagingCompatibleClient;
 	sealApproveContract: SealApproveContract;

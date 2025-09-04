@@ -65,6 +65,10 @@ public fun new(
     }
 }
 
+public fun none(): Option<Config> {
+    option::none<Config>()
+}
+
 public fun is_valid_config(config: &Config): bool {
     config.max_channel_members() <= MAX_CHANNEL_MEMBERS 
         && config.max_channel_roles() <= MAX_CHANNEL_ROLES

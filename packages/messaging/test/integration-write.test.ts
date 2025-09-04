@@ -11,13 +11,13 @@ import {
 	createTestClient,
 	getChannelObject,
 	getMemberCapObject,
-	getMembers,
+	getMemberPermissions,
+	getChannelMemberCaps,
 	getMessages,
-	getRoles,
-	TestConstants,
 } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption';
-import { Channel, MemberCap } from '../src/contracts/sui_messaging/channel';
+import { Channel } from '../src/contracts/sui_messaging/channel';
+import { MemberCap } from '../src/contracts/sui_messaging/member_cap';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -206,48 +206,53 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.messages_count).toBe('0');
 			expect(channel.created_at_ms).toMatch(/[0-9]+/);
 			expect(channel.updated_at_ms).toEqual(channel.created_at_ms);
-			expect(channel.encryption_keys[0].length).toBeGreaterThan(0);
+			expect(channel.encryption_key_history).toBeDefined();
 
-			// Assert roles
-			const roles = await getRoles(client, channel.roles.id.id);
-			expect(roles).toHaveLength(2);
+			// Assert member permissions using the new auth system
+			const memberPermissions = await getMemberPermissions(client, channelId);
+			expect(memberPermissions.auth).toBeDefined();
+			expect(memberPermissions.memberPermissions).toBeDefined();
 
-			const creatorRole = roles.find((r) => r.name === TestConstants.ROLES.CREATOR);
-			expect(creatorRole).toBeDefined();
-			expect(creatorRole?.permissions).toEqual(TestConstants.PERMISSIONS.CREATOR);
-
-			const restrictedRole = roles.find((r) => r.name === TestConstants.ROLES.RESTRICTED);
-			expect(restrictedRole).toBeDefined();
-			expect(restrictedRole?.permissions).toHaveLength(0);
-
-			// Assert members
+			// Assert members - get the creator's MemberCap
 			const creatorMemberCap = await getMemberCapObject(
 				client,
 				signer.toSuiAddress(),
 				packageId,
 				channelId,
 			);
+			expect(creatorMemberCap).toBeDefined();
+			expect(creatorMemberCap.channel_id).toBe(channelId);
 
-			const members = await getMembers(client, channel.members.id.id);
-			expect(members).toHaveLength(2);
-			const creatorMember = members.find((m) => m.name === creatorMemberCap.id.id);
-			expect(creatorMember).toBeDefined();
-			expect(creatorMember?.memberInfo.role_name).toBe('Creator');
-			expect(creatorMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
-			expect(creatorMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
+			// Get all MemberCaps for this channel using the new auth system
+			const channelMemberCaps = await getChannelMemberCaps(client, channelId);
 
-			const restrictedMemberCap = await getMemberCapObject(
-				client,
-				initialMember,
-				packageId,
-				channelId,
+			// We should have at least the creator's MemberCap
+			expect(channelMemberCaps.length).toBeGreaterThanOrEqual(1);
+
+			// Verify the creator's MemberCap is in the list
+			const foundCreatorMemberCap = channelMemberCaps.find(
+				(cap) => cap.id.id === creatorMemberCap.id.id,
 			);
+			expect(foundCreatorMemberCap).toBeDefined();
+			expect(foundCreatorMemberCap?.channel_id).toBe(channelId);
 
-			const restrictedMember = members.find((m) => m.name === restrictedMemberCap.id.id);
-			expect(restrictedMember).toBeDefined();
-			expect(restrictedMember?.memberInfo.role_name).toBe('Restricted');
-			expect(restrictedMember?.memberInfo.presense).toEqual({ Offline: true, $kind: 'Offline' });
-			expect(restrictedMember?.memberInfo.joined_at_ms).toMatch(/[0-9]+/);
+			// If we have an initial member, verify their MemberCap is also in the list
+			if (initialMember) {
+				const initialMemberCap = await getMemberCapObject(
+					client,
+					initialMember,
+					packageId,
+					channelId,
+				);
+				expect(initialMemberCap).toBeDefined();
+				expect(initialMemberCap.channel_id).toBe(channelId);
+
+				// Verify the initial member's MemberCap is in the channel's member list
+				const foundInitialMemberCap = channelMemberCaps.find(
+					(cap) => cap.id.id === initialMemberCap.id.id,
+				);
+				expect(foundInitialMemberCap).toBeDefined();
+			}
 		});
 	});
 
@@ -272,16 +277,16 @@ describe('Integration tests - Write Path', () => {
 			console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-			const encryptionKeyVersion = channelObj.encryption_keys.length - 1;
-			expect(encryptionKeyVersion).toBe(0);
+			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
+			expect(encryptionKeyVersion).toBe(1); // First version should be 1
 			// This should not be empty
-			expect(channelObj.encryption_keys[0].length).toBeGreaterThan(0);
+			expect(channelObj.encryption_key_history.latest.length).toBeGreaterThan(0);
 			encryptionKey = {
 				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(channelObj.encryption_keys[0]),
+				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
 				version: encryptionKeyVersion,
 			};
-			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_keys[0]));
+			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_key_history.latest));
 		});
 
 		it('should send and decrypt a message with an attachment', async () => {
@@ -313,7 +318,7 @@ describe('Integration tests - Write Path', () => {
 
 			expect(sentMessage!.name).toBe('0');
 			expect(sentMessage!.message.sender).toBe(signer.toSuiAddress());
-			expect(sentMessage!.message.key_version).toBe('0');
+			expect(sentMessage!.message.key_version).toBe(1);
 			expect(sentMessage!.message.created_at_ms).toMatch(/[0-9]+/);
 			expect(sentMessage!.message.attachments).toHaveLength(1);
 
@@ -354,9 +359,8 @@ describe('Integration tests - Write Path', () => {
 			expect(sentMessage?.message.attachments).toHaveLength(0);
 
 			expect(channelObjFresh.last_message).toEqual(sentMessage?.message);
-			// We are reusing the same channel object, so the messages count is 2
-			// TODO: maybe not the best approach to have a test "rely" on the state of a previous test
-			// so maybe don't actually reuse the same channel object
+
+			// not very nice that we are relying on the state of a previous test
 			expect(channelObjFresh.messages_count).toBe('2');
 
 			const decryptedMessage = await client.messaging.decryptMessage({

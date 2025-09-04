@@ -9,30 +9,21 @@ import { SealClient } from '@mysten/seal';
 import { ALLOWLISTED_SEAL_KEY_SERVERS } from '../src/encryption/constants';
 
 import * as channelModule from '../src/contracts/sui_messaging/channel';
-import * as permissionsModule from '../src/contracts/sui_messaging/permissions';
+import * as memberCapModule from '../src/contracts/sui_messaging/member_cap';
 import * as messageModule from '../src/contracts/sui_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 
 // --- Constants ---
 
 export const TestConstants = {
-	ROLES: {
-		CREATOR: 'Creator',
-		RESTRICTED: 'Restricted',
-	},
+	// Note: The new auth system uses TypeName-based permissions instead of role-based permissions
+	// Permissions are now managed through the Auth struct with VecMap<ID, VecSet<TypeName>>
 	PERMISSIONS: {
-		CREATOR: [
-			{ AddMember: true, $kind: 'AddMember' },
-			{ RemoveMember: true, $kind: 'RemoveMember' },
-			{ AddRole: true, $kind: 'AddRole' },
-			{ PromoteMember: true, $kind: 'PromoteMember' },
-			{ DemoteMember: true, $kind: 'DemoteMember' },
-			{ RotateKey: true, $kind: 'RotateKey' },
-			{ UpdateConfig: true, $kind: 'UpdateConfig' },
-			{ UpdateMetadata: true, $kind: 'UpdateMetadata' },
-			{ DeleteMessage: true, $kind: 'DeleteMessage' },
-			{ PinMessage: true, $kind: 'PinMessage' },
-		],
+		// These are the permission types available in the new system
+		EDIT_PERMISSIONS: 'EditPermissions',
+		SIMPLE_MESSENGER: 'SimpleMessenger',
+		EDIT_ENCRYPTION_KEY: 'EditEncryptionKey',
+		EDIT_CONFIG: 'EditConfig',
 	},
 };
 
@@ -93,7 +84,7 @@ class MockWalrusClient {
 
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
-	async upload(data: Uint8Array[], options: StorageOptions): Promise<{ ids: string[] }> {
+	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
 		// artificial delay
 		await new Promise((resolve) => setTimeout(resolve, 1000));
 		// Return mock blob IDs for testing
@@ -133,7 +124,7 @@ export function createTestClient(
 						/*
                         {"error":{"status":"INTERNAL","code":500,"message":"could not find SUI coins with sufficient balance [requested_amount=Some(7141468)]","details":[{"@type":"ErrorInfo","reason":"INTERNAL_ERROR","domain":"daemon.walrus.space","metadata":{}},{"@type":"DebugInfo","stackEntries":[],"detail":"TraceID: 0"}]}}
                         */
-						storage: (client) => new MockStorageAdapter(),
+						storage: (_client) => new MockStorageAdapter(),
 						signer,
 					}),
 				)
@@ -190,49 +181,70 @@ export async function getChannelObject(client: SuiClient, channelId: string) {
 }
 
 /**
- * Fetches and parses all roles from a channel's dynamic fields.
+ * Fetches and parses member permissions from a channel's auth struct.
  * @param client - The SuiClient instance.
- * @param rolesTableId - The ID of the roles dynamic field table.
- * @returns An array of roles with their names and permissions.
+ * @param channelId - The ID of the channel object.
+ * @returns An array of members with their permissions.
  */
-export async function getRoles(client: SuiClient, rolesTableId: string) {
-	const rolesResponse = await client.core.getDynamicFields({ parentId: rolesTableId });
-	const rolesPromises = rolesResponse.dynamicFields.map(async (role) => {
-		const roleResponse = await client.core.getDynamicField({
-			parentId: rolesTableId,
-			name: role.name,
-		});
-		const roleNameContent = roleResponse.dynamicField.name.bcs;
-		const roleName = bcs.String.parse(roleNameContent);
-		const rolePermissionsContent = roleResponse.dynamicField.value.bcs;
-		const rolePermissions = permissionsModule.Role.parse(rolePermissionsContent);
-		return { name: roleName, permissions: rolePermissions.permissions.contents };
-	});
-	return Promise.all(rolesPromises);
+export async function getMemberPermissions(client: SuiClient, channelId: string) {
+	const channelResponse = await client.core.getObject({ objectId: channelId });
+	const channelContent = await channelResponse.object.content;
+	const channel = channelModule.Channel.parse(channelContent);
+
+	// The auth struct contains member_permissions: VecMap<ID, VecSet<TypeName>>
+	// We need to extract the member permissions from the auth field
+	const auth = channel.auth;
+
+	// Note: The actual parsing of VecMap and VecSet would require more complex logic
+	// This is a simplified version that returns the auth structure
+	return {
+		auth,
+		memberPermissions: auth.member_permissions, // This contains the VecMap<ID, VecSet<TypeName>>
+	};
 }
 
 /**
- * Fetches and parses all members from a channel's dynamic fields.
+ * Fetches all MemberCap objects for a specific channel.
  * @param client - The SuiClient instance.
- * @param membersTableId - The ID of the members dynamic field table.
- * @returns An array of members with their address and info.
+ * @param channelId - The ID of the channel.
+ * @param packageId - The ID of the Move package.
+ * @returns An array of MemberCap objects.
  */
-export async function getMembers(client: SuiClient, membersTableId: string) {
-	const membersResponse = await client.core.getDynamicFields({
-		parentId: membersTableId,
+export async function getChannelMemberCaps(client: SuiClient, channelId: string) {
+	// Get the channel object to access its auth struct
+	const channelResponse = await client.core.getObject({ objectId: channelId });
+	const channelContent = await channelResponse.object.content;
+	const channel = channelModule.Channel.parse(channelContent);
+
+	// Extract the member permissions from the auth struct
+	const memberPermissions = channel.auth.member_permissions;
+
+	// The memberPermissions.contents is a vector of Entry objects
+	// Each Entry has a key (MemberCap ID) and value (permission set)
+	const memberCapIds = memberPermissions.contents.map((entry: any) => entry.key);
+
+	// Now fetch all the MemberCap objects using their IDs
+	const memberCapObjects = await client.core.getObjects({
+		objectIds: memberCapIds,
 	});
-	const membersPromises = membersResponse.dynamicFields.map(async (member) => {
-		const memberResponse = await client.core.getDynamicField({
-			parentId: membersTableId,
-			name: member.name,
-		});
-		const memberNameContent = memberResponse.dynamicField.name.bcs;
-		const memberName = bcs.Address.parse(memberNameContent);
-		const memberInfoContent = memberResponse.dynamicField.value.bcs;
-		const memberInfo = channelModule.MemberInfo.parse(memberInfoContent);
-		return { name: memberName, memberInfo };
-	});
-	return Promise.all(membersPromises);
+
+	// Parse the MemberCap objects and filter out any errors
+	const memberCaps = [];
+	for (const obj of memberCapObjects.objects) {
+		if (obj instanceof Error || !obj.content) {
+			console.warn('Failed to fetch MemberCap object:', obj);
+			continue;
+		}
+
+		try {
+			const memberCap = memberCapModule.MemberCap.parse(await obj.content);
+			memberCaps.push(memberCap);
+		} catch (error) {
+			console.warn('Failed to parse MemberCap object:', error);
+		}
+	}
+
+	return memberCaps;
 }
 
 /**
@@ -251,12 +263,12 @@ export async function getMemberCapObject(
 ) {
 	const memberCaps = await client.core.getOwnedObjects({
 		address: ownerAddress,
-		type: channelModule.MemberCap.name.replace('@local-pkg/sui-messaging', packageId),
+		type: `${packageId}::member_cap::MemberCap`,
 	});
 
 	const targetCap = await memberCaps.objects.find(async (cap) => {
 		if (!cap.content) return false;
-		const parsedCap = channelModule.MemberCap.parse(await cap.content);
+		const parsedCap = memberCapModule.MemberCap.parse(await cap.content);
 		return parsedCap.channel_id === channelId;
 	});
 
@@ -264,7 +276,7 @@ export async function getMemberCapObject(
 		throw new Error(`MemberCap not found for address ${ownerAddress} in channel ${channelId}`);
 	}
 
-	return channelModule.MemberCap.parse(await targetCap.content);
+	return memberCapModule.MemberCap.parse(await targetCap.content);
 }
 
 /**

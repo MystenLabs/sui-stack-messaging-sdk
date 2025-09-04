@@ -43,13 +43,15 @@ export function transferToRecipient(options: TransferToRecipientOptions) {
     });
 }
 export interface TransferMemberCapsArguments {
-    memberCapsMap: RawTransactionArgument<string>;
+    memberAddresses: RawTransactionArgument<string[]>;
+    memberCaps: RawTransactionArgument<string[]>;
     creatorCap: RawTransactionArgument<string>;
 }
 export interface TransferMemberCapsOptions {
     package?: string;
     arguments: TransferMemberCapsArguments | [
-        memberCapsMap: RawTransactionArgument<string>,
+        memberAddresses: RawTransactionArgument<string[]>,
+        memberCaps: RawTransactionArgument<string[]>,
         creatorCap: RawTransactionArgument<string>
     ];
 }
@@ -60,10 +62,11 @@ export interface TransferMemberCapsOptions {
 export function transferMemberCaps(options: TransferMemberCapsOptions) {
     const packageAddress = options.package ?? '@local-pkg/sui-messaging';
     const argumentsTypes = [
-        `0x0000000000000000000000000000000000000000000000000000000000000002::vec_map::VecMap<address, ${packageAddress}::member_cap::MemberCap>`,
+        'vector<address>',
+        `vector<${packageAddress}::member_cap::MemberCap>`,
         `${packageAddress}::creator_cap::CreatorCap`
     ] satisfies string[];
-    const parameterNames = ["memberCapsMap", "creatorCap"];
+    const parameterNames = ["memberAddresses", "memberCaps", "creatorCap"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'member_cap',

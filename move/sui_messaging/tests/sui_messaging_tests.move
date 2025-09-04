@@ -3,7 +3,7 @@ module sui_messaging::sui_messaging_tests;
 
 use sui_messaging::attachment::Attachment;
 use sui_messaging::channel::{Self, Channel};
-use sui_messaging::config::Config;
+use sui_messaging::config;
 use sui_messaging::creator_cap::CreatorCap;
 use sui_messaging::member_cap::MemberCap;
 
@@ -42,7 +42,7 @@ fun test_new_with_defaults() {
     {
         // create new channel
         let (mut channel, creator_cap, creator_member_cap) = channel::new(
-            option::none<Config>(),
+            config::none(),
             &clock,
             scenario.ctx(),
         );
