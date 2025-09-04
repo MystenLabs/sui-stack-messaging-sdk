@@ -6,7 +6,7 @@ import { SuiGraphQLClient } from '@mysten/sui/graphql';
 import { SuiGrpcClient } from '@mysten/sui-grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { createTestClient } from './test-helpers';
+import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 
 describe('Integration tests - Read Path', () => {
 	const resourcesPath = path.resolve(__dirname, 'resources');
@@ -14,6 +14,8 @@ describe('Integration tests - Read Path', () => {
 
 	// Mock package ID for testing - this would normally come from deployment
 	const MOCK_PACKAGE_ID = '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172';
+
+	let testSetup: TestEnvironmentSetup;
 
 	let jsonRpcNodeContainer: StartedTestContainer;
 	let suiJsonRpcClient: SuiClient;
@@ -26,6 +28,8 @@ describe('Integration tests - Read Path', () => {
 	beforeAll(async () => {
 		// Generate a test signer
 		signer = Ed25519Keypair.generate();
+
+		testSetup = await setupTestEnvironment();
 
 		jsonRpcNodeContainer = await new GenericContainer('wiremock/wiremock:latest')
 			.withExposedPorts({ container: 8080, host: 9000 })
@@ -66,7 +70,7 @@ describe('Integration tests - Read Path', () => {
 		'test: Fetch channel memberships - json rpc client extension',
 		{ timeout: 12000 },
 		async () => {
-			const client = createTestClient(suiJsonRpcClient, MOCK_PACKAGE_ID, signer, 'localnet');
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
 
 			let hasNextPage = true;
 			let cursor: string | null = null;
