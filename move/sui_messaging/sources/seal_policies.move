@@ -1,32 +1,10 @@
 module sui_messaging::seal_policies;
 
 use sui_messaging::channel::Channel;
-use sui_messaging::errors;
 use sui_messaging::member_cap::MemberCap;
 
-// === Imports ===
-
 // === Errors ===
-
-// === Constants ===
-
-// === Enums ===
-
-// === Witnesses ===
-
-// === Capabilities ===
-
-// === Structs ===
-
-// === Events ===
-
-// === Method Aliases ===
-
-// === Public Functions ===
-
-// === View Functions ===
-
-// === Admin Functions ===
+const ENoAccess: u64 = 0;
 
 // === Package Functions ===
 //////////////////////////////////////////////////////////
@@ -51,7 +29,7 @@ entry fun seal_approve(
     member_cap: &MemberCap,
     _ctx: &TxContext,
 ) {
-    assert!(approve_internal(member_cap, id, channel), errors::e_seal_policies_no_access());
+    assert!(approve_internal(member_cap, id, channel), ENoAccess);
 }
 
 /// Returns true if `prefix` is a prefix of `word`.

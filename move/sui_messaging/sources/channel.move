@@ -8,13 +8,20 @@ use sui_messaging::auth::{Self, Auth};
 use sui_messaging::config::{Config, EditConfig};
 use sui_messaging::creator_cap::{Self, CreatorCap};
 use sui_messaging::encryption_key_history::{Self, EncryptionKeyHistory, EditEncryptionKey};
-use sui_messaging::errors;
 use sui_messaging::member_cap::{Self, MemberCap};
 use sui_messaging::message::{Self, Message};
 
-// === Enums ===
+// === Constants ===
+const MAX_NONCE_BYTES: u64 = 12;
 
-// === Capabilities ===
+// === Errors ===
+const ENotCreator: u64 = 0;
+const ENotMember: u64 = 1;
+const ETooManyMembers: u64 = 2;
+const ENoEncryptionKey: u64 = 3;
+const ETextTooLarge: u64 = 4;
+const ETooManyAttachments: u64 = 5;
+const ENonceTooLarge: u64 = 6;
 
 // === Structs ===
 
@@ -119,7 +126,7 @@ public fun new(
 /// Note: at this point the client needs to attach an encrypted DEK
 /// Otherwise, it is considered in an invalid state, and cannot be interacted with.
 public fun share(self: Channel, creator_cap: &CreatorCap) {
-    assert!(self.is_creator(creator_cap), errors::e_channel_not_creator());
+    assert!(self.is_creator(creator_cap), ENotCreator);
     transfer::share_object(self);
 }
 
@@ -129,7 +136,7 @@ public fun add_encrypted_key(
     member_cap: &MemberCap,
     new_encryption_key_bytes: vector<u8>,
 ) {
-    assert!(self.is_member(member_cap), 420);
+    assert!(self.is_member(member_cap), ENotMember);
     self
         .encryption_key_history
         .rotate_key(&self.auth, object::id(member_cap), new_encryption_key_bytes);
@@ -143,8 +150,8 @@ public fun add_members(
     clock: &Clock,
     ctx: &mut TxContext,
 ): vector<MemberCap> {
-    assert!(self.is_member(member_cap), 420);
-    assert!(n < self.auth.config().max_channel_members(), 420);
+    assert!(self.is_member(member_cap), ENotMember);
+    assert!(n < self.auth.config().max_channel_members(), ETooManyMembers);
 
     let member_cap_id = object::id(member_cap);
     let mut new_member_caps = vector::empty<MemberCap>();
@@ -170,11 +177,8 @@ public fun remove_members(
     members_to_remove: vector<ID>,
     clock: &Clock,
 ) {
-    assert!(self.is_member(member_cap), errors::e_channel_not_member());
-    assert!(
-        self.encryption_key_history.has_encryption_key(),
-        errors::e_channel_no_encryption_key(),
-    );
+    assert!(self.is_member(member_cap), ENotMember);
+    assert!(self.encryption_key_history.has_encryption_key(), ENoEncryptionKey);
     let remover_member_cap_id = object::id(member_cap);
     members_to_remove.do!(|member_cap_id| {
         self.auth.remove_member_entry(remover_member_cap_id, member_cap_id);
@@ -193,10 +197,13 @@ public fun send_message(
     clock: &Clock,
     ctx: &TxContext,
 ) {
-    assert!(self.is_member(member_cap), errors::e_channel_not_member());
+    assert!(self.is_member(member_cap), ENotMember);
+    assert!(self.encryption_key_history.has_encryption_key(), ENoEncryptionKey);
+    assert!(ciphertext.length() <= self.auth.config().max_message_text_chars(), ETextTooLarge);
+    assert!(nonce.length() <= MAX_NONCE_BYTES, ENonceTooLarge);
     assert!(
-        self.encryption_key_history.has_encryption_key(),
-        errors::e_channel_no_encryption_key(),
+        attachments.length() <= self.auth.config().max_message_attachments(),
+        ETooManyAttachments,
     );
     let key_version = self.encryption_key_history.latest_key_version();
     self
@@ -240,6 +247,18 @@ public fun namespace(self: &Channel): vector<u8> {
 // Getters
 public(package) fun version(self: &Channel): u64 {
     self.version
+}
+
+public(package) fun latest_encryption_key_version(self: &Channel): u32 {
+    self.encryption_key_history.latest_key_version()
+}
+
+public(package) fun latest_encryption_key(self: &Channel): vector<u8> {
+    self.encryption_key_history.latest_key()
+}
+
+public(package) fun messages_count(self: &Channel): u64 {
+    self.messages_count
 }
 
 /// Check if a `MemberCap` id is a member of this Channel.

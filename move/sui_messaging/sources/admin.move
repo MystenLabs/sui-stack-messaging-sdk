@@ -4,39 +4,17 @@
 /// Change limit constants
 module sui_messaging::admin;
 
-// === Imports ===
-
 // === Errors ===
 
 // === Constants ===
 const VERSION: u64 = 1;
-
-// === Enums ===
 
 // === Witnesses ===
 
 /// The authorization witness.
 public struct Admin() has drop;
 
-// === Capabilities ===
-
-// === Structs ===
-
-// === Events ===
-
-// === Method Aliases ===
-
-// === Public Functions ===
-
-// === View Functions ===
-
-// === Admin Functions ===
-
 // === Package Functions ===
 public(package) fun version(): u64 {
     VERSION
 }
-
-// === Private Functions ===
-
-// === Test Functions ===

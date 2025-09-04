@@ -1,11 +1,12 @@
 module sui_messaging::config;
 
-use sui_messaging::errors;
-
 // === Errors ===
+const ETooManyMembers: u64 = 0;
+const ETooManyRoles: u64 = 1;
+const ETooManyMessageTextChars: u64 = 2;
+const ETooManyMessageAttachments: u64 = 3;
 
 // === Constants ===
-// No need for hard limits on the contract side
 const MAX_CHANNEL_MEMBERS: u64 = 10;
 const MAX_CHANNEL_ROLES: u64 = 3;
 const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
@@ -25,8 +26,6 @@ public struct Config has drop, store {
     require_invitation: bool,
     require_request: bool,
 }
-
-// === Events ===
 
 // === Method Aliases ===
 public use fun config_max_channel_members as Config.max_channel_members;
@@ -101,16 +100,13 @@ public(package) fun require_invitation(): bool { REQUIRE_INVITATION }
 public(package) fun require_request(): bool { REQUIRE_REQUEST }
 
 public(package) fun assert_is_valid_config(self: &Config) {
-    assert!(self.max_channel_members <= MAX_CHANNEL_MEMBERS, errors::e_config_too_many_members());
-    assert!(self.max_channel_roles <= MAX_CHANNEL_ROLES, errors::e_config_too_many_roles());
+    assert!(self.max_channel_members <= MAX_CHANNEL_MEMBERS, ETooManyMembers);
+    assert!(self.max_channel_roles <= MAX_CHANNEL_ROLES, ETooManyRoles);
     assert!(
         self.max_message_text_chars <= MAX_MESSAGE_TEXT_SIZE_IN_CHARS,
-        errors::e_config_too_many_message_text_chars(),
+        ETooManyMessageTextChars,
     );
-    assert!(
-        self.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS,
-        errors::e_config_too_many_message_attachments(),
-    );
+    assert!(self.max_message_attachments <= MAX_MESSAGE_ATTACHMENTS, ETooManyMessageAttachments);
 }
 
 // === Private Functions ===
