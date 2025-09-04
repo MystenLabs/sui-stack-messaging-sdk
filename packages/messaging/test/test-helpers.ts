@@ -341,7 +341,11 @@ export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig
 					MessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (_client) => new MockStorageAdapter(),
-						signer,
+						sessionKeyConfig: {
+							address: signer.toSuiAddress(),
+							ttlMin: 30,
+							signer,
+						},
 					}),
 				)
 		: suiJsonRpcClient
@@ -360,7 +364,11 @@ export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig
 							}
 							return new WalrusStorageAdapter(client, config.walrusConfig);
 						},
-						signer,
+						sessionKeyConfig: {
+							address: signer.toSuiAddress(),
+							ttlMin: 30,
+							signer,
+						},
 					}),
 				);
 }
