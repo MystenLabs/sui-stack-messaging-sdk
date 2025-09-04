@@ -13,6 +13,7 @@ const MAX_MESSAGE_TEXT_SIZE_IN_CHARS: u64 = 512;
 const MAX_MESSAGE_ATTACHMENTS: u64 = 10;
 const REQUIRE_INVITATION: bool = false; // ChannelAdmins cannot freely add a member, the candidate needs to accept
 const REQUIRE_REQUEST: bool = false; // A user cannot freely join a channel, needs to send a request, to be added by a Channel Admin
+const EMIT_EVENTS: bool = true;
 
 // === Witnesses ===
 public struct EditConfig() has drop;
@@ -25,6 +26,7 @@ public struct Config has drop, store {
     max_message_attachments: u64,
     require_invitation: bool,
     require_request: bool,
+    emit_events: bool,
 }
 
 // === Method Aliases ===
@@ -44,6 +46,7 @@ public fun default(): Config {
         max_message_attachments: MAX_MESSAGE_ATTACHMENTS,
         require_invitation: REQUIRE_INVITATION,
         require_request: REQUIRE_REQUEST,
+        emit_events: EMIT_EVENTS,
     }
 }
 
@@ -54,6 +57,7 @@ public fun new(
     max_message_attachments: u64,
     require_invitation: bool,
     require_request: bool,
+    emit_events: bool,
 ): Config {
     Config {
         max_channel_members,
@@ -62,6 +66,7 @@ public fun new(
         max_message_attachments,
         require_invitation,
         require_request,
+        emit_events,
     }
 }
 
@@ -88,6 +93,8 @@ public fun config_max_message_attachments(self: &Config): u64 { self.max_message
 public fun config_require_invitation(self: &Config): bool { self.require_invitation }
 
 public fun config_require_request(self: &Config): bool { self.require_request }
+
+public fun config_emit_events(self: &Config): bool { self.emit_events }
 
 // === Package Functions ===
 

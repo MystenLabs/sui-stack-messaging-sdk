@@ -206,20 +206,22 @@ public fun send_message(
         ETooManyAttachments,
     );
     let key_version = self.encryption_key_history.latest_key_version();
-    self
-        .messages
-        .push_back(
-            message::new(
-                ctx.sender(),
-                ciphertext,
-                nonce,
-                key_version,
-                attachments,
-                clock,
-            ),
-        );
+    let message = message::new(
+        ctx.sender(),
+        ciphertext,
+        nonce,
+        key_version,
+        attachments,
+        clock,
+    );
 
     self.messages_count = self.messages_count + 1;
+
+    if (self.auth.config().config_emit_events()) {
+        message.emit_event(self.id.to_inner(), self.messages_count - 1);
+    };
+
+    self.messages.push_back(message);
 
     self.last_message =
         option::some(

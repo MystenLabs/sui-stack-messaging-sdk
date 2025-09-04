@@ -46,3 +46,47 @@ export function _new(options: NewOptions) {
         arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
     });
 }
+export interface BlobRefArguments {
+    self: RawTransactionArgument<string>;
+}
+export interface BlobRefOptions {
+    package?: string;
+    arguments: BlobRefArguments | [
+        self: RawTransactionArgument<string>
+    ];
+}
+export function blobRef(options: BlobRefOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        `${packageAddress}::attachment::Attachment`
+    ] satisfies string[];
+    const parameterNames = ["self"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'attachment',
+        function: 'blob_ref',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}
+export interface DataNonceArguments {
+    self: RawTransactionArgument<string>;
+}
+export interface DataNonceOptions {
+    package?: string;
+    arguments: DataNonceArguments | [
+        self: RawTransactionArgument<string>
+    ];
+}
+export function dataNonce(options: DataNonceOptions) {
+    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const argumentsTypes = [
+        `${packageAddress}::attachment::Attachment`
+    ] satisfies string[];
+    const parameterNames = ["self"];
+    return (tx: Transaction) => tx.moveCall({
+        package: packageAddress,
+        module: 'attachment',
+        function: 'data_nonce',
+        arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+    });
+}

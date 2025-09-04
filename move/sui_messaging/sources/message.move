@@ -1,6 +1,8 @@
 module sui_messaging::message;
 
+use std::string::String;
 use sui::clock::Clock;
+use sui::event;
 use sui_messaging::attachment::Attachment;
 
 // === Errors ===
@@ -25,6 +27,18 @@ public struct Message has drop, store {
 }
 
 // === Events ===
+
+public struct MessageAddedEvent has copy, drop {
+    channel_id: ID,
+    message_index: u64,
+    sender: address,
+    ciphertext: vector<u8>,
+    nonce: vector<u8>,
+    key_version: u32,
+    attachment_refs: vector<String>,
+    attachment_nonces: vector<vector<u8>>,
+    created_at_ms: u64,
+}
 
 // === Method Aliases ===
 
@@ -53,6 +67,20 @@ public fun new(
 // === Admin Functions ===
 
 // === Package Functions ===
+public(package) fun emit_event(self: &Message, channel_id: ID, message_index: u64) {
+    let event = MessageAddedEvent {
+        channel_id,
+        message_index,
+        sender: self.sender,
+        ciphertext: self.ciphertext,
+        nonce: self.nonce,
+        key_version: self.key_version,
+        attachment_refs: self.attachments.map!(|attachment| attachment.blob_ref()),
+        attachment_nonces: self.attachments.map!(|attachment| attachment.data_nonce()),
+        created_at_ms: self.created_at_ms,
+    };
+    event::emit(event)
+}
 
 // === Private Functions ===
 

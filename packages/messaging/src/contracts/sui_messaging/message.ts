@@ -23,6 +23,17 @@ export const Message = new MoveStruct({ name: `${$moduleName}::Message`, fields:
         /** Timestamp in milliseconds when the message was created. */
         created_at_ms: bcs.u64()
     } });
+export const MessageAddedEvent = new MoveStruct({ name: `${$moduleName}::MessageAddedEvent`, fields: {
+        channel_id: bcs.Address,
+        message_index: bcs.u64(),
+        sender: bcs.Address,
+        ciphertext: bcs.vector(bcs.u8()),
+        nonce: bcs.vector(bcs.u8()),
+        key_version: bcs.u32(),
+        attachment_refs: bcs.vector(bcs.string()),
+        attachment_nonces: bcs.vector(bcs.vector(bcs.u8())),
+        created_at_ms: bcs.u64()
+    } });
 export interface NewArguments {
     sender: RawTransactionArgument<string>;
     ciphertext: RawTransactionArgument<number[]>;

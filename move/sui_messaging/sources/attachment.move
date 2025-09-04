@@ -36,7 +36,15 @@ public fun new(
         key_version,
     }
 }
+
 // === View Functions ===
+public fun blob_ref(self: &Attachment): String {
+    self.blob_ref
+}
+
+public fun data_nonce(self: &Attachment): vector<u8> {
+    self.data_nonce
+}
 
 // === Admin Functions ===
 
