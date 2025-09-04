@@ -35,11 +35,15 @@ export interface EnvelopeEncryptionConfig {
 	suiClient: MessagingCompatibleClient;
 	sealApproveContract: SealApproveContract;
 	sessionKey?: SessionKey;
-	sessionKeyConfig?: {
-		signer: Signer;
-		ttlMin: number;
-	};
+	sessionKeyConfig?: SessionKeyConfig;
 	encryptionPrimitives?: EncryptionPrimitives;
+}
+
+export interface SessionKeyConfig {
+	address: string;
+	mvrName?: string;
+	ttlMin: number;
+	signer?: Signer;
 }
 
 /**
@@ -50,10 +54,7 @@ export class EnvelopeEncryption {
 	#encryptionPrimitives: EncryptionPrimitives;
 	#sessionKey?: SessionKey;
 	#sealApproveContract: SealApproveContract;
-	#sessionKeyConfig?: {
-		signer: Signer;
-		ttlMin: number;
-	};
+	#sessionKeyConfig?: SessionKeyConfig;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
@@ -81,9 +82,10 @@ export class EnvelopeEncryption {
 		}
 
 		this.#sessionKey = await SessionKey.create({
-			address: this.#sessionKeyConfig.signer.toSuiAddress(),
+			address: this.#sessionKeyConfig.address,
 			signer: this.#sessionKeyConfig.signer,
 			ttlMin: this.#sessionKeyConfig.ttlMin,
+			mvrName: this.#sessionKeyConfig.mvrName,
 			packageId: this.#sealApproveContract.packageId,
 			suiClient: this.#suiClient,
 		});

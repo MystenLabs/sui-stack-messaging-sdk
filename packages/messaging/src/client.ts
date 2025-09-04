@@ -22,7 +22,12 @@ import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } fr
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
+import {
+	DecryptMessageOpts,
+	EncryptedSymmetricKey,
+	EnvelopeEncryption,
+	SessionKeyConfig,
+} from './encryption';
 
 import { RawTransactionArgument } from './contracts/utils';
 import {
@@ -35,17 +40,29 @@ import {
 	transferToRecipient as transferMemberCap,
 } from './contracts/sui_messaging/member_cap';
 import { none as noneConfig } from './contracts/sui_messaging/config';
+import { SessionKey } from '@mysten/seal';
 
-export interface MessagingClientExtensionOptions {
-	packageConfig?: MessagingPackageConfig;
-	network?: 'mainnet' | 'testnet';
-	storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-	signer: Signer;
-}
+export type MessagingClientExtensionOptions =
+	| {
+			packageConfig?: MessagingPackageConfig;
+			network?: 'mainnet' | 'testnet';
+			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			sessionKeyConfig?: SessionKeyConfig;
+	  }
+	| {
+			packageConfig?: MessagingPackageConfig;
+			network?: 'mainnet' | 'testnet';
+			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			sessionKey?: SessionKey;
+	  };
 
-export interface MessagingClientOptions extends MessagingClientExtensionOptions {
+export interface MessagingClientOptions {
 	suiClient: MessagingCompatibleClient;
 	storage: (client: MessagingCompatibleClient) => StorageAdapter;
+	packageConfig?: MessagingPackageConfig;
+	network?: 'mainnet' | 'testnet';
+	sessionKeyConfig?: SessionKeyConfig;
+	sessionKey?: SessionKey;
 }
 
 // Create Channel Flow interfaces
@@ -110,10 +127,8 @@ export class MessagingClient {
 		this.#envelopeEncryption = new EnvelopeEncryption({
 			suiClient: this.#suiClient,
 			sealApproveContract: this.#packageConfig.sealApproveContract,
-			sessionKeyConfig: {
-				signer: options.signer,
-				ttlMin: this.#packageConfig.sealSessionKeyTTLmins,
-			},
+			sessionKey: options.sessionKey,
+			sessionKeyConfig: options.sessionKeyConfig,
 		});
 	}
 
@@ -173,7 +188,8 @@ export class MessagingClient {
 					suiClient: client,
 					storage,
 					packageConfig,
-					signer: options.signer,
+					sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
+					sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
 				});
 			},
 		};
