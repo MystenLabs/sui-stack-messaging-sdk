@@ -236,13 +236,20 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironmentSetup> {
 	// For testnet, we use the existing infrastructure without Docker containers
 	const suiClient = new SuiClient({
-		url: config.suiClientConfig.url,
+		url: getFullnodeUrl('testnet'),
+		mvr: {
+			overrides: {
+				packages: {
+					'@local-pkg/sui-messaging': config.packageConfig.packageId,
+				},
+			},
+		},
 	});
 
 	// Generate a test signer for testnet
 	// Note: In a real scenario, you might want to use a pre-funded test account
 	// For now, we generate a new keypair - you'll need to fund it manually if needed
-	const signer = Ed25519Keypair.generate();
+	const signer = Ed25519Keypair.deriveKeypair(config.phrase);
 
 	return {
 		config,
@@ -458,17 +465,22 @@ export async function getMemberCapObject(
 		type: `${packageId}::member_cap::MemberCap`,
 	});
 
-	const targetCap = await memberCaps.objects.find(async (cap) => {
-		if (!cap.content) return false;
-		const parsedCap = memberCapModule.MemberCap.parse(await cap.content);
-		return parsedCap.channel_id === channelId;
-	});
+	// Parse all MemberCaps and find the one that matches the channelId
+	const parsedCaps = await Promise.all(
+		memberCaps.objects.map(async (cap) => {
+			if (!cap.content) return null;
+			const parsedCap = memberCapModule.MemberCap.parse(await cap.content);
+			return parsedCap;
+		}),
+	);
+
+	const targetCap = parsedCaps.find((cap) => cap && cap.channel_id === channelId);
 
 	if (!targetCap) {
 		throw new Error(`MemberCap not found for address ${ownerAddress} in channel ${channelId}`);
 	}
 
-	return memberCapModule.MemberCap.parse(await targetCap.content);
+	return targetCap;
 }
 
 /**

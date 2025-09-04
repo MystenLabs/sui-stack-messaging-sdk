@@ -3,7 +3,7 @@ module sui_messaging::encryption_key_history;
 use sui::table_vec::{Self, TableVec};
 use sui_messaging::auth::Auth;
 
-const MAX_KEY_BYTES: u64 = 32;
+const MAX_KEY_BYTES: u64 = 512;
 const EEncryptionKeyBytesTooLong: u64 = 0;
 const ENotPermitted: u64 = 1;
 

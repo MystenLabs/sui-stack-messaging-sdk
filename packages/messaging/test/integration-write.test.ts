@@ -127,7 +127,7 @@ describe('Integration tests - Write Path', () => {
 				);
 				expect(foundInitialMemberCap).toBeDefined();
 			}
-		});
+		}, 60000);
 	});
 
 	describe('Message Sending', () => {
@@ -209,7 +209,7 @@ describe('Integration tests - Write Path', () => {
 			});
 
 			expect(decryptedMessage.text).toBe(messageText);
-		}, 120000);
+		}, 320000);
 
 		it('should send and decrypt a message without an attachment', async () => {
 			const messageText = 'Hello, no attachment here.';
@@ -247,6 +247,6 @@ describe('Integration tests - Write Path', () => {
 			});
 			expect(decryptedMessage.text).toBe(messageText);
 			expect(decryptedMessage.attachments).toBeUndefined();
-		}, 120000);
+		}, 320000);
 	});
 });

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { SessionKey } from '@mysten/seal';
+import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 import { Signer } from '@mysten/sui/cryptography';
 
@@ -69,8 +69,10 @@ export class EnvelopeEncryption {
 
 	private async getSessionKey(): Promise<SessionKey> {
 		if (this.#sessionKey && !this.#sessionKey.isExpired()) {
+			console.log('using cached session key');
 			return this.#sessionKey;
 		}
+		console.log('creating new session key');
 
 		if (!this.#sessionKeyConfig) {
 			throw new Error(
@@ -456,13 +458,16 @@ export class EnvelopeEncryption {
 
 		// === Decrypt the cached key ===
 		// Prepare seal_approve ptb
+
+		const channelIdBytes = EncryptedObject.parse(encryptedKey.encryptedBytes).id;
+
 		const tx = new Transaction();
 		tx.moveCall({
 			target: `${this.#sealApproveContract.packageId}::${this.#sealApproveContract.module}::${this.#sealApproveContract.functionName}`,
 			arguments: [
 				// Seal Identity Bytes: Channel object ID
 				// key form: [packageId][channelId][random nonce]
-				tx.pure.vector('u8', fromHex(channelId)),
+				tx.pure.vector('u8', fromHex(channelIdBytes)),
 				// Channel Object
 				tx.object(channelId),
 				// Member Cap Object
@@ -471,14 +476,26 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
-		const dekBytes = await this.#suiClient.seal.decrypt({
-			data: encryptedKey.encryptedBytes,
-			sessionKey: await this.getSessionKey(),
-			txBytes,
-		});
+		let dekBytes: any;
+		try {
+			dekBytes = await this.#suiClient.seal.decrypt({
+				data: encryptedKey.encryptedBytes,
+				sessionKey: await this.getSessionKey(),
+				txBytes,
+			});
+		} catch (error) {
+			console.error('Error decrypting channel DEK', error);
+			throw error;
+		}
+		// const dekBytes = await this.#suiClient.seal.decrypt({
+		// 	data: encryptedKey.encryptedBytes,
+		// 	sessionKey: await this.getSessionKey(),
+		// 	txBytes,
+		// });
+
 		return {
 			$kind: 'Unencrypted',
-			bytes: new Uint8Array(dekBytes),
+			bytes: new Uint8Array(dekBytes || new Uint8Array()),
 			version: encryptedKey.version,
 		};
 	}

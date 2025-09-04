@@ -4,6 +4,7 @@ export type TestEnvironment = 'localnet' | 'testnet';
 
 export interface TestConfig {
 	environment: TestEnvironment;
+	phrase: string;
 	packageConfig: MessagingPackageConfig;
 	suiClientConfig: {
 		url: string;
@@ -49,6 +50,7 @@ function getLocalnetConfig(): TestConfig {
 
 	return {
 		environment: 'localnet',
+		phrase: process.env.PHRASE || '',
 		packageConfig: {
 			packageId,
 			memberCapType: `${packageId}::channel::MemberCap`,
@@ -69,6 +71,7 @@ function getLocalnetConfig(): TestConfig {
 function getTestnetConfig(): TestConfig {
 	const packageId = process.env.TESTNET_PACKAGE_ID;
 	const sealApprovePackageId = process.env.TESTNET_SEAL_APPROVE_PACKAGE_ID;
+	const phrase = process.env.PHRASE;
 
 	if (!packageId) {
 		throw new Error('TESTNET_PACKAGE_ID environment variable is required for testnet tests');
@@ -80,11 +83,16 @@ function getTestnetConfig(): TestConfig {
 		);
 	}
 
+	if (!phrase) {
+		throw new Error('PHRASE environment variable is required for testnet tests');
+	}
+
 	return {
 		environment: 'testnet',
+		phrase,
 		packageConfig: {
 			packageId,
-			memberCapType: `${packageId}::channel::MemberCap`,
+			memberCapType: `${packageId}::member_cap::MemberCap`,
 			sealApproveContract: {
 				packageId: sealApprovePackageId,
 				module: 'seal_policies',
