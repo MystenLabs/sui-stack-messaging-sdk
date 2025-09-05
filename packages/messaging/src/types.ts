@@ -6,7 +6,12 @@ import {
 	Experimental_CoreClient,
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
-import { SealApproveContract, SessionKeyConfig } from './encryption';
+import {
+	DecryptMessageResult,
+	EncryptedSymmetricKey,
+	SealApproveContract,
+	SessionKeyConfig,
+} from './encryption';
 import { SealClient, SessionKey } from '@mysten/seal';
 import { WalrusClient } from '@mysten/walrus';
 import { MemberCap } from './contracts/sui_messaging/member_cap';
@@ -93,10 +98,10 @@ export type ChannelMembershipsRequest = MessagingOwnedObjects;
 
 export type ParsedChannelObject = (typeof Channel)['$inferType'];
 export type ParsedMessageObject = (typeof Message)['$inferType'];
-export type ParsedMemberCapObject = { member_cap_id: string; channel_id: string };
+export type Membership = { member_cap_id: string; channel_id: string };
 
 export type ChannelMembershipsResponse = PaginatedResponse<{
-	memberCapObjects: ParsedMemberCapObject[];
+	memberships: Membership[];
 }>;
 
 export type ChannelObjectsByMembershipsResponse = PaginatedResponse<{
@@ -113,3 +118,10 @@ export type ChannelMessagesEncryptedRequest = Omit<
 export type ChannelMessagesEncryptedResponse = PaginatedResponse<{
 	messageObjects: ParsedMessageObject[];
 }>;
+
+export type ChannelMessagesDecryptedRequest = ChannelMessagesEncryptedRequest & {
+	encryptedKey: EncryptedSymmetricKey;
+	memberCapId: string;
+};
+
+export type ChannelMessagesDecryptedResponse = PaginatedResponse<DecryptMessageResult>;

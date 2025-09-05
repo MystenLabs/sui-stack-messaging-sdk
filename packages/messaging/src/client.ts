@@ -17,7 +17,9 @@ import { _new as newAttachment, Attachment } from './contracts/sui_messaging/att
 import {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
+	ChannelMessagesDecryptedRequest,
 	ChannelMessagesEncryptedRequest,
+	ChannelMessagesEncryptedResponse,
 	ChannelObjectsByMembershipsResponse,
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
@@ -26,13 +28,19 @@ import {
 	MessagingClientOptions,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
+	PaginatedResponse,
 	ParsedChannelObject,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
+import {
+	DecryptMessageOpts,
+	DecryptMessageResult,
+	EncryptedSymmetricKey,
+	EnvelopeEncryption,
+} from './encryption';
 
 import { RawTransactionArgument } from './contracts/utils';
 import {
@@ -45,6 +53,8 @@ import {
 	transferToRecipient as transferMemberCap,
 } from './contracts/sui_messaging/member_cap';
 import { none as noneConfig } from './contracts/sui_messaging/config';
+import { Message } from './contracts/sui_messaging/message';
+import { cursorTo } from 'readline';
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
@@ -159,7 +169,7 @@ export class MessagingClient {
 			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
 		});
 		// parse MemberCaps
-		const memberCapObjects = await Promise.all(
+		const memberships = await Promise.all(
 			memberCapsRes.objects.map(async (object) => {
 				if (object instanceof Error || !object.content) {
 					throw new MessagingClientError(`Failed to parse MemberCap object: ${object}`);
@@ -172,22 +182,22 @@ export class MessagingClient {
 		return {
 			hasNextPage: memberCapsRes.hasNextPage,
 			cursor: memberCapsRes.cursor,
-			memberCapObjects,
+			memberships,
 		};
 	}
 
 	// Returns the channel objects for a given user
-	async getChannelObjectsByMemberships(
+	async getChannelObjectsByAddress(
 		request: ChannelMembershipsRequest,
 	): Promise<ChannelObjectsByMembershipsResponse> {
-		const memberships = await this.getChannelMemberships(request);
+		const membershipsPaginated = await this.getChannelMemberships(request);
 		const channelObjects = await this.getChannelObjectsByChannelIds(
-			memberships.memberCapObjects.map((m) => m.channel_id),
+			membershipsPaginated.memberships.map((m) => m.channel_id),
 		);
 
 		return {
-			hasNextPage: memberships.hasNextPage,
-			cursor: memberships.cursor,
+			hasNextPage: membershipsPaginated.hasNextPage,
+			cursor: membershipsPaginated.cursor,
 			channelObjects,
 		};
 	}
@@ -210,18 +220,57 @@ export class MessagingClient {
 		return await this.#envelopeEncryption.decryptMessage(message);
 	}
 
-	async getChannelMessagesEncrypted(request: ChannelMessagesEncryptedRequest) {
-		if (!this.#channelMessagesTableIdCache.has(request.channelId)) {
-			const channelObjects = await this.getChannelObjectsByChannelIds([request.channelId]);
-			this.#channelMessagesTableIdCache.set(
-				request.channelId,
-				channelObjects[0].messages.contents.id.id,
-			);
+	// Retrieves the on-chain encrypted messages for a given channelId
+	async #getChannelMessagesEncrypted({
+		channelId,
+		...request
+	}: ChannelMessagesEncryptedRequest): Promise<ChannelMessagesEncryptedResponse> {
+		if (!this.#channelMessagesTableIdCache.has(channelId)) {
+			const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+			this.#channelMessagesTableIdCache.set(channelId, channelObjects[0].messages.contents.id.id);
 		}
 		// Use getDynamicFields to get the message objects
+		const messageIdsRes = await this.#suiClient.core.getDynamicFields({
+			parentId: this.#channelMessagesTableIdCache.get(channelId)!, // we already checked above
+			...request,
+		});
+		const messageIds = messageIdsRes.dynamicFields.map((field) => field.id);
+
+		const messageObjects = await this.#suiClient.core.getObjects({
+			objectIds: messageIds,
+		});
+
+		const parseMessageObjects = await Promise.all(
+			messageObjects.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse Message object: ${object}`);
+				}
+				return Message.parse(await object.content);
+			}),
+		);
+		return {
+			messageObjects: parseMessageObjects,
+			hasNextPage: messageIdsRes.hasNextPage,
+			cursor: messageIdsRes.cursor,
+		};
 	}
 
-	async getChannelMessagesDecrypted(channelId: string) {}
+	// TODO:
+	// - [ ] getChannelTextMessages (decrypted)
+	// - [ ] getChannelAttachmentsMetadata (decrypted)
+	// - [ ] downloadAndDecryptChannelAttachmentsData(download and decrypt)
+	// - [ ] getMessageAttachments (download and decrypt)
+	// - [ ] getChannelMessages: for each message, return the decrypted text,
+	// and for the attachments options:
+	// - download and decrypt data and metadata (so basically bring in everything)
+	// - only return decrypted metadata + blobRefs that the caller can lazily download and decrypt
+
+	// async getChannelMessagesDecrypted({
+	// 	channelId,
+	// 	memberCapId,
+	// 	encryptedKey,
+	// 	...request
+	// }: ChannelMessagesDecryptedRequest): Promise<ChannelMessagesEncryptedResponse> {}
 
 	// ===== Write Path =====
 
