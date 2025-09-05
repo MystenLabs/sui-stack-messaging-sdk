@@ -3,7 +3,6 @@
 
 import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
-import { Signer } from '@mysten/sui/cryptography';
 
 import {
 	AttachmentMetadata,
@@ -23,28 +22,15 @@ import {
 	EncryptionPrimitives,
 	EncryptMessageOpts,
 	EncryptTextOpts,
+	EnvelopeEncryptionConfig,
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
+	SessionKeyConfig,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
 import { Transaction } from '@mysten/sui/transactions';
 import { MessagingCompatibleClient } from '../types';
-
-export interface EnvelopeEncryptionConfig {
-	suiClient: MessagingCompatibleClient;
-	sealApproveContract: SealApproveContract;
-	sessionKey?: SessionKey;
-	sessionKeyConfig?: SessionKeyConfig;
-	encryptionPrimitives?: EncryptionPrimitives;
-}
-
-export interface SessionKeyConfig {
-	address: string;
-	mvrName?: string;
-	ttlMin: number;
-	signer?: Signer;
-}
 
 /**
  * Core envelope encryption service that utilizes Seal

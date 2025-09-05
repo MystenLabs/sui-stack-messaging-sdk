@@ -9,25 +9,30 @@ import {
 	share as shareChannel,
 	sendMessage,
 	addMembers,
+	Channel,
 } from './contracts/sui_messaging/channel';
 
 import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment';
 
 import {
 	ChannelMembershipsRequest,
+	ChannelMembershipsResponse,
+	ChannelMessagesEncryptedRequest,
+	ChannelObjectsByMembershipsResponse,
+	CreateChannelFlow,
+	CreateChannelFlowGetGeneratedCapsOpts,
+	CreateChannelFlowOpts,
+	MessagingClientExtensionOptions,
+	MessagingClientOptions,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
+	ParsedChannelObject,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import {
-	DecryptMessageOpts,
-	EncryptedSymmetricKey,
-	EnvelopeEncryption,
-	SessionKeyConfig,
-} from './encryption';
+import { DecryptMessageOpts, EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
 import { RawTransactionArgument } from './contracts/utils';
 import {
@@ -40,60 +45,6 @@ import {
 	transferToRecipient as transferMemberCap,
 } from './contracts/sui_messaging/member_cap';
 import { none as noneConfig } from './contracts/sui_messaging/config';
-import { SessionKey } from '@mysten/seal';
-
-export type MessagingClientExtensionOptions =
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKeyConfig?: SessionKeyConfig;
-	  }
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKey?: SessionKey;
-	  };
-
-export interface MessagingClientOptions {
-	suiClient: MessagingCompatibleClient;
-	storage: (client: MessagingCompatibleClient) => StorageAdapter;
-	packageConfig?: MessagingPackageConfig;
-	network?: 'mainnet' | 'testnet';
-	sessionKeyConfig?: SessionKeyConfig;
-	sessionKey?: SessionKey;
-}
-
-// Create Channel Flow interfaces
-export interface CreateChannelFlowOpts {
-	creatorAddress: string;
-	initialMemberAddresses?: string[];
-}
-
-export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
-	creatorMemberCap: (typeof MemberCap)['$inferType'];
-}
-
-export interface CreateChannelFlowGetGeneratedCapsOpts {
-	digest: string; // Transaction digest from the channel creation transaction
-}
-
-export interface CreateChannelFlow {
-	build: () => Transaction;
-	getGeneratedCaps: (opts: CreateChannelFlowGetGeneratedCapsOpts) => Promise<{
-		creatorCap: (typeof CreatorCap)['$inferType'];
-		creatorMemberCap: (typeof MemberCap)['$inferType'];
-		additionalMemberCaps: (typeof MemberCap)['$inferType'][];
-	}>;
-	generateAndAttachEncryptionKey: (
-		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
-	) => Promise<Transaction>;
-	getGeneratedEncryptionKey: () => {
-		channelId: string;
-		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
-	};
-}
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
@@ -102,6 +53,7 @@ export class MessagingClient {
 	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
+	#channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
 
 	private constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
@@ -197,16 +149,79 @@ export class MessagingClient {
 
 	// ===== Read Path =====
 
-	async fetchChannelMemberships(request: ChannelMembershipsRequest) {
-		return this.#suiClient.core.getOwnedObjects({
+	// Returns the channel memberships for a given user
+	// in the form of a map of MemberCap ID -> Channel ID
+	async getChannelMemberships(
+		request: ChannelMembershipsRequest,
+	): Promise<ChannelMembershipsResponse> {
+		const memberCapsRes = await this.#suiClient.core.getOwnedObjects({
 			...request,
-			type: this.#packageConfig.memberCapType,
+			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
 		});
+		// parse MemberCaps
+		const memberCapObjects = await Promise.all(
+			memberCapsRes.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse MemberCap object: ${object}`);
+				}
+				const parsedMemberCap = MemberCap.parse(await object.content);
+				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
+			}),
+		);
+
+		return {
+			hasNextPage: memberCapsRes.hasNextPage,
+			cursor: memberCapsRes.cursor,
+			memberCapObjects,
+		};
+	}
+
+	// Returns the channel objects for a given user
+	async getChannelObjectsByMemberships(
+		request: ChannelMembershipsRequest,
+	): Promise<ChannelObjectsByMembershipsResponse> {
+		const memberships = await this.getChannelMemberships(request);
+		const channelObjects = await this.getChannelObjectsByChannelIds(
+			memberships.memberCapObjects.map((m) => m.channel_id),
+		);
+
+		return {
+			hasNextPage: memberships.hasNextPage,
+			cursor: memberships.cursor,
+			channelObjects,
+		};
+	}
+
+	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: channelIds,
+		});
+		return await Promise.all(
+			channelObjectsRes.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse Channel object: ${object}`);
+				}
+				return Channel.parse(await object.content);
+			}),
+		);
 	}
 
 	async decryptMessage(message: DecryptMessageOpts) {
 		return await this.#envelopeEncryption.decryptMessage(message);
 	}
+
+	async getChannelMessagesEncrypted(request: ChannelMessagesEncryptedRequest) {
+		if (!this.#channelMessagesTableIdCache.has(request.channelId)) {
+			const channelObjects = await this.getChannelObjectsByChannelIds([request.channelId]);
+			this.#channelMessagesTableIdCache.set(
+				request.channelId,
+				channelObjects[0].messages.contents.id.id,
+			);
+		}
+		// Use getDynamicFields to get the message objects
+	}
+
+	async getChannelMessagesDecrypted(channelId: string) {}
 
 	// ===== Write Path =====
 

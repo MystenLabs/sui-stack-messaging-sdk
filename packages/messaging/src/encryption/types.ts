@@ -1,6 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+import { SessionKey } from '@mysten/seal';
+import { Signer } from '@mysten/sui/dist/cjs/cryptography';
+import { MessagingCompatibleClient } from '../types';
+
+export interface EnvelopeEncryptionConfig {
+	suiClient: MessagingCompatibleClient;
+	sealApproveContract: SealApproveContract;
+	sessionKey?: SessionKey;
+	sessionKeyConfig?: SessionKeyConfig;
+	encryptionPrimitives?: EncryptionPrimitives;
+}
+
+export interface SessionKeyConfig {
+	address: string;
+	mvrName?: string;
+	ttlMin: number;
+	signer?: Signer;
+}
+
 export interface SealApproveContract {
 	packageId: string;
 	module: string;

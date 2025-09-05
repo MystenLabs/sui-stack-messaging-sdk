@@ -12,9 +12,6 @@ describe('Integration tests - Read Path', () => {
 	const resourcesPath = path.resolve(__dirname, 'resources');
 	const DEFAULT_GRAPHQL_URL = 'http://127.0.0.1:9125';
 
-	// Mock package ID for testing - this would normally come from deployment
-	const MOCK_PACKAGE_ID = '0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172';
-
 	let testSetup: TestEnvironmentSetup;
 
 	let jsonRpcNodeContainer: StartedTestContainer;
@@ -82,7 +79,7 @@ describe('Integration tests - Read Path', () => {
 					cursor,
 					limit: 1,
 				});
-				data.push(...result.objects);
+				data.push(...result.memberCapObjects);
 				hasNextPage = result.hasNextPage;
 				cursor = result.cursor;
 			}
@@ -90,8 +87,12 @@ describe('Integration tests - Read Path', () => {
 			const expectedCount = 2;
 
 			expect(data.length).toBe(expectedCount);
-			expect(data[0].id).toBe('0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47');
-			expect(data[1].id).toBe('0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f');
+			expect(data[0].id.id).toBe(
+				'0x677f7705b7cb2f20da38233adc36c13294b257cdbba4f14d739bfae06964db47',
+			);
+			expect(data[1].id.id).toBe(
+				'0x7bcf40fa4389c0a99d4ce0b281a4ba2c6e05843ebaf0e13ee831a38b5a269a3f',
+			);
 		},
 	);
 
