@@ -1,5 +1,7 @@
 import { Transaction, TransactionResult } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
+import { deriveDynamicFieldID } from '@mysten/sui/utils';
+import { bcs, BcsStruct } from '@mysten/sui/bcs';
 import { ClientWithExtensions } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
@@ -54,7 +56,6 @@ import {
 } from './contracts/sui_messaging/member_cap';
 import { none as noneConfig } from './contracts/sui_messaging/config';
 import { Message } from './contracts/sui_messaging/message';
-import { cursorTo } from 'readline';
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
@@ -253,6 +254,56 @@ export class MessagingClient {
 			hasNextPage: messageIdsRes.hasNextPage,
 			cursor: messageIdsRes.cursor,
 		};
+	}
+
+	// Get the latest messages from the specified channel
+	async getLatestChannelMessages(channelId: string, limit: number = 50) {
+		// We need the messages count, so we cannot rely on caching
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const messagesTableId = channelObjects[0].messages.contents.id.id;
+		const messagesCount = BigInt(channelObjects[0].messages_count); // messages_count is a string, so need to convert to number
+
+		// Derive dynamicFieldIDs from the messagesTableId
+		// Remember: messages = TableVec<Message> --> TableVec{contents: Table<u64, Message>}
+		// Note: Need to handle the case of messagesCount < limit
+		const count = Number(messagesCount < BigInt(limit) ? messagesCount : BigInt(limit));
+		console.log(`messages to fetch: ${count}`);
+		const messagesIDs = Array.from({ length: count }).map((_, i) => {
+			const messageIndex = messagesCount - BigInt(i + 1);
+			console.log(`messageIndex: ${messageIndex}`);
+			return deriveDynamicFieldID(
+				messagesTableId,
+				'u64',
+				bcs.U64.serialize(messageIndex).toBytes(),
+			);
+		});
+
+		console.log(`messagesIDs: ${JSON.stringify(messagesIDs, null, 2)}`);
+
+		const messageObjects = await this.#suiClient.core.getObjects({
+			objectIds: messagesIDs,
+		});
+		const DynamicFieldMessage = bcs.struct('DynamicFieldMessage', {
+			id: bcs.Address, // UID is represented as an address
+			name: bcs.U64, // the key (message index)
+			value: Message, // the actual Message
+		});
+
+		const parsedMessageObjects = await Promise.all(
+			messageObjects.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse message object: ${object}`);
+				}
+				const content = await object.content;
+				// Parse the dynamic field wrapper
+				const dynamicField = DynamicFieldMessage.parse(content);
+
+				// Extract the actual Message from the value field
+				return dynamicField.value;
+			}),
+		);
+
+		return parsedMessageObjects;
 	}
 
 	// TODO:
@@ -568,7 +619,7 @@ export class MessagingClient {
 			attachments,
 		);
 		await sendMessageTxBuilder(tx);
-		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message');
+		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message', true);
 
 		const messageId = effects.changedObjects.find((obj) => obj.idOperation === 'Created')?.id;
 		if (messageId === undefined) {

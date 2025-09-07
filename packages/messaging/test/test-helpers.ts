@@ -323,6 +323,10 @@ class MockStorageAdapter implements StorageAdapter {
 		// Return mock blob IDs for testing
 		return { ids: data.map((_, i) => `mock-blob-${i}-${Date.now()}`) };
 	}
+
+	async download(ids: string[]): Promise<Uint8Array[]> {
+		return [];
+	}
 }
 
 /**
