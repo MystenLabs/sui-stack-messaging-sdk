@@ -356,7 +356,9 @@ export class MessagingClient {
 
 	/**
 	 * Get new messages since the last cursor
-	 * Perfect for polling-based real-time updates
+	 * For polling-based real-time updates
+	 * Note: It returns the parsed on-chain Message objects, which are encrypted
+	 * you can decrypt them using the `decryptMessage` method
 	 */
 	async getLatestMessages({
 		channelId,
@@ -472,11 +474,14 @@ export class MessagingClient {
 	 * const flow = client.createChannelFlow();
 	 *
 	 * // Step-by-step execution
-	 * const tx = flow.build({ creatorAddress: signer.toSuiAddress(), initialMemberAddresses: ['0x...'] });
-	 * const { digest } = await signer.signAndExecuteTransaction({ transaction: tx, client: suiClient });
-	 * const { channelId, creatorCapId, encryptedKeyBytes } = await flow.generateEncryptedKey({ digest });
-	 * const attachKeyTx = flow.attachKey({});
-	 * const { digest: finalDigest } = await signer.signAndExecuteTransaction({ transaction: attachKeyTx, client: suiClient });
+	 * // 1. build
+	 * const tx = flow.build();
+	 * // 2. getGeneratedCaps
+	 * const { creatorCap, creatorMemberCap, additionalMemberCaps } = await flow.getGeneratedCaps({ digest });
+	 * // 3. generateAndAttachEncryptionKey
+	 * const { transaction, creatorCap, encryptedKeyBytes } = await flow.generateAndAttachEncryptionKey({ creatorCap, creatorMemberCap });
+	 * // 4. getGeneratedEncryptionKey
+	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
 	 * ```
 	 *
 	 * @returns CreateChannelFlow
