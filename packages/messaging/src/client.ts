@@ -19,9 +19,9 @@ import { _new as newAttachment, Attachment } from './contracts/sui_messaging/att
 import {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
-	ChannelMessagesEncryptedRequest,
-	ChannelMessagesEncryptedResponse,
 	ChannelObjectsByMembershipsResponse,
+	ChannelMembersResponse,
+	ChannelMember,
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
 	CreateChannelFlowOpts,
@@ -217,6 +217,76 @@ export class MessagingClient {
 		);
 	}
 
+	/**
+	 * Get all members of a channel
+	 *
+	 * This method retrieves all members of a channel
+	 * Returns a map of member addresses to their MemberCap IDs
+	 *
+	 * @param channelId - The ID of the channel
+	 * @returns A list of channel members with their addresses and member cap IDs
+	 * @example
+	 * ```typescript
+	 * const members = await client.messaging.getChannelMembers(channelId);
+	 * console.log(members.members); // [{ memberAddress: "0x...", memberCapId: "0x..." }, ...]
+	 * ```
+	 */
+	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+		// 1. Get the channel object to access the auth structure
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const channel = channelObjects[0];
+
+		// 2. Extract member cap IDs from the auth structure
+		const memberCapIds = channel.auth.member_permissions.contents.map((entry) => entry.key);
+
+		if (memberCapIds.length === 0) {
+			return { members: [] };
+		}
+
+		// 3. Fetch all MemberCap objects
+		const memberCapObjects = await this.#suiClient.core.getObjects({
+			objectIds: memberCapIds,
+		});
+
+		// 4. Parse MemberCap objects and extract member addresses
+		const members: ChannelMember[] = [];
+		for (const obj of memberCapObjects.objects) {
+			if (obj instanceof Error || !obj.content) {
+				console.warn('Failed to fetch MemberCap object:', obj);
+				continue;
+			}
+
+			try {
+				const memberCap = MemberCap.parse(await obj.content);
+
+				// Get the owner of the MemberCap object
+				if (obj.owner) {
+					let memberAddress: string;
+					if (obj.owner.$kind === 'AddressOwner') {
+						memberAddress = obj.owner.AddressOwner;
+					} else if (obj.owner.$kind === 'ObjectOwner') {
+						// For object-owned MemberCaps, we can't easily get the address
+						// This is a limitation of the current approach
+						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
+						continue;
+					} else {
+						console.warn('MemberCap has unknown ownership type:', obj.owner);
+						continue;
+					}
+
+					members.push({
+						memberAddress,
+						memberCapId: memberCap.id.id,
+					});
+				}
+			} catch (error) {
+				console.warn('Failed to parse MemberCap object:', error);
+			}
+		}
+
+		return { members };
+	}
+
 	// Decrypts a message
 	// Requires the channelId, memberCapId, and the encryptedKey of the Channel
 	// Note: Lazily downloads and decrypts attachments data(returns an array of promises that you can await)
@@ -238,7 +308,7 @@ export class MessagingClient {
 
 		// 2. If no attachments, return early
 		if (!message.attachments || message.attachments.length === 0) {
-			return { text, attachments: [] };
+			return { text, attachments: [], sender: message.sender, createdAtMs: message.created_at_ms };
 		}
 
 		// 3. Decrypt attachments metadata
@@ -278,6 +348,8 @@ export class MessagingClient {
 
 		return {
 			text,
+			sender: message.sender,
+			createdAtMs: message.created_at_ms,
 			attachments: lazyAttachmentsDataPromises,
 		};
 	}

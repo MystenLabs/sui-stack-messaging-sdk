@@ -108,6 +108,15 @@ export type ChannelObjectsByMembershipsResponse = PaginatedResponse<{
 	channelObjects: ParsedChannelObject[];
 }>;
 
+export type ChannelMember = {
+	memberAddress: string;
+	memberCapId: string;
+};
+
+export type ChannelMembersResponse = {
+	members: ChannelMember[];
+};
+
 export type ChannelMessagesEncryptedRequest = Omit<
 	Experimental_SuiClientTypes.GetDynamicFieldsOptions,
 	'parentId'
@@ -161,5 +170,7 @@ export interface LazyDecryptAttachmentResult extends AttachmentMetadata {
 
 export interface DecryptMessageResult {
 	text: string;
+	sender: string;
+	createdAtMs: string;
 	attachments?: LazyDecryptAttachmentResult[];
 }
