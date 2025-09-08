@@ -1,8 +1,8 @@
 import { Transaction, TransactionResult } from '@mysten/sui/transactions';
 import { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
-import { bcs, BcsStruct } from '@mysten/sui/bcs';
-import { ClientWithExtensions } from '@mysten/sui/experimental';
+import { bcs } from '@mysten/sui/bcs';
+import { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
 import {
@@ -19,30 +19,30 @@ import { _new as newAttachment, Attachment } from './contracts/sui_messaging/att
 import {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
-	ChannelMessagesDecryptedRequest,
 	ChannelMessagesEncryptedRequest,
 	ChannelMessagesEncryptedResponse,
 	ChannelObjectsByMembershipsResponse,
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
 	CreateChannelFlowOpts,
+	GetLatestMessagesRequest,
+	GetPreviousMessagesRequest,
+	MessagesCursor,
+	MessagesResponse,
 	MessagingClientExtensionOptions,
 	MessagingClientOptions,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
-	PaginatedResponse,
 	ParsedChannelObject,
+	ParsedMessageObject,
+	DecryptMessageResult,
+	LazyDecryptAttachmentResult,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
 import { StorageAdapter } from './storage/adapters/storage';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import {
-	DecryptMessageOpts,
-	DecryptMessageResult,
-	EncryptedSymmetricKey,
-	EnvelopeEncryption,
-} from './encryption';
+import { EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
 
 import { RawTransactionArgument } from './contracts/utils';
 import {
@@ -64,7 +64,7 @@ export class MessagingClient {
 	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
-	#channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
+	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
 
 	private constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
@@ -217,111 +217,180 @@ export class MessagingClient {
 		);
 	}
 
-	async decryptMessage(message: DecryptMessageOpts) {
-		return await this.#envelopeEncryption.decryptMessage(message);
-	}
+	// Decrypts a message
+	// Requires the channelId, memberCapId, and the encryptedKey of the Channel
+	// Note: Lazily downloads and decrypts attachments data(returns an array of promises that you can await)
+	async decryptMessage(
+		message: (typeof Message)['$inferType'],
+		channelId: string,
+		memberCapId: string,
+		encryptedKey: EncryptedSymmetricKey,
+	): Promise<DecryptMessageResult> {
+		// 1. Decrypt text
+		const text = await this.#envelopeEncryption.decryptText({
+			encryptedBytes: new Uint8Array(message.ciphertext),
+			nonce: new Uint8Array(message.nonce),
+			sender: message.sender,
+			channelId,
+			memberCapId,
+			encryptedKey,
+		});
 
-	// Retrieves the on-chain encrypted messages for a given channelId
-	async #getChannelMessagesEncrypted({
-		channelId,
-		...request
-	}: ChannelMessagesEncryptedRequest): Promise<ChannelMessagesEncryptedResponse> {
-		if (!this.#channelMessagesTableIdCache.has(channelId)) {
-			const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-			this.#channelMessagesTableIdCache.set(channelId, channelObjects[0].messages.contents.id.id);
+		// 2. If no attachments, return early
+		if (!message.attachments || message.attachments.length === 0) {
+			return { text, attachments: [] };
 		}
-		// Use getDynamicFields to get the message objects
-		const messageIdsRes = await this.#suiClient.core.getDynamicFields({
-			parentId: this.#channelMessagesTableIdCache.get(channelId)!, // we already checked above
-			...request,
-		});
-		const messageIds = messageIdsRes.dynamicFields.map((field) => field.id);
 
-		const messageObjects = await this.#suiClient.core.getObjects({
-			objectIds: messageIds,
-		});
+		// 3. Decrypt attachments metadata
+		const attachmentsMetadata = await Promise.all(
+			message.attachments.map(async (attachment) => {
+				// Use the encrypted_metadata field directly - no download needed for metadata
+				const metadata = await this.#envelopeEncryption.decryptAttachmentMetadata({
+					encryptedBytes: new Uint8Array(attachment.encrypted_metadata),
+					nonce: new Uint8Array(attachment.metadata_nonce),
+					channelId,
+					sender: message.sender,
+					encryptedKey,
+					memberCapId,
+				});
 
-		const parseMessageObjects = await Promise.all(
-			messageObjects.objects.map(async (object) => {
-				if (object instanceof Error || !object.content) {
-					throw new MessagingClientError(`Failed to parse Message object: ${object}`);
-				}
-				return Message.parse(await object.content);
+				return {
+					metadata,
+					attachment, // Keep reference to original attachment
+				};
 			}),
 		);
+
+		// 4. Create lazy-loaded attachmentsData
+		const lazyAttachmentsDataPromises: LazyDecryptAttachmentResult[] = attachmentsMetadata.map(
+			({ metadata, attachment }) => ({
+				...metadata,
+				data: this.#createLazyAttachmentDataPromise({
+					blobRef: attachment.blob_ref,
+					nonce: new Uint8Array(attachment.data_nonce),
+					channelId,
+					sender: message.sender,
+					encryptedKey,
+					memberCapId,
+				}),
+			}),
+		);
+
 		return {
-			messageObjects: parseMessageObjects,
-			hasNextPage: messageIdsRes.hasNextPage,
-			cursor: messageIdsRes.cursor,
+			text,
+			attachments: lazyAttachmentsDataPromises,
 		};
 	}
 
-	// Get the latest messages from the specified channel
-	async getLatestChannelMessages(channelId: string, limit: number = 50) {
-		// We need the messages count, so we cannot rely on caching
+	/**
+	 * Get new messages since the last cursor
+	 * Perfect for polling-based real-time updates
+	 */
+	async getLatestMessages({
+		channelId,
+		cursor,
+		limit = 50,
+	}: GetLatestMessagesRequest): Promise<MessagesResponse> {
+		// 1. Get current channel state
 		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
 		const messagesTableId = channelObjects[0].messages.contents.id.id;
-		const messagesCount = BigInt(channelObjects[0].messages_count); // messages_count is a string, so need to convert to number
+		const currentMessagesCount = BigInt(channelObjects[0].messages_count);
 
-		// Derive dynamicFieldIDs from the messagesTableId
-		// Remember: messages = TableVec<Message> --> TableVec{contents: Table<u64, Message>}
-		// Note: Need to handle the case of messagesCount < limit
-		const count = Number(messagesCount < BigInt(limit) ? messagesCount : BigInt(limit));
-		console.log(`messages to fetch: ${count}`);
-		const messagesIDs = Array.from({ length: count }).map((_, i) => {
-			const messageIndex = messagesCount - BigInt(i + 1);
-			console.log(`messageIndex: ${messageIndex}`);
-			return deriveDynamicFieldID(
-				messagesTableId,
-				'u64',
-				bcs.U64.serialize(messageIndex).toBytes(),
-			);
-		});
+		let startIndex: bigint;
+		let endIndex: bigint;
+		let newMessagesSinceLastCursor = BigInt(0);
 
-		console.log(`messagesIDs: ${JSON.stringify(messagesIDs, null, 2)}`);
+		if (!cursor) {
+			// First time - get the latest messages
+			startIndex =
+				currentMessagesCount > BigInt(limit) ? currentMessagesCount - BigInt(limit) : BigInt(0);
+			endIndex = currentMessagesCount;
+		} else {
+			// Get messages since last cursor
+			newMessagesSinceLastCursor = currentMessagesCount - cursor.messagesCountAtTime;
 
-		const messageObjects = await this.#suiClient.core.getObjects({
-			objectIds: messagesIDs,
-		});
-		const DynamicFieldMessage = bcs.struct('DynamicFieldMessage', {
-			id: bcs.Address, // UID is represented as an address
-			name: bcs.U64, // the key (message index)
-			value: Message, // the actual Message
-		});
+			if (newMessagesSinceLastCursor === BigInt(0)) {
+				// No new messages
+				return {
+					messages: [],
+					hasNextPage: cursor.fetchedRange.startIndex > BigInt(0),
+					cursor: cursor, // return same cursor
+				};
+			}
 
-		const parsedMessageObjects = await Promise.all(
-			messageObjects.objects.map(async (object) => {
-				if (object instanceof Error || !object.content) {
-					throw new MessagingClientError(`Failed to parse message object: ${object}`);
-				}
-				const content = await object.content;
-				// Parse the dynamic field wrapper
-				const dynamicField = DynamicFieldMessage.parse(content);
+			// Fetch new messages (from the end of our previous range to current end)
+			startIndex = cursor.fetchedRange.endIndex;
+			endIndex = currentMessagesCount;
 
-				// Extract the actual Message from the value field
-				return dynamicField.value;
-			}),
-		);
+			// Handle limit overflow gracefully
+			if (newMessagesSinceLastCursor > BigInt(limit)) {
+				// More new messages than limit - fetch the most recent ones
+				startIndex = currentMessagesCount - BigInt(limit);
+				console.warn('More new messages than limit - fetching the most recent ones');
+			}
+		}
 
-		return parsedMessageObjects;
+		// 2. Derive message IDs and fetch the Message objects
+		const messageIds = this.#deriveMessageIDsFromRange(messagesTableId, startIndex, endIndex);
+		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
+		const messages = await this.#parseMessageObjects(messageObjects);
+
+		// 3. Create new cursor
+		const newCursor: MessagesCursor = {
+			messagesCountAtTime: currentMessagesCount,
+			fetchedRange: {
+				startIndex: startIndex,
+				endIndex: endIndex,
+			},
+			createdAt: Date.now(),
+		};
+
+		return {
+			messages,
+			hasNextPage: startIndex > BigInt(0),
+			cursor: newCursor,
+		};
 	}
 
-	// TODO:
-	// - [ ] getChannelTextMessages (decrypted)
-	// - [ ] getChannelAttachmentsMetadata (decrypted)
-	// - [ ] downloadAndDecryptChannelAttachmentsData(download and decrypt)
-	// - [ ] getMessageAttachments (download and decrypt)
-	// - [ ] getChannelMessages: for each message, return the decrypted text,
-	// and for the attachments options:
-	// - download and decrypt data and metadata (so basically bring in everything)
-	// - only return decrypted metadata + blobRefs that the caller can lazily download and decrypt
+	/**
+	 * Get older messages before the current cursor
+	 * For "load more" functionality
+	 */
+	async getPreviousMessages({
+		channelId,
+		cursor,
+		limit = 50,
+	}: GetPreviousMessagesRequest): Promise<MessagesResponse> {
+		// 1. Get current channel state (for metadata)
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const messagesTableId = channelObjects[0].messages.contents.id.id;
+		const currentMessagesCount = BigInt(channelObjects[0].messages_count);
 
-	// async getChannelMessagesDecrypted({
-	// 	channelId,
-	// 	memberCapId,
-	// 	encryptedKey,
-	// 	...request
-	// }: ChannelMessagesDecryptedRequest): Promise<ChannelMessagesEncryptedResponse> {}
+		// 2. Calculate range for older messages
+		const endIndex = cursor.fetchedRange.startIndex;
+		const startIndex = endIndex > BigInt(limit) ? endIndex - BigInt(limit) : BigInt(0);
+
+		// 3. Generate and fetch message IDs
+		const messageIds = this.#deriveMessageIDsFromRange(messagesTableId, startIndex, endIndex);
+		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
+		const messages = await this.#parseMessageObjects(messageObjects);
+
+		// 4. Create new cursor (extending the fetched range backward)
+		const newCursor: MessagesCursor = {
+			messagesCountAtTime: currentMessagesCount,
+			fetchedRange: {
+				startIndex: startIndex,
+				endIndex: cursor.fetchedRange.endIndex, // Keep the original end
+			},
+			createdAt: Date.now(),
+		};
+
+		return {
+			messages,
+			hasNextPage: startIndex > BigInt(0),
+			cursor: newCursor,
+		};
+	}
 
 	// ===== Write Path =====
 
@@ -783,5 +852,84 @@ export class MessagingClient {
 			creatorMemberCap: creatorMemberCapParsed,
 			additionalMemberCaps: additionalMemberCapsParsed,
 		};
+	}
+
+	// Derive the message IDs from the given range
+	// Note: messages = TableVec<Message>
+	// --> TableVec{contents: Table<u64, Message>}
+	#deriveMessageIDsFromRange(messagesTableId: string, startIndex: bigint, endIndex: bigint) {
+		const messageIDs: string[] = [];
+
+		for (let i = startIndex; i < endIndex; i++) {
+			messageIDs.push(deriveDynamicFieldID(messagesTableId, 'u64', bcs.U64.serialize(i).toBytes()));
+		}
+
+		return messageIDs;
+	}
+
+	// Parse the message objects response
+	// Note: the given message objects response
+	// is in the form of dynamic_field::Field<u64, Message>
+	async #parseMessageObjects(
+		messageObjects: Experimental_SuiClientTypes.GetObjectsResponse,
+	): Promise<ParsedMessageObject[]> {
+		const DynamicFieldMessage = bcs.struct('DynamicFieldMessage', {
+			id: bcs.Address, // UID is represented as an address
+			name: bcs.U64, // the key (message index)
+			value: Message, // the actual Message
+		});
+
+		const parsedMessageObjects = await Promise.all(
+			messageObjects.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse message object: ${object}`);
+				}
+				const content = await object.content;
+				// Parse the dynamic field wrapper
+				const dynamicField = DynamicFieldMessage.parse(content);
+
+				// Extract the actual Message from the value field
+				return dynamicField.value;
+			}),
+		);
+
+		return parsedMessageObjects;
+	}
+
+	async #createLazyAttachmentDataPromise({
+		channelId,
+		memberCapId,
+		sender,
+		encryptedKey,
+		blobRef,
+		nonce,
+	}: {
+		channelId: string;
+		memberCapId: string;
+		sender: string;
+		encryptedKey: EncryptedSymmetricKey;
+		blobRef: string;
+		nonce: Uint8Array;
+	}): Promise<Uint8Array<ArrayBuffer>> {
+		return new Promise(async (resolve, reject) => {
+			try {
+				// Download the encrypted data
+				const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
+
+				// Decrypt the data
+				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
+					encryptedBytes: new Uint8Array(encryptedData),
+					nonce: new Uint8Array(nonce),
+					channelId,
+					memberCapId,
+					sender,
+					encryptedKey,
+				});
+
+				resolve(decryptedData.data);
+			} catch (error) {
+				reject(error);
+			}
+		});
 	}
 }

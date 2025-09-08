@@ -1,0 +1,2 @@
+const channelId = '0xe723879ceaf336665bc498b92d820165cf18d7414ff5b9f0e30bb9a73ccce222';
+const memberCapId = '0xbb697c4a83f46902cf82390fa09b590a8184b685357025a91d67feb0ae33cb6e';

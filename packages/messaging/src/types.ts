@@ -7,7 +7,7 @@ import {
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
 import {
-	DecryptMessageResult,
+	AttachmentMetadata,
 	EncryptedSymmetricKey,
 	SealApproveContract,
 	SessionKeyConfig,
@@ -124,4 +124,42 @@ export type ChannelMessagesDecryptedRequest = ChannelMessagesEncryptedRequest & 
 	memberCapId: string;
 };
 
-export type ChannelMessagesDecryptedResponse = PaginatedResponse<DecryptMessageResult>;
+export interface MessagesCursor {
+	// The messages count at the time the cursor was created
+	messagesCountAtTime: bigint;
+	// The range of message indices we've fetched
+	fetchedRange: {
+		startIndex: bigint; // inclusive
+		endIndex: bigint; // exclusive
+	};
+	// Timestamp
+	createdAt: number;
+}
+
+export interface GetLatestMessagesRequest {
+	channelId: string;
+	cursor?: MessagesCursor;
+	limit?: number; // default: 50
+}
+
+export interface GetPreviousMessagesRequest {
+	channelId: string;
+	cursor: MessagesCursor; // Required for previous messages
+	limit?: number; // default: 50
+}
+
+export interface MessagesResponse {
+	messages: ParsedMessageObject[];
+	cursor: MessagesCursor;
+	hasNextPage: boolean; // true if there are older messages available
+}
+
+export interface LazyDecryptAttachmentResult extends AttachmentMetadata {
+	// The actual data - lazy-loaded via promise
+	data: Promise<Uint8Array<ArrayBuffer>>;
+}
+
+export interface DecryptMessageResult {
+	text: string;
+	attachments?: LazyDecryptAttachmentResult[];
+}

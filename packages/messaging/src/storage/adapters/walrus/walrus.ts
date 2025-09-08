@@ -16,6 +16,9 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	}
 
 	async download(ids: string[]): Promise<Uint8Array[]> {
+		if (ids.length === 0) {
+			return [];
+		}
 		return await this.#downloadQuilts(ids);
 	}
 
