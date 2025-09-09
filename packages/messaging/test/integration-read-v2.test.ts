@@ -57,11 +57,13 @@ describe('Integration tests - Read Path v2', () => {
 			const allMemberships: any[] = [];
 
 			while (hasNextPage) {
-				const result = await client.messaging.getChannelMemberships({
-					address: testUser,
-					cursor,
-					limit: 1, // Small limit to test pagination
-				});
+				const result = await measureLatency('getChannelMemberships', () =>
+					client.messaging.getChannelMemberships({
+						address: testUser,
+						cursor,
+						limit: 1, // Small limit to test pagination
+					}),
+				);
 
 				allMemberships.push(...result.memberships);
 				hasNextPage = result.hasNextPage;
@@ -76,10 +78,12 @@ describe('Integration tests - Read Path v2', () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const nonExistentUser = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-			const result = await client.messaging.getChannelMemberships({
-				address: nonExistentUser,
-				limit: 10,
-			});
+			const result = await measureLatency('getChannelMemberships (empty)', () =>
+				client.messaging.getChannelMemberships({
+					address: nonExistentUser,
+					limit: 10,
+				}),
+			);
 
 			expect(result.memberships).toEqual([]);
 			expect(result.hasNextPage).toBe(false);
@@ -92,10 +96,9 @@ describe('Integration tests - Read Path v2', () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testUser = testData.channels[0].members[0].address;
 
-			const result = await client.messaging.getChannelObjectsByAddress({
-				address: testUser,
-				limit: 10,
-			});
+			const result = await measureLatency('getChannelObjectsByAddress', () =>
+				client.messaging.getChannelObjectsByAddress({ address: testUser, limit: 10 }),
+			);
 
 			expect(result.channelObjects.length).toBeGreaterThan(0);
 			expect(result.channelObjects.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(
@@ -107,7 +110,9 @@ describe('Integration tests - Read Path v2', () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const channelIds = testData.channels.map((ch) => ch.channelId);
 
-			const result = await client.messaging.getChannelObjectsByChannelIds(channelIds);
+			const result = await measureLatency('getChannelObjectsByChannelIds', () =>
+				client.messaging.getChannelObjectsByChannelIds(channelIds),
+			);
 
 			expect(result.length).toBe(channelIds.length);
 			expect(result.every((ch) => channelIds.includes(ch.id.id))).toBe(true);
@@ -154,11 +159,13 @@ describe('Integration tests - Read Path v2', () => {
 				throw new Error('No channel with messages found for testing');
 			}
 
-			const result = await client.messaging.getChannelMessages({
-				channelId: testChannel.channelId,
-				limit: 5,
-				direction: 'backward',
-			});
+			const result = await measureLatency('getChannelMessages (backward)', () =>
+				client.messaging.getChannelMessages({
+					channelId: testChannel.channelId,
+					limit: 5,
+					direction: 'backward',
+				}),
+			);
 
 			expect(result.messages.length).toBeGreaterThan(0);
 			expect(result.messages.length).toBeLessThanOrEqual(5);
@@ -318,11 +325,13 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Decrypt the message
-			const decryptedResult = await client.messaging.decryptMessage(
-				message,
-				testChannel.channelId,
-				senderMember.memberCapId,
-				senderMember.encryptedKey,
+			const decryptedResult = await measureLatency('decryptMessage', () =>
+				client.messaging.decryptMessage(
+					message,
+					testChannel.channelId,
+					senderMember.memberCapId,
+					senderMember.encryptedKey,
+				),
 			);
 
 			expect(decryptedResult.text).toBeDefined();
@@ -364,11 +373,13 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Decrypt the message
-			const decryptedResult = await client.messaging.decryptMessage(
-				messageWithAttachment,
-				attachmentChannel.channelId,
-				senderMember.memberCapId,
-				senderMember.encryptedKey,
+			const decryptedResult = await measureLatency('decryptMessage', () =>
+				client.messaging.decryptMessage(
+					messageWithAttachment,
+					attachmentChannel.channelId,
+					senderMember.memberCapId,
+					senderMember.encryptedKey,
+				),
 			);
 
 			expect(decryptedResult.text).toBeDefined();
@@ -377,3 +388,25 @@ describe('Integration tests - Read Path v2', () => {
 		});
 	});
 });
+
+/**
+ * Simple latency measurement utility for integration tests
+ * Measures the time taken for async operations and logs the results
+ */
+export function measureLatency<T>(operation: string, fn: () => Promise<T>): Promise<T> {
+	const startTime = performance.now();
+	return fn().then(
+		(result) => {
+			const endTime = performance.now();
+			const latency = endTime - startTime;
+			console.log(`[LATENCY] ${operation}: ${latency.toFixed(2)}ms`);
+			return result;
+		},
+		(error) => {
+			const endTime = performance.now();
+			const latency = endTime - startTime;
+			console.log(`[LATENCY] ${operation} (ERROR): ${latency.toFixed(2)}ms`);
+			throw error;
+		},
+	);
+}

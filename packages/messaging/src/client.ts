@@ -297,6 +297,7 @@ export class MessagingClient {
 		encryptedKey: EncryptedSymmetricKey,
 	): Promise<DecryptMessageResult> {
 		// 1. Decrypt text
+		const startTime = performance.now();
 		const text = await this.#envelopeEncryption.decryptText({
 			encryptedBytes: new Uint8Array(message.ciphertext),
 			nonce: new Uint8Array(message.nonce),
@@ -305,6 +306,9 @@ export class MessagingClient {
 			memberCapId,
 			encryptedKey,
 		});
+		const endTime = performance.now();
+		const latency = endTime - startTime;
+		console.log(`[LATENCY_internal] decryptText: ${latency.toFixed(2)}ms`);
 
 		// 2. If no attachments, return early
 		if (!message.attachments || message.attachments.length === 0) {
