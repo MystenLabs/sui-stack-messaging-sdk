@@ -292,16 +292,19 @@ export class MessagingClient {
 	// Note: Lazily downloads and decrypts attachments data(returns an array of promises that you can await)
 	async decryptMessage(
 		message: (typeof Message)['$inferType'],
+		channelCreatorAddress: string,
 		channelId: string,
 		memberCapId: string,
 		encryptedKey: EncryptedSymmetricKey,
 	): Promise<DecryptMessageResult> {
 		// 1. Decrypt text
 		const text = await this.#envelopeEncryption.decryptText({
+			$kind: 'Encrypted',
 			encryptedBytes: new Uint8Array(message.ciphertext),
 			nonce: new Uint8Array(message.nonce),
 			sender: message.sender,
 			channelId,
+			channelCreatorAddress,
 			memberCapId,
 			encryptedKey,
 		});
@@ -316,6 +319,8 @@ export class MessagingClient {
 			message.attachments.map(async (attachment) => {
 				// Use the encrypted_metadata field directly - no download needed for metadata
 				const metadata = await this.#envelopeEncryption.decryptAttachmentMetadata({
+					$kind: 'Encrypted',
+					channelCreatorAddress,
 					encryptedBytes: new Uint8Array(attachment.encrypted_metadata),
 					nonce: new Uint8Array(attachment.metadata_nonce),
 					channelId,
@@ -336,6 +341,7 @@ export class MessagingClient {
 			({ metadata, attachment }) => ({
 				...metadata,
 				data: this.#createLazyAttachmentDataPromise({
+					channelCreatorAddress,
 					blobRef: attachment.blob_ref,
 					nonce: new Uint8Array(attachment.data_nonce),
 					channelId,
@@ -992,12 +998,14 @@ export class MessagingClient {
 		channelId,
 		memberCapId,
 		sender,
+		channelCreatorAddress,
 		encryptedKey,
 		blobRef,
 		nonce,
 	}: {
 		channelId: string;
 		memberCapId: string;
+		channelCreatorAddress: string;
 		sender: string;
 		encryptedKey: EncryptedSymmetricKey;
 		blobRef: string;
@@ -1010,6 +1018,8 @@ export class MessagingClient {
 
 				// Decrypt the data
 				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
+					$kind: 'Encrypted',
+					channelCreatorAddress,
 					encryptedBytes: new Uint8Array(encryptedData),
 					nonce: new Uint8Array(nonce),
 					channelId,
