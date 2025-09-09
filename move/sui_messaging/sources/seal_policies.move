@@ -9,13 +9,13 @@ const ENoAccess: u64 = 0;
 // === Package Functions ===
 //////////////////////////////////////////////////////////
 /// Access control
-/// key format: [pkg id]::[channel id][random nonce]
+/// key format: [pkg id]::[creator's address][random nonce]
 
 /// All allowlisted addresses can access all IDs with the prefix of the allowlist
 fun approve_internal(member_cap: &MemberCap, id: vector<u8>, channel: &Channel): bool {
-    // Check if the id has the right prefix
-    let namespace = channel.namespace();
-    if (!is_prefix(namespace, id)) {
+    // Check identity bytes
+    let key_id = compute_key_id(channel.creator(), channel.latest_encryption_key_nonce());
+    if (key_id != id) {
         return false
     };
 
@@ -32,19 +32,13 @@ entry fun seal_approve(
     assert!(approve_internal(member_cap, id, channel), ENoAccess);
 }
 
-/// Returns true if `prefix` is a prefix of `word`.
-fun is_prefix(prefix: vector<u8>, word: vector<u8>): bool {
-    if (prefix.length() > word.length()) {
-        return false
-    };
-    let mut i = 0;
-    while (i < prefix.length()) {
-        if (prefix[i] != word[i]) {
-            return false
-        };
-        i = i + 1;
-    };
-    true
+/// The encryption key id is [pkg id][creator address][random nonce]
+/// - The creator address is used to ensure that only the creator can create an object for that key
+/// id
+///   (otherwise, others can try to frontrun and create an object for the same key id).
+/// - A single user can create unlimited number of key ids, simply by using different nonces.
+fun compute_key_id(sender: address, nonce: vector<u8>): vector<u8> {
+    let mut key_id = sender.to_bytes();
+    key_id.append(nonce);
+    key_id
 }
-
-// === Test Functions ===

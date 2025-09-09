@@ -79,22 +79,41 @@ export interface EncryptionPrimitivesConfig {
 }
 
 // Additional Authenticated Data for encryption/decryption
-// (channelId, keyVersion, sender)
+// (creatorAddress1, keyVersion, sender)
 export interface EncryptAAD {
-	channelId: string; // should be valid sui object id
+	channelCreatorAddress: string; // should be valid sui address
 	keyVersion: number; // u32
 	sender: string; // should be valid sui address
 }
 
-export interface CommonEncryptOpts {
-	channelId: string; // should be valid sui object id
+export interface CommonEncryptOptsOld {
+	creatorAddress: string; // should be valid sui address
 	sender: string; // should be valid sui address
 	encryptedKey: EncryptedSymmetricKey; // encrypted key that needs decryption via Seal
 	memberCapId: string; // required for Seal decryption
 }
 
+export type CommonEncryptOpts =
+	| {
+			$kind: 'Unencrypted';
+			channelCreatorAddress: string; // should be valid sui address
+			sender: string; // should be valid sui address
+			memberCapId: string; // required for Seal decryption
+			unEncryptedKey: SymmetricKey;
+			encryptedKey?: never;
+	  }
+	| {
+			$kind: 'Encrypted';
+			channelCreatorAddress: string; // should be valid sui address
+			sender: string; // should be valid sui address
+			memberCapId: string; // required for Seal decryption
+			channelId: string; // should be a valid sui Object ID
+			encryptedKey: EncryptedSymmetricKey;
+			unEncryptedKey?: never;
+	  };
+
 export interface GenerateEncryptedChannelDEKopts {
-	channelId: string; // should be valid sui object id
+	creatorAddress: string; // should be valid sui address
 }
 
 /**
@@ -105,28 +124,29 @@ export interface EncryptedPayload {
 	nonce: Uint8Array<ArrayBuffer>;
 }
 
-export interface EncryptTextOpts extends CommonEncryptOpts {
+export type EncryptTextOpts = CommonEncryptOpts & {
 	text: string;
-}
-export interface DecryptTextOpts extends CommonEncryptOpts, EncryptedPayload {}
+};
+
+export type DecryptTextOpts = CommonEncryptOpts & EncryptedPayload;
 
 export interface AttachmentMetadata {
 	fileName: string;
 	mimeType: string;
 	fileSize: number;
 }
-export interface EncryptAttachmentOpts extends CommonEncryptOpts {
+export type EncryptAttachmentOpts = CommonEncryptOpts & {
 	file: File;
-}
+};
 
 export interface EncryptedAttachmentPayload {
 	data: EncryptedPayload;
 	metadata: EncryptedPayload;
 }
 
-export interface DecryptAttachmentMetadataOpts extends CommonEncryptOpts, EncryptedPayload {}
-export interface DecryptAttachmentDataOpts extends CommonEncryptOpts, EncryptedPayload {}
-export interface DecryptAttachmentOpts extends CommonEncryptOpts, EncryptedAttachmentPayload {}
+export type DecryptAttachmentMetadataOpts = CommonEncryptOpts & EncryptedPayload;
+export type DecryptAttachmentDataOpts = CommonEncryptOpts & EncryptedPayload;
+export type DecryptAttachmentOpts = CommonEncryptOpts & EncryptedAttachmentPayload;
 
 export interface DecryptAttachmentResult extends AttachmentMetadata {
 	data: Uint8Array<ArrayBuffer>;
@@ -136,21 +156,21 @@ export interface DecryptAttachmentDataResult {
 }
 export interface DecryptAttachmentMetadataResult extends AttachmentMetadata {}
 
-export interface EncryptMessageOpts extends CommonEncryptOpts {
+export type EncryptMessageOpts = CommonEncryptOpts & {
 	text: string;
 	attachments?: File[];
-}
+};
 
 export interface EncryptedMessagePayload {
 	text: EncryptedPayload;
 	attachments?: EncryptedAttachmentPayload[];
 }
 
-export interface DecryptMessageOpts extends CommonEncryptOpts {
+export type DecryptMessageOpts = CommonEncryptOpts & {
 	ciphertext: Uint8Array<ArrayBuffer>;
 	nonce: Uint8Array<ArrayBuffer>;
 	attachments?: EncryptedAttachmentPayload[];
-}
+};
 
 export interface DecryptMessageResult {
 	text: string;

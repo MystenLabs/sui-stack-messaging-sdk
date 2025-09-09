@@ -86,8 +86,10 @@ fun test_new_with_defaults() {
         let creator_member_cap = scenario.take_from_sender<MemberCap>();
 
         // At this stage we are supposed to use Seal
-        let encrypted_key_bytes = channel.namespace();
-        channel.add_encrypted_key(&creator_member_cap, encrypted_key_bytes);
+        let encrypted_key_bytes = sender_address.to_bytes();
+        let encryption_nonce = vector<u8>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
+        channel.add_encrypted_key(&creator_member_cap, encrypted_key_bytes, encryption_nonce);
 
         channel.share(&creator_cap);
         scenario.return_to_sender<CreatorCap>(creator_cap);

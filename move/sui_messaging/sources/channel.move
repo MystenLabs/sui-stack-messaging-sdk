@@ -30,6 +30,11 @@ public struct Channel has key {
     id: UID,
     /// The version of this object, for handling updgrades.
     version: u64, // Maybe move this to the Config, or utilize the sui::versioned module
+    /// The address of the Channel's creator
+    ///
+    /// Note: We are using this as part of the seal identity bytes
+    /// so we endup with a key-namespace: [pkgId][creator's address][random nonce]
+    creator: address,
     /// The Authorization struct, gating actions to member permissions.
     /// Note: It also, practically, keeps tracks of the members (MemberCap ID -> Permissions)
     auth: Auth,
@@ -110,6 +115,7 @@ public fun new(
     let channel = Channel {
         id: channel_uid,
         version: admin::version(),
+        creator: ctx.sender(),
         auth,
         messages: table_vec::empty<Message>(ctx),
         messages_count: 0,
@@ -135,11 +141,17 @@ public fun add_encrypted_key(
     self: &mut Channel,
     member_cap: &MemberCap,
     new_encryption_key_bytes: vector<u8>,
+    new_encryption_nonce: vector<u8>,
 ) {
     assert!(self.is_member(member_cap), ENotMember);
     self
         .encryption_key_history
-        .rotate_key(&self.auth, object::id(member_cap), new_encryption_key_bytes);
+        .rotate_key(
+            &self.auth,
+            object::id(member_cap),
+            new_encryption_key_bytes,
+            new_encryption_nonce,
+        );
 }
 
 /// Add new members to the Channel with the default SimpleMessenger permission
@@ -251,12 +263,20 @@ public(package) fun version(self: &Channel): u64 {
     self.version
 }
 
+public(package) fun creator(self: &Channel): address {
+    self.creator
+}
+
 public(package) fun latest_encryption_key_version(self: &Channel): u32 {
     self.encryption_key_history.latest_key_version()
 }
 
-public(package) fun latest_encryption_key(self: &Channel): vector<u8> {
-    self.encryption_key_history.latest_key()
+public(package) fun latest_encryption_key_bytes(self: &Channel): vector<u8> {
+    self.encryption_key_history.latest_key_bytes()
+}
+
+public(package) fun latest_encryption_key_nonce(self: &Channel): vector<u8> {
+    self.encryption_key_history.latest_key_nonce()
 }
 
 public(package) fun messages_count(self: &Channel): u64 {

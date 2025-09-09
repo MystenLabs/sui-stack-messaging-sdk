@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { EncryptedObject, SessionKey } from '@mysten/seal';
-import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
+import { fromHex, isValidSuiAddress, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 
 import {
 	AttachmentMetadata,
+	CommonEncryptOpts,
 	DecryptAttachmentDataOpts,
 	DecryptAttachmentDataResult,
 	DecryptAttachmentMetadataOpts,
@@ -81,16 +82,16 @@ export class EnvelopeEncryption {
 
 	// ===== Encryption methods =====
 	async generateEncryptedChannelDEK({
-		channelId,
+		creatorAddress,
 	}: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>> {
-		if (!isValidSuiObjectId(channelId)) {
-			throw new Error('The channelId provided is not a valid Sui Object ID');
+		if (!isValidSuiAddress(creatorAddress)) {
+			throw new Error('The creatorAddress provided is not a valid Sui Address');
 		}
 		// Generate a new DEK
 		const dek = await this.#encryptionPrimitives.generateDEK();
 		// Encrypt with Seal before returning
 		const nonce = this.#encryptionPrimitives.generateNonce();
-		const sealPolicyBytes = fromHex(channelId); // Using channelId as the policy;
+		const sealPolicyBytes = fromHex(creatorAddress); // Using channelId as the policy;
 		const id = toHex(new Uint8Array([...sealPolicyBytes, ...nonce]));
 		const { encryptedObject: encryptedDekBytes } = await this.#suiClient.seal.encrypt({
 			threshold: 2, // TODO: Magic number --> extract this to an option/config/constant
@@ -105,25 +106,16 @@ export class EnvelopeEncryption {
 		return this.#encryptionPrimitives.generateNonce();
 	}
 
-	async encryptText({
-		text,
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-	}: EncryptTextOpts): Promise<EncryptedPayload> {
+	async encryptText(opts: EncryptTextOpts): Promise<EncryptedPayload> {
 		const nonce = this.#encryptionPrimitives.generateNonce();
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+		// Check if the provided key is encrypted or unencrypted
+		const dek = await this.#getDEK(opts);
 
 		const ciphertext = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(channelId, dek.version, sender),
-			new Uint8Array(new TextEncoder().encode(text)),
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			new Uint8Array(new TextEncoder().encode(opts.text)),
 		);
 		return {
 			encryptedBytes: ciphertext,
@@ -131,52 +123,42 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async decryptText({
-		encryptedBytes: ciphertext,
-		nonce,
-		channelId,
-		encryptedKey,
-		sender,
-		memberCapId,
-	}: DecryptTextOpts): Promise<string> {
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+	async #getDEK(opts: CommonEncryptOpts): Promise<SymmetricKey> {
+		const dek =
+			opts.$kind === 'Unencrypted'
+				? opts.unEncryptedKey
+				: await this.decryptChannelDEK({
+						encryptedKey: opts.encryptedKey,
+						channelId: opts.channelId,
+						memberCapId: opts.memberCapId,
+					});
+		return dek;
+	}
+
+	async decryptText(opts: DecryptTextOpts): Promise<string> {
+		const dek: SymmetricKey = await this.#getDEK(opts);
 
 		const decryptedBytes = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
-			nonce,
-			this.encryptionAAD(channelId, encryptedKey.version, sender),
-			ciphertext,
+			opts.nonce,
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			opts.encryptedBytes,
 		);
 		return new TextDecoder().decode(decryptedBytes);
 	}
 
-	async encryptAttachment({
-		file,
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-	}: EncryptAttachmentOpts): Promise<EncryptedAttachmentPayload> {
+	async encryptAttachment(opts: EncryptAttachmentOpts): Promise<EncryptedAttachmentPayload> {
+		const { file, ...commonOpts } = opts;
 		// Encrypt the attachment Data
 		const { encryptedBytes: encryptedData, nonce: dataNonce } = await this.encryptAttachmentData({
 			file,
-			channelId,
-			sender,
-			encryptedKey,
-			memberCapId,
+			...commonOpts,
 		});
 		// Encrypt the attachment Metadata
 		const { encryptedBytes: encryptedMetadata, nonce: metadataNonce } =
 			await this.encryptAttachmentMetadata({
 				file,
-				channelId,
-				sender,
-				encryptedKey,
-				memberCapId,
+				...commonOpts,
 			});
 
 		return {
@@ -185,48 +167,30 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async encryptAttachmentData({
-		file,
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-	}: EncryptAttachmentOpts): Promise<EncryptedPayload> {
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+	async encryptAttachmentData(opts: EncryptAttachmentOpts): Promise<EncryptedPayload> {
+		const dek: SymmetricKey = await this.#getDEK(opts);
 
 		const nonce = this.generateNonce();
 
 		// Read file as ArrayBuffer
-		const fileData = await file.arrayBuffer();
+		const fileData = await opts.file.arrayBuffer();
 
 		// Encrypt file data
 		const encryptedData = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(channelId, dek.version, sender),
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
 			new Uint8Array(fileData),
 		);
 		return { encryptedBytes: encryptedData, nonce };
 	}
 
-	async encryptAttachmentMetadata({
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-		file,
-	}: EncryptAttachmentOpts): Promise<EncryptedPayload> {
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+	async encryptAttachmentMetadata(opts: EncryptAttachmentOpts): Promise<EncryptedPayload> {
+		const dek: SymmetricKey = await this.#getDEK(opts);
 
 		const nonce = this.generateNonce();
+
+		const file = opts.file;
 
 		// Extract file metadata
 		const metadata: AttachmentMetadata = {
@@ -240,7 +204,7 @@ export class EnvelopeEncryption {
 		const encryptedMetadata = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(channelId, dek.version, sender),
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
 			new Uint8Array(new TextEncoder().encode(metadataStr)),
 		);
 
@@ -250,26 +214,17 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async decryptAttachmentMetadata({
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-		encryptedBytes,
-		nonce,
-	}: DecryptAttachmentMetadataOpts): Promise<DecryptAttachmentMetadataResult> {
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+	async decryptAttachmentMetadata(
+		opts: DecryptAttachmentMetadataOpts,
+	): Promise<DecryptAttachmentMetadataResult> {
+		const dek: SymmetricKey = await this.#getDEK(opts);
 
 		// Decrypt metadata
 		const decryptedMetadataBytes = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
-			nonce,
-			this.encryptionAAD(channelId, dek.version, sender),
-			encryptedBytes,
+			opts.nonce,
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			opts.encryptedBytes,
 		);
 		// Parse the bytes back to JSON
 		const metadataStr = new TextDecoder().decode(decryptedMetadataBytes);
@@ -282,54 +237,32 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async decryptAttachmentData({
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-		encryptedBytes,
-		nonce,
-	}: DecryptAttachmentDataOpts): Promise<DecryptAttachmentDataResult> {
-		const dek: SymmetricKey = await this.decryptChannelDEK({
-			encryptedKey,
-			channelId,
-			memberCapId,
-		});
+	async decryptAttachmentData(
+		opts: DecryptAttachmentDataOpts,
+	): Promise<DecryptAttachmentDataResult> {
+		const dek: SymmetricKey = await this.#getDEK(opts);
 		const decryptedData = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
-			nonce,
-			this.encryptionAAD(channelId, dek.version, sender),
-			encryptedBytes,
+			opts.nonce,
+			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			opts.encryptedBytes,
 		);
 		return { data: decryptedData };
 	}
 
-	async decryptAttachment({
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-		data,
-		metadata,
-	}: DecryptAttachmentOpts): Promise<DecryptAttachmentResult> {
+	async decryptAttachment(opts: DecryptAttachmentOpts): Promise<DecryptAttachmentResult> {
 		// Decrypt file data
 		const decryptedData = await this.decryptAttachmentData({
-			channelId,
-			sender,
-			encryptedKey,
-			memberCapId,
-			encryptedBytes: data.encryptedBytes,
-			nonce: data.nonce,
+			...opts,
+			encryptedBytes: opts.data.encryptedBytes,
+			nonce: opts.data.nonce,
 		});
 
 		// Decrypt metadata
 		const { fileName, mimeType, fileSize } = await this.decryptAttachmentMetadata({
-			channelId,
-			sender,
-			encryptedKey,
-			memberCapId,
-			encryptedBytes: metadata.encryptedBytes,
-			nonce: metadata.nonce,
+			...opts,
+			encryptedBytes: opts.metadata.encryptedBytes,
+			nonce: opts.metadata.nonce,
 		});
 
 		return {
@@ -340,22 +273,10 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async encryptMessage({
-		text,
-		attachments,
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-	}: EncryptMessageOpts): Promise<EncryptedMessagePayload> {
+	async encryptMessage(opts: EncryptMessageOpts): Promise<EncryptedMessagePayload> {
 		// Encrypt text
-		const { encryptedBytes: ciphertext, nonce } = await this.encryptText({
-			text,
-			channelId,
-			sender,
-			encryptedKey,
-			memberCapId,
-		});
+		const { text, attachments, ...commonOpts } = opts;
+		const { encryptedBytes: ciphertext, nonce } = await this.encryptText({ ...commonOpts, text });
 
 		// If there are no attachments, return early
 		if (!attachments || attachments.length === 0) {
@@ -367,10 +288,7 @@ export class EnvelopeEncryption {
 			attachments.map((file) =>
 				this.encryptAttachment({
 					file,
-					channelId,
-					sender,
-					encryptedKey,
-					memberCapId,
+					...commonOpts,
 				}),
 			),
 		);
@@ -381,23 +299,15 @@ export class EnvelopeEncryption {
 		};
 	}
 
-	async decryptMessage({
-		ciphertext,
-		nonce,
-		attachments,
-		channelId,
-		sender,
-		encryptedKey,
-		memberCapId,
-	}: DecryptMessageOpts): Promise<{ text: string; attachments?: DecryptAttachmentResult[] }> {
+	async decryptMessage(
+		opts: DecryptMessageOpts,
+	): Promise<{ text: string; attachments?: DecryptAttachmentResult[] }> {
+		const { ciphertext, nonce, attachments, ...commonOpts } = opts;
 		// Decrypt text
 		const text = await this.decryptText({
 			encryptedBytes: ciphertext,
 			nonce,
-			channelId,
-			sender,
-			encryptedKey,
-			memberCapId,
+			...commonOpts,
 		});
 
 		// If there are no attachments, return early
@@ -410,10 +320,7 @@ export class EnvelopeEncryption {
 			attachments.map((attachment) =>
 				this.decryptAttachment({
 					...attachment,
-					channelId,
-					sender,
-					encryptedKey,
-					memberCapId,
+					...commonOpts,
 				}),
 			),
 		);
@@ -447,15 +354,15 @@ export class EnvelopeEncryption {
 		// === Decrypt the cached key ===
 		// Prepare seal_approve ptb
 
-		const channelIdBytes = EncryptedObject.parse(encryptedKey.encryptedBytes).id;
+		const keyIdBytes = EncryptedObject.parse(encryptedKey.encryptedBytes).id;
 
 		const tx = new Transaction();
 		tx.moveCall({
 			target: `${this.#sealApproveContract.packageId}::${this.#sealApproveContract.module}::${this.#sealApproveContract.functionName}`,
 			arguments: [
 				// Seal Identity Bytes: Channel object ID
-				// key form: [packageId][channelId][random nonce]
-				tx.pure.vector('u8', fromHex(channelIdBytes)),
+				// key form: [packageId][creatorAddress][random nonce]
+				tx.pure.vector('u8', fromHex(keyIdBytes)),
 				// Channel Object
 				tx.object(channelId),
 				// Member Cap Object
@@ -492,18 +399,20 @@ export class EnvelopeEncryption {
 
 	/**
 	 * Gets the Additional Authenticated Data for encryption/decryption
-	 * (channelId, keyVersion, sender)
+	 * (creatorAddress, keyVersion, sender)
 	 *
-	 * @param channelId
+	 * @param creatorAddress
 	 * @param keyVersion
 	 * @param sender
 	 * @returns
 	 */
 	private encryptionAAD(
-		channelId: string,
+		creatorAddress: string,
 		keyVersion: number,
 		sender: string,
 	): Uint8Array<ArrayBuffer> {
-		return new Uint8Array(new TextEncoder().encode(channelId + keyVersion.toString() + sender));
+		return new Uint8Array(
+			new TextEncoder().encode(creatorAddress + keyVersion.toString() + sender),
+		);
 	}
 }
