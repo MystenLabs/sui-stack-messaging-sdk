@@ -119,7 +119,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		return data.map((data) => new Uint8Array(data));
 	}
 
-	// eslint-disable-next-line
+	// @ts-ignore
 	#extractBlobId(response: WalrusResponse): string {
 		// direct blob uploads
 		if (response.newlyCreated?.blobObject?.blobId) {

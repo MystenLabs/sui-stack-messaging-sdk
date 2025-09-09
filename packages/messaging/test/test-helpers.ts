@@ -246,10 +246,11 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 		},
 	});
 
-	// Generate a test signer for testnet
-	// Note: In a real scenario, you might want to use a pre-funded test account
-	// For now, we generate a new keypair - you'll need to fund it manually if needed
-	const signer = Ed25519Keypair.deriveKeypair(config.phrase);
+	// Create test signer for testnet using secret key
+	if (!config.secretKey) {
+		throw new Error('TESTNET_SECRET_KEY is required for testnet tests');
+	}
+	const signer = Ed25519Keypair.fromSecretKey(config.secretKey);
 
 	return {
 		config,
@@ -324,6 +325,7 @@ class MockStorageAdapter implements StorageAdapter {
 		return { ids: data.map((_, i) => `mock-blob-${i}-${Date.now()}`) };
 	}
 
+	// @ts-ignore
 	async download(ids: string[]): Promise<Uint8Array[]> {
 		return [];
 	}

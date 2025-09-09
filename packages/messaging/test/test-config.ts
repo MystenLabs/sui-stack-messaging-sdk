@@ -4,7 +4,8 @@ export type TestEnvironment = 'localnet' | 'testnet';
 
 export interface TestConfig {
 	environment: TestEnvironment;
-	phrase: string;
+	secretKey?: string; // For testnet
+	phrase?: string; // For localnet (legacy support)
 	packageConfig: MessagingPackageConfig;
 	suiClientConfig: {
 		url: string;
@@ -71,7 +72,7 @@ function getLocalnetConfig(): TestConfig {
 function getTestnetConfig(): TestConfig {
 	const packageId = process.env.TESTNET_PACKAGE_ID;
 	const sealApprovePackageId = process.env.TESTNET_SEAL_APPROVE_PACKAGE_ID;
-	const phrase = process.env.PHRASE;
+	const secretKey = process.env.TESTNET_SECRET_KEY;
 
 	if (!packageId) {
 		throw new Error('TESTNET_PACKAGE_ID environment variable is required for testnet tests');
@@ -83,13 +84,13 @@ function getTestnetConfig(): TestConfig {
 		);
 	}
 
-	if (!phrase) {
-		throw new Error('PHRASE environment variable is required for testnet tests');
+	if (!secretKey) {
+		throw new Error('TESTNET_SECRET_KEY environment variable is required for testnet tests');
 	}
 
 	return {
 		environment: 'testnet',
-		phrase,
+		secretKey,
 		packageConfig: {
 			packageId,
 			memberCapType: `${packageId}::member_cap::MemberCap`,
