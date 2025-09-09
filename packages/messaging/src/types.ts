@@ -133,34 +133,30 @@ export type ChannelMessagesDecryptedRequest = ChannelMessagesEncryptedRequest & 
 	memberCapId: string;
 };
 
-export interface MessagesCursor {
-	// The messages count at the time the cursor was created
-	messagesCountAtTime: bigint;
-	// The range of message indices we've fetched
-	fetchedRange: {
-		startIndex: bigint; // inclusive
-		endIndex: bigint; // exclusive
-	};
-	// Timestamp
-	createdAt: number;
+export interface PollingState {
+	lastMessageCount: bigint;
+	lastCursor: bigint | null;
+	channelId: string;
 }
 
 export interface GetLatestMessagesRequest {
 	channelId: string;
-	cursor?: MessagesCursor;
+	pollingState: PollingState;
 	limit?: number; // default: 50
 }
 
-export interface GetPreviousMessagesRequest {
+export interface GetChannelMessagesRequest {
 	channelId: string;
-	cursor: MessagesCursor; // Required for previous messages
+	cursor?: bigint | null; // The message index to start from
 	limit?: number; // default: 50
+	direction?: 'backward' | 'forward'; // default: 'backward'
 }
 
 export interface MessagesResponse {
 	messages: ParsedMessageObject[];
-	cursor: MessagesCursor;
+	cursor: bigint | null;
 	hasNextPage: boolean; // true if there are older messages available
+	direction: 'backward' | 'forward'; // default: 'backward'
 }
 
 export interface LazyDecryptAttachmentResult extends AttachmentMetadata {

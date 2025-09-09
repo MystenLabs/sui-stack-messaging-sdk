@@ -19,15 +19,13 @@ import { _new as newAttachment, Attachment } from './contracts/sui_messaging/att
 import {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
-	ChannelObjectsByMembershipsResponse,
+	ChannelObjectsByMembershipsResponse as ChannelObjectsByAddressResponse,
 	ChannelMembersResponse,
 	ChannelMember,
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
 	CreateChannelFlowOpts,
 	GetLatestMessagesRequest,
-	GetPreviousMessagesRequest,
-	MessagesCursor,
 	MessagesResponse,
 	MessagingClientExtensionOptions,
 	MessagingClientOptions,
@@ -37,6 +35,7 @@ import {
 	ParsedMessageObject,
 	DecryptMessageResult,
 	LazyDecryptAttachmentResult,
+	GetChannelMessagesRequest,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
@@ -190,7 +189,7 @@ export class MessagingClient {
 	// Returns the channel objects for a given user
 	async getChannelObjectsByAddress(
 		request: ChannelMembershipsRequest,
-	): Promise<ChannelObjectsByMembershipsResponse> {
+	): Promise<ChannelObjectsByAddressResponse> {
 		const membershipsPaginated = await this.getChannelMemberships(request);
 		const channelObjects = await this.getChannelObjectsByChannelIds(
 			membershipsPaginated.memberships.map((m) => m.channel_id),
@@ -203,6 +202,7 @@ export class MessagingClient {
 		};
 	}
 
+	// Returns the parsed Channel objects for a given list of channel IDs
 	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
@@ -355,115 +355,130 @@ export class MessagingClient {
 	}
 
 	/**
-	 * Get new messages since the last cursor
+	 * Get messages from a channel with unified pagination
+	 *
+	 * @param request - The request parameters
+	 * @returns Promise<MessagesResponse> - The messages and pagination info
+	 *
+	 * @example
+	 * ```typescript
+	 * // Get latest messages (for live polling)
+	 * const latest = await client.getChannelMessages({
+	 *   channelId: '0x123...',
+	 *   limit: 50,
+	 *   direction: 'backward'
+	 * });
+	 *
+	 * // Load more older messages
+	 * const older = await client.getChannelMessages({
+	 *   channelId: '0x123...',
+	 *   cursor: latest.cursor, // Message index to start from (exclusive)
+	 *   limit: 50,
+	 *   direction: 'backward'
+	 * });
+	 *
+	 * // Get messages in ascending order (oldest first)
+	 * const oldest = await client.getChannelMessages({
+	 *   channelId: '0x123...',
+	 *   limit: 50,
+	 *   direction: 'forward'
+	 * });
+	 * ```
+	 */
+	async getChannelMessages({
+		channelId,
+		cursor = null,
+		limit = 50,
+		direction = 'backward',
+	}: GetChannelMessagesRequest): Promise<MessagesResponse> {
+		// 1. Get channel metadata
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const messagesTableId = channelObjects[0].messages.contents.id.id;
+		const totalMessagesCount = BigInt(channelObjects[0].messages_count);
+
+		// 2. Validate inputs
+		if (totalMessagesCount === BigInt(0)) {
+			return this.#createEmptyMessagesResponse(direction);
+		}
+
+		if (cursor !== null && cursor >= totalMessagesCount) {
+			throw new MessagingClientError(
+				`Cursor ${cursor} is out of bounds. Channel has ${totalMessagesCount} messages.`,
+			);
+		}
+
+		// 3. Calculate fetch range based on direction and cursor
+		const fetchRange = this.#calculateFetchRange({
+			cursor,
+			limit,
+			direction,
+			totalMessagesCount,
+		});
+
+		// 4. Handle edge cases
+		if (fetchRange.startIndex >= fetchRange.endIndex) {
+			return this.#createEmptyMessagesResponse(direction);
+		}
+
+		// 5. Fetch and parse messages
+		const messages = await this.#fetchMessagesInRange(messagesTableId, fetchRange);
+
+		// 6. Determine next pagination
+		const nextPagination = this.#determineNextPagination({
+			fetchRange,
+			direction,
+			totalMessagesCount,
+		});
+
+		// 6. Create response
+		return {
+			messages,
+			cursor: nextPagination.cursor,
+			hasNextPage: nextPagination.hasNextPage,
+			direction,
+		};
+	}
+
+	/**
+	 * Get new messages since the last polling state
 	 * For polling-based real-time updates
 	 * Note: It returns the parsed on-chain Message objects, which are encrypted
 	 * you can decrypt them using the `decryptMessage` method
 	 */
 	async getLatestMessages({
 		channelId,
-		cursor,
+		pollingState,
 		limit = 50,
 	}: GetLatestMessagesRequest): Promise<MessagesResponse> {
-		// 1. Get current channel state
+		// 1. Get current channel state to check for new messages
 		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-		const messagesTableId = channelObjects[0].messages.contents.id.id;
-		const currentMessagesCount = BigInt(channelObjects[0].messages_count);
+		const latestMessageCount = BigInt(channelObjects[0].messages_count);
 
-		let startIndex: bigint;
-		let endIndex: bigint;
-		let newMessagesSinceLastCursor = BigInt(0);
+		// 2. Check if there are new messages since last poll
+		const newMessagesCount = latestMessageCount - pollingState.lastMessageCount;
 
-		if (!cursor) {
-			// First time - get the latest messages
-			startIndex =
-				currentMessagesCount > BigInt(limit) ? currentMessagesCount - BigInt(limit) : BigInt(0);
-			endIndex = currentMessagesCount;
-		} else {
-			// Get messages since last cursor
-			newMessagesSinceLastCursor = currentMessagesCount - cursor.messagesCountAtTime;
-
-			if (newMessagesSinceLastCursor === BigInt(0)) {
-				// No new messages
-				return {
-					messages: [],
-					hasNextPage: cursor.fetchedRange.startIndex > BigInt(0),
-					cursor: cursor, // return same cursor
-				};
-			}
-
-			// Fetch new messages (from the end of our previous range to current end)
-			startIndex = cursor.fetchedRange.endIndex;
-			endIndex = currentMessagesCount;
-
-			// Handle limit overflow gracefully
-			if (newMessagesSinceLastCursor > BigInt(limit)) {
-				// More new messages than limit - fetch the most recent ones
-				startIndex = currentMessagesCount - BigInt(limit);
-				console.warn('More new messages than limit - fetching the most recent ones');
-			}
+		if (newMessagesCount === BigInt(0)) {
+			// No new messages - return empty response with same cursor
+			return {
+				messages: [],
+				cursor: pollingState.lastCursor,
+				hasNextPage: pollingState.lastCursor !== null,
+				direction: 'backward',
+			};
 		}
 
-		// 2. Derive message IDs and fetch the Message objects
-		const messageIds = this.#deriveMessageIDsFromRange(messagesTableId, startIndex, endIndex);
-		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
-		const messages = await this.#parseMessageObjects(messageObjects);
+		// 3. Use unified method to fetch new messages
+		// Limit to the number of new messages or the requested limit, whichever is smaller
+		const fetchLimit = Math.min(Number(newMessagesCount), limit);
 
-		// 3. Create new cursor
-		const newCursor: MessagesCursor = {
-			messagesCountAtTime: currentMessagesCount,
-			fetchedRange: {
-				startIndex: startIndex,
-				endIndex: endIndex,
-			},
-			createdAt: Date.now(),
-		};
+		const response = await this.getChannelMessages({
+			channelId,
+			cursor: pollingState.lastCursor,
+			limit: fetchLimit,
+			direction: 'backward',
+		});
 
-		return {
-			messages,
-			hasNextPage: startIndex > BigInt(0),
-			cursor: newCursor,
-		};
-	}
-
-	/**
-	 * Get older messages before the current cursor
-	 * For "load more" functionality
-	 */
-	async getPreviousMessages({
-		channelId,
-		cursor,
-		limit = 50,
-	}: GetPreviousMessagesRequest): Promise<MessagesResponse> {
-		// 1. Get current channel state (for metadata)
-		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-		const messagesTableId = channelObjects[0].messages.contents.id.id;
-		const currentMessagesCount = BigInt(channelObjects[0].messages_count);
-
-		// 2. Calculate range for older messages
-		const endIndex = cursor.fetchedRange.startIndex;
-		const startIndex = endIndex > BigInt(limit) ? endIndex - BigInt(limit) : BigInt(0);
-
-		// 3. Generate and fetch message IDs
-		const messageIds = this.#deriveMessageIDsFromRange(messagesTableId, startIndex, endIndex);
-		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
-		const messages = await this.#parseMessageObjects(messageObjects);
-
-		// 4. Create new cursor (extending the fetched range backward)
-		const newCursor: MessagesCursor = {
-			messagesCountAtTime: currentMessagesCount,
-			fetchedRange: {
-				startIndex: startIndex,
-				endIndex: cursor.fetchedRange.endIndex, // Keep the original end
-			},
-			createdAt: Date.now(),
-		};
-
-		return {
-			messages,
-			hasNextPage: startIndex > BigInt(0),
-			cursor: newCursor,
-		};
+		return response;
 	}
 
 	// ===== Write Path =====
@@ -1008,5 +1023,125 @@ export class MessagingClient {
 				reject(error);
 			}
 		});
+	}
+
+	/**
+	 * Calculate the range of message indices to fetch
+	 */
+	#calculateFetchRange({
+		cursor,
+		limit,
+		direction,
+		totalMessagesCount,
+	}: {
+		cursor: bigint | null;
+		limit: number;
+		direction: 'backward' | 'forward';
+		totalMessagesCount: bigint;
+	}): { startIndex: bigint; endIndex: bigint } {
+		const limitBigInt = BigInt(limit);
+
+		if (direction === 'backward') {
+			// Fetch messages in descending order (newest first)
+			if (cursor === null) {
+				// First request - get latest messages
+				const startIndex =
+					totalMessagesCount > limitBigInt ? totalMessagesCount - limitBigInt : BigInt(0);
+				return {
+					startIndex,
+					endIndex: totalMessagesCount,
+				};
+			}
+			// Subsequent requests - get older messages
+			const endIndex = cursor; // Cursor is exclusive in backward direction
+			const startIndex = endIndex > limitBigInt ? endIndex - limitBigInt : BigInt(0);
+			return {
+				startIndex,
+				endIndex,
+			};
+		}
+		// Fetch messages in ascending order (oldest first)
+		if (cursor === null) {
+			// First request - get oldest messages
+			const endIndex = totalMessagesCount > limitBigInt ? limitBigInt : totalMessagesCount;
+			return {
+				startIndex: BigInt(0),
+				endIndex,
+			};
+		}
+		// Subsequent requests - get newer messages
+		const startIndex = cursor + BigInt(1); // Cursor is inclusive in forward direction
+		const endIndex =
+			startIndex + limitBigInt > totalMessagesCount ? totalMessagesCount : startIndex + limitBigInt;
+		return {
+			startIndex,
+			endIndex,
+		};
+	}
+
+	/**
+	 * Fetch messages in the specified range
+	 */
+	async #fetchMessagesInRange(
+		messagesTableId: string,
+		range: { startIndex: bigint; endIndex: bigint },
+	): Promise<ParsedMessageObject[]> {
+		const messageIds = this.#deriveMessageIDsFromRange(
+			messagesTableId,
+			range.startIndex,
+			range.endIndex,
+		);
+
+		if (messageIds.length === 0) {
+			return [];
+		}
+
+		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
+		return await this.#parseMessageObjects(messageObjects);
+	}
+
+	/**
+	 * Create a messages response with pagination info
+	 */
+	#determineNextPagination({
+		fetchRange,
+		direction,
+		totalMessagesCount,
+	}: {
+		fetchRange: { startIndex: bigint; endIndex: bigint };
+		direction: 'backward' | 'forward';
+		totalMessagesCount: bigint;
+	}): { cursor: bigint | null; hasNextPage: boolean } {
+		// Determine next cursor and hasNextPage based on direction
+		let nextCursor: bigint | null = null;
+		let hasNextPage = false;
+
+		if (direction === 'backward') {
+			// For backward direction, cursor points to the oldest message we fetched (exclusive)
+			nextCursor = fetchRange.startIndex > BigInt(0) ? fetchRange.startIndex : null;
+			hasNextPage = fetchRange.startIndex > BigInt(0);
+		} else {
+			// For forward direction, cursor points to the newest message we fetched (inclusive)
+			nextCursor =
+				fetchRange.endIndex < totalMessagesCount ? fetchRange.endIndex - BigInt(1) : null;
+			hasNextPage = fetchRange.endIndex < totalMessagesCount;
+		}
+
+		return {
+			cursor: nextCursor,
+			hasNextPage,
+		};
+	}
+
+	/**
+	 * Create an empty messages response
+	 */
+	#createEmptyMessagesResponse(direction: 'backward' | 'forward'): MessagesResponse {
+		return {
+			messages: [],
+			cursor: null,
+			hasNextPage: false,
+			direction,
+		};
 	}
 }

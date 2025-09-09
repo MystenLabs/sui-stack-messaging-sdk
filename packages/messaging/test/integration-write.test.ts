@@ -255,8 +255,10 @@ describe('Integration tests - Write Path', () => {
 			// Refetch channel object to check for last_message
 			// const channelObjectsFresh = await client.messaging.getChannelObjectsByChannelIds([memberCap.channel_id]);
 			// const channelObjFresh = channelObjectsFresh[0]; // Not used in current test
-			const messagesResponse = await client.messaging.getLatestMessages({
+			const messagesResponse = await client.messaging.getChannelMessages({
 				channelId: memberCap.channel_id,
+				limit: 10,
+				direction: 'backward',
 			});
 			// Since we can't match by ID, we'll check that we have exactly one message with the expected properties
 			expect(messagesResponse.messages.length).toBe(1);
@@ -285,13 +287,15 @@ describe('Integration tests - Write Path', () => {
 				// await client.core.waitForTransaction({ digest });
 			}
 
-			const messagesRes = await client.messaging.getLatestMessages({
+			const messagesResponse = await client.messaging.getChannelMessages({
 				channelId: memberCap.channel_id,
+				limit: 10,
+				direction: 'backward',
 			});
 
 			// Decrypt the messages
 			const decryptedMessages = await Promise.all(
-				messagesRes.messages.map((m) =>
+				messagesResponse.messages.map((m) =>
 					client.messaging.decryptMessage(m, memberCap.channel_id, memberCap.id.id, encryptionKey),
 				),
 			);
