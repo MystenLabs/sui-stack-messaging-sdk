@@ -1,6 +1,6 @@
 import { setupTestEnvironment, createTestClient } from './test-helpers';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { EncryptedSymmetricKey } from '../src/encryption';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
