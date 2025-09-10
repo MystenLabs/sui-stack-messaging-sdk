@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
+import type {
 	ClientWithExtensions,
 	Experimental_CoreClient,
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
-import {
+import type { SealClient, SessionKey } from '@mysten/seal';
+import type { WalrusClient } from '@mysten/walrus';
+import type { Transaction } from '@mysten/sui/transactions';
+
+import type {
 	AttachmentMetadata,
 	EncryptedSymmetricKey,
 	SealApproveContract,
 	SessionKeyConfig,
-} from './encryption';
-import { SealClient, SessionKey } from '@mysten/seal';
-import { WalrusClient } from '@mysten/walrus';
-import { MemberCap } from './contracts/sui_messaging/member_cap';
-import { Transaction } from '@mysten/sui/dist/cjs/transactions';
-import { CreatorCap } from './contracts/sui_messaging/creator_cap';
-import { StorageAdapter } from './storage/adapters/storage';
-import { Channel } from './contracts/sui_messaging/channel';
-import { Message } from './contracts/sui_messaging/message';
+} from './encryption/types.js';
+
+import type { MemberCap } from './contracts/sui_messaging/member_cap.js';
+import type { CreatorCap } from './contracts/sui_messaging/creator_cap.js';
+import type { StorageAdapter } from './storage/adapters/storage.js';
+import type { Channel } from './contracts/sui_messaging/channel.js';
+import type { Message } from './contracts/sui_messaging/message.js';
 
 export type MessagingClientExtensionOptions =
 	| {
