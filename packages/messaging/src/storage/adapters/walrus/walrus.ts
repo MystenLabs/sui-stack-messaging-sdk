@@ -11,10 +11,21 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		private readonly config: StorageConfig,
 	) {}
 
+	/**
+	 * Upload data to Walrus storage
+	 * @param data - Array of data to upload
+	 * @param _options - Storage options (currently unused)
+	 * @returns Upload result with blob IDs
+	 */
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
 		return await this.#uploadQuilts(data); // todo: option handling for blobs vs quilts
 	}
 
+	/**
+	 * Download data from Walrus storage
+	 * @param ids - Array of blob IDs to download
+	 * @returns Array of downloaded data
+	 */
 	async download(ids: string[]): Promise<Uint8Array[]> {
 		if (ids.length === 0) {
 			return [];
@@ -22,6 +33,11 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		return await this.#downloadQuilts(ids);
 	}
 
+	/**
+	 * Upload data as quilts to Walrus
+	 * @param data - Array of data to upload
+	 * @returns Upload result with quilt patch IDs
+	 */
 	async #uploadQuilts(data: Uint8Array[]): Promise<{ ids: string[] }> {
 		const formData = new FormData();
 
@@ -55,6 +71,11 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		return { ids: this.#extractQuiltsPatchIds(result as WalrusResponse) };
 	}
 
+	/**
+	 * Download data from Walrus quilts
+	 * @param patchIds - Array of quilt patch IDs to download
+	 * @returns Array of downloaded data
+	 */
 	async #downloadQuilts(patchIds: string[]): Promise<Uint8Array[]> {
 		/* OpenApi
   /v1/blobs/by-quilt-id/{quilt_id}/{identifier}:
@@ -119,6 +140,11 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		return data.map((data) => new Uint8Array(data));
 	}
 
+	/**
+	 * Extract blob ID from Walrus response
+	 * @param response - Walrus API response
+	 * @returns Extracted blob ID
+	 */
 	// @ts-ignore
 	#extractBlobId(response: WalrusResponse): string {
 		// direct blob uploads
@@ -137,6 +163,11 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		throw new Error('Unable to extract blob ID from response');
 	}
 
+	/**
+	 * Extract quilt patch IDs from Walrus response
+	 * @param response - Walrus API response
+	 * @returns Array of quilt patch IDs
+	 */
 	#extractQuiltsPatchIds(response: WalrusResponse): string[] {
 		if (response.storedQuiltBlobs) {
 			return response.storedQuiltBlobs.map((quilt) => quilt.quiltPatchId);

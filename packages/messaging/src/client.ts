@@ -160,8 +160,11 @@ export class MessagingClient {
 
 	// ===== Read Path =====
 
-	// Returns the channel memberships for a given user
-	// in the form of a map of MemberCap ID -> Channel ID
+	/**
+	 * Get channel memberships for a user
+	 * @param request - Pagination and filter options
+	 * @returns Channel memberships with pagination info
+	 */
 	async getChannelMemberships(
 		request: ChannelMembershipsRequest,
 	): Promise<ChannelMembershipsResponse> {
@@ -187,7 +190,11 @@ export class MessagingClient {
 		};
 	}
 
-	// Returns the channel objects for a given user
+	/**
+	 * Get channel objects for a user
+	 * @param request - Pagination and filter options
+	 * @returns Channel objects with pagination info
+	 */
 	async getChannelObjectsByAddress(
 		request: ChannelMembershipsRequest,
 	): Promise<ChannelObjectsByAddressResponse> {
@@ -203,7 +210,11 @@ export class MessagingClient {
 		};
 	}
 
-	// Returns the parsed Channel objects for a given list of channel IDs
+	/**
+	 * Get channel objects by channel IDs
+	 * @param channelIds - Array of channel IDs
+	 * @returns Parsed channel objects
+	 */
 	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
@@ -220,17 +231,8 @@ export class MessagingClient {
 
 	/**
 	 * Get all members of a channel
-	 *
-	 * This method retrieves all members of a channel
-	 * Returns a map of member addresses to their MemberCap IDs
-	 *
-	 * @param channelId - The ID of the channel
-	 * @returns A list of channel members with their addresses and member cap IDs
-	 * @example
-	 * ```typescript
-	 * const members = await client.messaging.getChannelMembers(channelId);
-	 * console.log(members.members); // [{ memberAddress: "0x...", memberCapId: "0x..." }, ...]
-	 * ```
+	 * @param channelId - The channel ID
+	 * @returns Channel members with addresses and member cap IDs
 	 */
 	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
 		// 1. Get the channel object to access the auth structure
@@ -288,9 +290,14 @@ export class MessagingClient {
 		return { members };
 	}
 
-	// Decrypts a message
-	// Requires the channelId, memberCapId, and the encryptedKey of the Channel
-	// Note: Lazily downloads and decrypts attachments data(returns an array of promises that you can await)
+	/**
+	 * Decrypt a message
+	 * @param message - The encrypted message object
+	 * @param channelId - The channel ID
+	 * @param memberCapId - The member cap ID
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @returns Decrypted message with lazy-loaded attachments
+	 */
 	async decryptMessage(
 		message: (typeof Message)['$inferType'],
 		channelId: string,
@@ -356,35 +363,9 @@ export class MessagingClient {
 	}
 
 	/**
-	 * Get messages from a channel with unified pagination
-	 *
-	 * @param request - The request parameters
-	 * @returns Promise<MessagesResponse> - The messages and pagination info
-	 *
-	 * @example
-	 * ```typescript
-	 * // Get latest messages (for live polling)
-	 * const latest = await client.getChannelMessages({
-	 *   channelId: '0x123...',
-	 *   limit: 50,
-	 *   direction: 'backward'
-	 * });
-	 *
-	 * // Load more older messages
-	 * const older = await client.getChannelMessages({
-	 *   channelId: '0x123...',
-	 *   cursor: latest.cursor, // Message index to start from (exclusive)
-	 *   limit: 50,
-	 *   direction: 'backward'
-	 * });
-	 *
-	 * // Get messages in ascending order (oldest first)
-	 * const oldest = await client.getChannelMessages({
-	 *   channelId: '0x123...',
-	 *   limit: 50,
-	 *   direction: 'forward'
-	 * });
-	 * ```
+	 * Get messages from a channel with pagination
+	 * @param request - Request parameters including channelId, cursor, limit, and direction
+	 * @returns Messages with pagination info
 	 */
 	async getChannelMessages({
 		channelId,
@@ -441,10 +422,9 @@ export class MessagingClient {
 	}
 
 	/**
-	 * Get new messages since the last polling state
-	 * For polling-based real-time updates
-	 * Note: It returns the parsed on-chain Message objects, which are encrypted
-	 * you can decrypt them using the `decryptMessage` method
+	 * Get new messages since last polling state
+	 * @param request - Request with channelId, pollingState, and limit
+	 * @returns New messages since last poll
 	 */
 	async getLatestMessages({
 		channelId,
@@ -485,6 +465,8 @@ export class MessagingClient {
 	// ===== Write Path =====
 
 	/**
+	 * Create a channel creation flow
+	 *
 	 * @usage
 	 * ```
 	 * const flow = client.createChannelFlow();
@@ -500,7 +482,8 @@ export class MessagingClient {
 	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
 	 * ```
 	 *
-	 * @returns CreateChannelFlow
+	 * @param opts - Options including creator address and initial members
+	 * @returns Channel creation flow with step-by-step methods
 	 */
 	createChannelFlow({
 		creatorAddress,
@@ -632,6 +615,16 @@ export class MessagingClient {
 		};
 	}
 
+	/**
+	 * Create a send message transaction builder
+	 * @param channelId - The channel ID
+	 * @param memberCapId - The member cap ID
+	 * @param sender - The sender address
+	 * @param message - The message text
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param attachments - Optional file attachments
+	 * @returns Transaction builder function
+	 */
 	async sendMessage(
 		channelId: string,
 		memberCapId: string,
@@ -757,6 +750,11 @@ export class MessagingClient {
 		});
 	}
 
+	/**
+	 * Execute a send message transaction
+	 * @param params - Transaction parameters including signer, channelId, memberCapId, message, and encryptedKey
+	 * @returns Transaction digest and message ID
+	 */
 	async executeSendMessageTransaction({
 		signer,
 		channelId,
@@ -791,6 +789,11 @@ export class MessagingClient {
 		return { digest, messageId };
 	}
 
+	/**
+	 * Execute a create channel transaction
+	 * @param params - Transaction parameters including signer and optional initial members
+	 * @returns Transaction digest, channel ID, creator cap ID, and encrypted key
+	 */
 	async executeCreateChannelTransaction({
 		signer,
 		initialMembers,
