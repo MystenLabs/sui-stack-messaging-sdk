@@ -25,6 +25,20 @@
 .publish.res.json
 .template_bytecode.json
 
+# Test data and sensitive information
+testnet-setup.sh
+testnet-setup.*.sh
+**/test-users.json
+**/test-users.*.json
+**/test-data.json
+**/test-data.*.json
+**/*secret*
+**/*key*
+**/*phrase*
+**/*private*
+**/*.env*
+**/.env*
+
 # Load tests
 load-tests/k6/details*.json
 

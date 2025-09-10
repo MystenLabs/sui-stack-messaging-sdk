@@ -18,4 +18,5 @@ export type StorageConfig =
 
 export interface StorageAdapter {
 	upload(data: Uint8Array[], options: StorageOptions): Promise<{ ids: string[] }>;
+	download(ids: string[]): Promise<Uint8Array[]>;
 }

@@ -3,7 +3,6 @@
 
 import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
-import { Signer } from '@mysten/sui/cryptography';
 
 import {
 	AttachmentMetadata,
@@ -23,28 +22,15 @@ import {
 	EncryptionPrimitives,
 	EncryptMessageOpts,
 	EncryptTextOpts,
+	EnvelopeEncryptionConfig,
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
+	SessionKeyConfig,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
 import { Transaction } from '@mysten/sui/transactions';
 import { MessagingCompatibleClient } from '../types';
-
-export interface EnvelopeEncryptionConfig {
-	suiClient: MessagingCompatibleClient;
-	sealApproveContract: SealApproveContract;
-	sessionKey?: SessionKey;
-	sessionKeyConfig?: SessionKeyConfig;
-	encryptionPrimitives?: EncryptionPrimitives;
-}
-
-export interface SessionKeyConfig {
-	address: string;
-	mvrName?: string;
-	ttlMin: number;
-	signer?: Signer;
-}
 
 /**
  * Core envelope encryption service that utilizes Seal
@@ -94,6 +80,11 @@ export class EnvelopeEncryption {
 	}
 
 	// ===== Encryption methods =====
+	/**
+	 * Generate encrypted channel data encryption key
+	 * @param channelId - The channel ID
+	 * @returns Encrypted DEK bytes
+	 */
 	async generateEncryptedChannelDEK({
 		channelId,
 	}: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>> {
@@ -115,10 +106,23 @@ export class EnvelopeEncryption {
 		return new Uint8Array(encryptedDekBytes);
 	}
 
+	/**
+	 * Generate a random nonce
+	 * @returns Random nonce bytes
+	 */
 	generateNonce(): Uint8Array<ArrayBuffer> {
 		return this.#encryptionPrimitives.generateNonce();
 	}
 
+	/**
+	 * Encrypt text message
+	 * @param text - The text to encrypt
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Encrypted payload with ciphertext and nonce
+	 */
 	async encryptText({
 		text,
 		channelId,
@@ -145,6 +149,16 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Decrypt text message
+	 * @param encryptedBytes - The encrypted text bytes
+	 * @param nonce - The encryption nonce
+	 * @param channelId - The channel ID
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param sender - The sender address
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted text string
+	 */
 	async decryptText({
 		encryptedBytes: ciphertext,
 		nonce,
@@ -168,6 +182,15 @@ export class EnvelopeEncryption {
 		return new TextDecoder().decode(decryptedBytes);
 	}
 
+	/**
+	 * Encrypt attachment file and metadata
+	 * @param file - The file to encrypt
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Encrypted attachment payload with data and metadata
+	 */
 	async encryptAttachment({
 		file,
 		channelId,
@@ -199,6 +222,15 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Encrypt attachment file data
+	 * @param file - The file to encrypt
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Encrypted payload with data and nonce
+	 */
 	async encryptAttachmentData({
 		file,
 		channelId,
@@ -227,6 +259,15 @@ export class EnvelopeEncryption {
 		return { encryptedBytes: encryptedData, nonce };
 	}
 
+	/**
+	 * Encrypt attachment metadata
+	 * @param file - The file to get metadata from
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Encrypted payload with metadata and nonce
+	 */
 	async encryptAttachmentMetadata({
 		channelId,
 		sender,
@@ -264,6 +305,16 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Decrypt attachment metadata
+	 * @param encryptedBytes - The encrypted metadata bytes
+	 * @param nonce - The encryption nonce
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted attachment metadata
+	 */
 	async decryptAttachmentMetadata({
 		channelId,
 		sender,
@@ -296,6 +347,16 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Decrypt attachment file data
+	 * @param encryptedBytes - The encrypted data bytes
+	 * @param nonce - The encryption nonce
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted attachment data
+	 */
 	async decryptAttachmentData({
 		channelId,
 		sender,
@@ -318,6 +379,16 @@ export class EnvelopeEncryption {
 		return { data: decryptedData };
 	}
 
+	/**
+	 * Decrypt attachment file and metadata
+	 * @param data - The encrypted data payload
+	 * @param metadata - The encrypted metadata payload
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted attachment with data and metadata
+	 */
 	async decryptAttachment({
 		channelId,
 		sender,
@@ -354,6 +425,16 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Encrypt message text and attachments
+	 * @param text - The message text
+	 * @param attachments - Optional file attachments
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Encrypted message payload
+	 */
 	async encryptMessage({
 		text,
 		attachments,
@@ -395,6 +476,17 @@ export class EnvelopeEncryption {
 		};
 	}
 
+	/**
+	 * Decrypt message text and attachments
+	 * @param ciphertext - The encrypted text bytes
+	 * @param nonce - The encryption nonce
+	 * @param attachments - Optional encrypted attachments
+	 * @param channelId - The channel ID
+	 * @param sender - The sender address
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted message with text and attachments
+	 */
 	async decryptMessage({
 		ciphertext,
 		nonce,
@@ -439,12 +531,11 @@ export class EnvelopeEncryption {
 	}
 
 	/**
-	 * Decrypts an encrypted channel key using Seal
-	 *
-	 * @param key
-	 * @param channelId
-	 * @param memberCapId
-	 * @returns
+	 * Decrypt encrypted channel data encryption key using Seal
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param channelId - The channel ID
+	 * @param memberCapId - The member cap ID
+	 * @returns Decrypted symmetric key
 	 */
 	async decryptChannelDEK({
 		encryptedKey,
@@ -505,13 +596,11 @@ export class EnvelopeEncryption {
 	// ===== Private methods =====
 
 	/**
-	 * Gets the Additional Authenticated Data for encryption/decryption
-	 * (channelId, keyVersion, sender)
-	 *
-	 * @param channelId
-	 * @param keyVersion
-	 * @param sender
-	 * @returns
+	 * Get Additional Authenticated Data for encryption/decryption
+	 * @param channelId - The channel ID
+	 * @param keyVersion - The key version
+	 * @param sender - The sender address
+	 * @returns AAD bytes
 	 */
 	private encryptionAAD(
 		channelId: string,

@@ -1,4 +1,4 @@
-import { MessagingPackageConfig } from './types';
+import type { MessagingPackageConfig } from './types.js';
 
 export const TESTNET_MESSAGING_PACKAGE_CONFIG = {
 	packageId: process.env.TESTNET_PACKAGE_ID || '0xTBD',

@@ -1,6 +1,8 @@
-import { Transaction, TransactionResult } from '@mysten/sui/transactions';
-import { Signer } from '@mysten/sui/cryptography';
-import { ClientWithExtensions } from '@mysten/sui/experimental';
+import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
+import type { Signer } from '@mysten/sui/cryptography';
+import { deriveDynamicFieldID } from '@mysten/sui/utils';
+import { bcs } from '@mysten/sui/bcs';
+import type { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
 import {
@@ -9,91 +11,51 @@ import {
 	share as shareChannel,
 	sendMessage,
 	addMembers,
-} from './contracts/sui_messaging/channel';
+	Channel,
+} from './contracts/sui_messaging/channel.js';
 
-import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment';
+import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment.js';
 
-import {
+import type {
 	ChannelMembershipsRequest,
+	ChannelMembershipsResponse,
+	ChannelObjectsByMembershipsResponse as ChannelObjectsByAddressResponse,
+	ChannelMembersResponse,
+	ChannelMember,
+	CreateChannelFlow,
+	CreateChannelFlowGetGeneratedCapsOpts,
+	CreateChannelFlowOpts,
+	GetLatestMessagesRequest,
+	MessagesResponse,
+	MessagingClientExtensionOptions,
+	MessagingClientOptions,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
-} from './types';
-import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
-import { MessagingClientError } from './error';
-import { StorageAdapter } from './storage/adapters/storage';
-import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import {
-	DecryptMessageOpts,
-	EncryptedSymmetricKey,
-	EnvelopeEncryption,
-	SessionKeyConfig,
-} from './encryption';
+	ParsedChannelObject,
+	ParsedMessageObject,
+	DecryptMessageResult,
+	LazyDecryptAttachmentResult,
+	GetChannelMessagesRequest,
+} from './types.js';
+import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
+import { MessagingClientError } from './error.js';
+import type { StorageAdapter } from './storage/adapters/storage.js';
+import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
+import type { EncryptedSymmetricKey } from './encryption/types.js';
+import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
-import { RawTransactionArgument } from './contracts/utils';
+import type { RawTransactionArgument } from './contracts/utils';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
-} from './contracts/sui_messaging/creator_cap';
+} from './contracts/sui_messaging/creator_cap.js';
 import {
 	MemberCap,
 	transferMemberCaps,
 	transferToRecipient as transferMemberCap,
-} from './contracts/sui_messaging/member_cap';
-import { none as noneConfig } from './contracts/sui_messaging/config';
-import { SessionKey } from '@mysten/seal';
-
-export type MessagingClientExtensionOptions =
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKeyConfig?: SessionKeyConfig;
-	  }
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKey?: SessionKey;
-	  };
-
-export interface MessagingClientOptions {
-	suiClient: MessagingCompatibleClient;
-	storage: (client: MessagingCompatibleClient) => StorageAdapter;
-	packageConfig?: MessagingPackageConfig;
-	network?: 'mainnet' | 'testnet';
-	sessionKeyConfig?: SessionKeyConfig;
-	sessionKey?: SessionKey;
-}
-
-// Create Channel Flow interfaces
-export interface CreateChannelFlowOpts {
-	creatorAddress: string;
-	initialMemberAddresses?: string[];
-}
-
-export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
-	creatorMemberCap: (typeof MemberCap)['$inferType'];
-}
-
-export interface CreateChannelFlowGetGeneratedCapsOpts {
-	digest: string; // Transaction digest from the channel creation transaction
-}
-
-export interface CreateChannelFlow {
-	build: () => Transaction;
-	getGeneratedCaps: (opts: CreateChannelFlowGetGeneratedCapsOpts) => Promise<{
-		creatorCap: (typeof CreatorCap)['$inferType'];
-		creatorMemberCap: (typeof MemberCap)['$inferType'];
-		additionalMemberCaps: (typeof MemberCap)['$inferType'][];
-	}>;
-	generateAndAttachEncryptionKey: (
-		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
-	) => Promise<Transaction>;
-	getGeneratedEncryptionKey: () => {
-		channelId: string;
-		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
-	};
-}
+} from './contracts/sui_messaging/member_cap.js';
+import { none as noneConfig } from './contracts/sui_messaging/config.js';
+import { Message } from './contracts/sui_messaging/message.js';
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
@@ -102,6 +64,7 @@ export class MessagingClient {
 	#envelopeEncryption: EnvelopeEncryption;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
+	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
 
 	private constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
@@ -197,33 +160,330 @@ export class MessagingClient {
 
 	// ===== Read Path =====
 
-	async fetchChannelMemberships(request: ChannelMembershipsRequest) {
-		return this.#suiClient.core.getOwnedObjects({
+	/**
+	 * Get channel memberships for a user
+	 * @param request - Pagination and filter options
+	 * @returns Channel memberships with pagination info
+	 */
+	async getChannelMemberships(
+		request: ChannelMembershipsRequest,
+	): Promise<ChannelMembershipsResponse> {
+		const memberCapsRes = await this.#suiClient.core.getOwnedObjects({
 			...request,
-			type: this.#packageConfig.memberCapType,
+			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
 		});
+		// parse MemberCaps
+		const memberships = await Promise.all(
+			memberCapsRes.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse MemberCap object: ${object}`);
+				}
+				const parsedMemberCap = MemberCap.parse(await object.content);
+				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
+			}),
+		);
+
+		return {
+			hasNextPage: memberCapsRes.hasNextPage,
+			cursor: memberCapsRes.cursor,
+			memberships,
+		};
 	}
 
-	async decryptMessage(message: DecryptMessageOpts) {
-		return await this.#envelopeEncryption.decryptMessage(message);
+	/**
+	 * Get channel objects for a user
+	 * @param request - Pagination and filter options
+	 * @returns Channel objects with pagination info
+	 */
+	async getChannelObjectsByAddress(
+		request: ChannelMembershipsRequest,
+	): Promise<ChannelObjectsByAddressResponse> {
+		const membershipsPaginated = await this.getChannelMemberships(request);
+		const channelObjects = await this.getChannelObjectsByChannelIds(
+			membershipsPaginated.memberships.map((m) => m.channel_id),
+		);
+
+		return {
+			hasNextPage: membershipsPaginated.hasNextPage,
+			cursor: membershipsPaginated.cursor,
+			channelObjects,
+		};
+	}
+
+	/**
+	 * Get channel objects by channel IDs
+	 * @param channelIds - Array of channel IDs
+	 * @returns Parsed channel objects
+	 */
+	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: channelIds,
+		});
+		return await Promise.all(
+			channelObjectsRes.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse Channel object: ${object}`);
+				}
+				return Channel.parse(await object.content);
+			}),
+		);
+	}
+
+	/**
+	 * Get all members of a channel
+	 * @param channelId - The channel ID
+	 * @returns Channel members with addresses and member cap IDs
+	 */
+	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+		// 1. Get the channel object to access the auth structure
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const channel = channelObjects[0];
+
+		// 2. Extract member cap IDs from the auth structure
+		const memberCapIds = channel.auth.member_permissions.contents.map((entry) => entry.key);
+
+		if (memberCapIds.length === 0) {
+			return { members: [] };
+		}
+
+		// 3. Fetch all MemberCap objects
+		const memberCapObjects = await this.#suiClient.core.getObjects({
+			objectIds: memberCapIds,
+		});
+
+		// 4. Parse MemberCap objects and extract member addresses
+		const members: ChannelMember[] = [];
+		for (const obj of memberCapObjects.objects) {
+			if (obj instanceof Error || !obj.content) {
+				console.warn('Failed to fetch MemberCap object:', obj);
+				continue;
+			}
+
+			try {
+				const memberCap = MemberCap.parse(await obj.content);
+
+				// Get the owner of the MemberCap object
+				if (obj.owner) {
+					let memberAddress: string;
+					if (obj.owner.$kind === 'AddressOwner') {
+						memberAddress = obj.owner.AddressOwner;
+					} else if (obj.owner.$kind === 'ObjectOwner') {
+						// For object-owned MemberCaps, we can't easily get the address
+						// This is a limitation of the current approach
+						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
+						continue;
+					} else {
+						console.warn('MemberCap has unknown ownership type:', obj.owner);
+						continue;
+					}
+
+					members.push({
+						memberAddress,
+						memberCapId: memberCap.id.id,
+					});
+				}
+			} catch (error) {
+				console.warn('Failed to parse MemberCap object:', error);
+			}
+		}
+
+		return { members };
+	}
+
+	/**
+	 * Decrypt a message
+	 * @param message - The encrypted message object
+	 * @param channelId - The channel ID
+	 * @param memberCapId - The member cap ID
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @returns Decrypted message with lazy-loaded attachments
+	 */
+	async decryptMessage(
+		message: (typeof Message)['$inferType'],
+		channelId: string,
+		memberCapId: string,
+		encryptedKey: EncryptedSymmetricKey,
+	): Promise<DecryptMessageResult> {
+		// 1. Decrypt text
+		const text = await this.#envelopeEncryption.decryptText({
+			encryptedBytes: new Uint8Array(message.ciphertext),
+			nonce: new Uint8Array(message.nonce),
+			sender: message.sender,
+			channelId,
+			memberCapId,
+			encryptedKey,
+		});
+
+		// 2. If no attachments, return early
+		if (!message.attachments || message.attachments.length === 0) {
+			return { text, attachments: [], sender: message.sender, createdAtMs: message.created_at_ms };
+		}
+
+		// 3. Decrypt attachments metadata
+		const attachmentsMetadata = await Promise.all(
+			message.attachments.map(async (attachment) => {
+				// Use the encrypted_metadata field directly - no download needed for metadata
+				const metadata = await this.#envelopeEncryption.decryptAttachmentMetadata({
+					encryptedBytes: new Uint8Array(attachment.encrypted_metadata),
+					nonce: new Uint8Array(attachment.metadata_nonce),
+					channelId,
+					sender: message.sender,
+					encryptedKey,
+					memberCapId,
+				});
+
+				return {
+					metadata,
+					attachment, // Keep reference to original attachment
+				};
+			}),
+		);
+
+		// 4. Create lazy-loaded attachmentsData
+		const lazyAttachmentsDataPromises: LazyDecryptAttachmentResult[] = attachmentsMetadata.map(
+			({ metadata, attachment }) => ({
+				...metadata,
+				data: this.#createLazyAttachmentDataPromise({
+					blobRef: attachment.blob_ref,
+					nonce: new Uint8Array(attachment.data_nonce),
+					channelId,
+					sender: message.sender,
+					encryptedKey,
+					memberCapId,
+				}),
+			}),
+		);
+
+		return {
+			text,
+			sender: message.sender,
+			createdAtMs: message.created_at_ms,
+			attachments: lazyAttachmentsDataPromises,
+		};
+	}
+
+	/**
+	 * Get messages from a channel with pagination
+	 * @param request - Request parameters including channelId, cursor, limit, and direction
+	 * @returns Messages with pagination info
+	 */
+	async getChannelMessages({
+		channelId,
+		cursor = null,
+		limit = 50,
+		direction = 'backward',
+	}: GetChannelMessagesRequest): Promise<MessagesResponse> {
+		// 1. Get channel metadata
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const messagesTableId = channelObjects[0].messages.contents.id.id;
+		const totalMessagesCount = BigInt(channelObjects[0].messages_count);
+
+		// 2. Validate inputs
+		if (totalMessagesCount === BigInt(0)) {
+			return this.#createEmptyMessagesResponse(direction);
+		}
+
+		if (cursor !== null && cursor >= totalMessagesCount) {
+			throw new MessagingClientError(
+				`Cursor ${cursor} is out of bounds. Channel has ${totalMessagesCount} messages.`,
+			);
+		}
+
+		// 3. Calculate fetch range based on direction and cursor
+		const fetchRange = this.#calculateFetchRange({
+			cursor,
+			limit,
+			direction,
+			totalMessagesCount,
+		});
+
+		// 4. Handle edge cases
+		if (fetchRange.startIndex >= fetchRange.endIndex) {
+			return this.#createEmptyMessagesResponse(direction);
+		}
+
+		// 5. Fetch and parse messages
+		const messages = await this.#fetchMessagesInRange(messagesTableId, fetchRange);
+
+		// 6. Determine next pagination
+		const nextPagination = this.#determineNextPagination({
+			fetchRange,
+			direction,
+			totalMessagesCount,
+		});
+
+		// 6. Create response
+		return {
+			messages,
+			cursor: nextPagination.cursor,
+			hasNextPage: nextPagination.hasNextPage,
+			direction,
+		};
+	}
+
+	/**
+	 * Get new messages since last polling state
+	 * @param request - Request with channelId, pollingState, and limit
+	 * @returns New messages since last poll
+	 */
+	async getLatestMessages({
+		channelId,
+		pollingState,
+		limit = 50,
+	}: GetLatestMessagesRequest): Promise<MessagesResponse> {
+		// 1. Get current channel state to check for new messages
+		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
+		const latestMessageCount = BigInt(channelObjects[0].messages_count);
+
+		// 2. Check if there are new messages since last poll
+		const newMessagesCount = latestMessageCount - pollingState.lastMessageCount;
+
+		if (newMessagesCount === BigInt(0)) {
+			// No new messages - return empty response with same cursor
+			return {
+				messages: [],
+				cursor: pollingState.lastCursor,
+				hasNextPage: pollingState.lastCursor !== null,
+				direction: 'backward',
+			};
+		}
+
+		// 3. Use unified method to fetch new messages
+		// Limit to the number of new messages or the requested limit, whichever is smaller
+		const fetchLimit = Math.min(Number(newMessagesCount), limit);
+
+		const response = await this.getChannelMessages({
+			channelId,
+			cursor: pollingState.lastCursor,
+			limit: fetchLimit,
+			direction: 'backward',
+		});
+
+		return response;
 	}
 
 	// ===== Write Path =====
 
 	/**
+	 * Create a channel creation flow
+	 *
 	 * @usage
 	 * ```
 	 * const flow = client.createChannelFlow();
 	 *
 	 * // Step-by-step execution
-	 * const tx = flow.build({ creatorAddress: signer.toSuiAddress(), initialMemberAddresses: ['0x...'] });
-	 * const { digest } = await signer.signAndExecuteTransaction({ transaction: tx, client: suiClient });
-	 * const { channelId, creatorCapId, encryptedKeyBytes } = await flow.generateEncryptedKey({ digest });
-	 * const attachKeyTx = flow.attachKey({});
-	 * const { digest: finalDigest } = await signer.signAndExecuteTransaction({ transaction: attachKeyTx, client: suiClient });
+	 * // 1. build
+	 * const tx = flow.build();
+	 * // 2. getGeneratedCaps
+	 * const { creatorCap, creatorMemberCap, additionalMemberCaps } = await flow.getGeneratedCaps({ digest });
+	 * // 3. generateAndAttachEncryptionKey
+	 * const { transaction, creatorCap, encryptedKeyBytes } = await flow.generateAndAttachEncryptionKey({ creatorCap, creatorMemberCap });
+	 * // 4. getGeneratedEncryptionKey
+	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
 	 * ```
 	 *
-	 * @returns CreateChannelFlow
+	 * @param opts - Options including creator address and initial members
+	 * @returns Channel creation flow with step-by-step methods
 	 */
 	createChannelFlow({
 		creatorAddress,
@@ -355,6 +615,16 @@ export class MessagingClient {
 		};
 	}
 
+	/**
+	 * Create a send message transaction builder
+	 * @param channelId - The channel ID
+	 * @param memberCapId - The member cap ID
+	 * @param sender - The sender address
+	 * @param message - The message text
+	 * @param encryptedKey - The encrypted symmetric key
+	 * @param attachments - Optional file attachments
+	 * @returns Transaction builder function
+	 */
 	async sendMessage(
 		channelId: string,
 		memberCapId: string,
@@ -480,6 +750,11 @@ export class MessagingClient {
 		});
 	}
 
+	/**
+	 * Execute a send message transaction
+	 * @param params - Transaction parameters including signer, channelId, memberCapId, message, and encryptedKey
+	 * @returns Transaction digest and message ID
+	 */
 	async executeSendMessageTransaction({
 		signer,
 		channelId,
@@ -504,7 +779,7 @@ export class MessagingClient {
 			attachments,
 		);
 		await sendMessageTxBuilder(tx);
-		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message');
+		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message', true);
 
 		const messageId = effects.changedObjects.find((obj) => obj.idOperation === 'Created')?.id;
 		if (messageId === undefined) {
@@ -514,6 +789,11 @@ export class MessagingClient {
 		return { digest, messageId };
 	}
 
+	/**
+	 * Execute a create channel transaction
+	 * @param params - Transaction parameters including signer and optional initial members
+	 * @returns Transaction digest, channel ID, creator cap ID, and encrypted key
+	 */
 	async executeCreateChannelTransaction({
 		signer,
 		initialMembers,
@@ -667,6 +947,205 @@ export class MessagingClient {
 			creatorCap: creatorCapParsed,
 			creatorMemberCap: creatorMemberCapParsed,
 			additionalMemberCaps: additionalMemberCapsParsed,
+		};
+	}
+
+	// Derive the message IDs from the given range
+	// Note: messages = TableVec<Message>
+	// --> TableVec{contents: Table<u64, Message>}
+	#deriveMessageIDsFromRange(messagesTableId: string, startIndex: bigint, endIndex: bigint) {
+		const messageIDs: string[] = [];
+
+		for (let i = startIndex; i < endIndex; i++) {
+			messageIDs.push(deriveDynamicFieldID(messagesTableId, 'u64', bcs.U64.serialize(i).toBytes()));
+		}
+
+		return messageIDs;
+	}
+
+	// Parse the message objects response
+	// Note: the given message objects response
+	// is in the form of dynamic_field::Field<u64, Message>
+	async #parseMessageObjects(
+		messageObjects: Experimental_SuiClientTypes.GetObjectsResponse,
+	): Promise<ParsedMessageObject[]> {
+		const DynamicFieldMessage = bcs.struct('DynamicFieldMessage', {
+			id: bcs.Address, // UID is represented as an address
+			name: bcs.U64, // the key (message index)
+			value: Message, // the actual Message
+		});
+
+		const parsedMessageObjects = await Promise.all(
+			messageObjects.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse message object: ${object}`);
+				}
+				const content = await object.content;
+				// Parse the dynamic field wrapper
+				const dynamicField = DynamicFieldMessage.parse(content);
+
+				// Extract the actual Message from the value field
+				return dynamicField.value;
+			}),
+		);
+
+		return parsedMessageObjects;
+	}
+
+	async #createLazyAttachmentDataPromise({
+		channelId,
+		memberCapId,
+		sender,
+		encryptedKey,
+		blobRef,
+		nonce,
+	}: {
+		channelId: string;
+		memberCapId: string;
+		sender: string;
+		encryptedKey: EncryptedSymmetricKey;
+		blobRef: string;
+		nonce: Uint8Array;
+	}): Promise<Uint8Array<ArrayBuffer>> {
+		return new Promise(async (resolve, reject) => {
+			try {
+				// Download the encrypted data
+				const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
+
+				// Decrypt the data
+				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
+					encryptedBytes: new Uint8Array(encryptedData),
+					nonce: new Uint8Array(nonce),
+					channelId,
+					memberCapId,
+					sender,
+					encryptedKey,
+				});
+
+				resolve(decryptedData.data);
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
+
+	/**
+	 * Calculate the range of message indices to fetch
+	 */
+	#calculateFetchRange({
+		cursor,
+		limit,
+		direction,
+		totalMessagesCount,
+	}: {
+		cursor: bigint | null;
+		limit: number;
+		direction: 'backward' | 'forward';
+		totalMessagesCount: bigint;
+	}): { startIndex: bigint; endIndex: bigint } {
+		const limitBigInt = BigInt(limit);
+
+		if (direction === 'backward') {
+			// Fetch messages in descending order (newest first)
+			if (cursor === null) {
+				// First request - get latest messages
+				const startIndex =
+					totalMessagesCount > limitBigInt ? totalMessagesCount - limitBigInt : BigInt(0);
+				return {
+					startIndex,
+					endIndex: totalMessagesCount,
+				};
+			}
+			// Subsequent requests - get older messages
+			const endIndex = cursor; // Cursor is exclusive in backward direction
+			const startIndex = endIndex > limitBigInt ? endIndex - limitBigInt : BigInt(0);
+			return {
+				startIndex,
+				endIndex,
+			};
+		}
+		// Fetch messages in ascending order (oldest first)
+		if (cursor === null) {
+			// First request - get oldest messages
+			const endIndex = totalMessagesCount > limitBigInt ? limitBigInt : totalMessagesCount;
+			return {
+				startIndex: BigInt(0),
+				endIndex,
+			};
+		}
+		// Subsequent requests - get newer messages
+		const startIndex = cursor + BigInt(1); // Cursor is inclusive in forward direction
+		const endIndex =
+			startIndex + limitBigInt > totalMessagesCount ? totalMessagesCount : startIndex + limitBigInt;
+		return {
+			startIndex,
+			endIndex,
+		};
+	}
+
+	/**
+	 * Fetch messages in the specified range
+	 */
+	async #fetchMessagesInRange(
+		messagesTableId: string,
+		range: { startIndex: bigint; endIndex: bigint },
+	): Promise<ParsedMessageObject[]> {
+		const messageIds = this.#deriveMessageIDsFromRange(
+			messagesTableId,
+			range.startIndex,
+			range.endIndex,
+		);
+
+		if (messageIds.length === 0) {
+			return [];
+		}
+
+		const messageObjects = await this.#suiClient.core.getObjects({ objectIds: messageIds });
+		return await this.#parseMessageObjects(messageObjects);
+	}
+
+	/**
+	 * Create a messages response with pagination info
+	 */
+	#determineNextPagination({
+		fetchRange,
+		direction,
+		totalMessagesCount,
+	}: {
+		fetchRange: { startIndex: bigint; endIndex: bigint };
+		direction: 'backward' | 'forward';
+		totalMessagesCount: bigint;
+	}): { cursor: bigint | null; hasNextPage: boolean } {
+		// Determine next cursor and hasNextPage based on direction
+		let nextCursor: bigint | null = null;
+		let hasNextPage = false;
+
+		if (direction === 'backward') {
+			// For backward direction, cursor points to the oldest message we fetched (exclusive)
+			nextCursor = fetchRange.startIndex > BigInt(0) ? fetchRange.startIndex : null;
+			hasNextPage = fetchRange.startIndex > BigInt(0);
+		} else {
+			// For forward direction, cursor points to the newest message we fetched (inclusive)
+			nextCursor =
+				fetchRange.endIndex < totalMessagesCount ? fetchRange.endIndex - BigInt(1) : null;
+			hasNextPage = fetchRange.endIndex < totalMessagesCount;
+		}
+
+		return {
+			cursor: nextCursor,
+			hasNextPage,
+		};
+	}
+
+	/**
+	 * Create an empty messages response
+	 */
+	#createEmptyMessagesResponse(direction: 'backward' | 'forward'): MessagesResponse {
+		return {
+			messages: [],
+			cursor: null,
+			hasNextPage: false,
+			direction,
 		};
 	}
 }
