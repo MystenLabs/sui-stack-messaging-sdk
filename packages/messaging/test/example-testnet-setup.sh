@@ -43,14 +43,14 @@ echo "✅ Environment variables configured"
 
 # Run the complete testnet setup
 echo "📋 Running testnet setup..."
-npx tsx test/setup-testnet.ts
+npx tsx setup-testnet.ts
 
 if [ $? -eq 0 ]; then
     echo "✅ Testnet setup completed successfully!"
     echo ""
     echo "📝 Next steps:"
-    echo "   1. Run integration tests: TEST_ENVIRONMENT=testnet npm test integration-read-v2.test.ts"
-    echo "   2. Or run all tests: TEST_ENVIRONMENT=testnet npm test"
+    echo "   1. Run integration tests: TEST_ENVIRONMENT=testnet pnpm vitest integration-read-v2.test.ts"
+    echo "   2. Or run all tests: pnpm test:integration:testnet "
 else
     echo "❌ Testnet setup failed"
     exit 1

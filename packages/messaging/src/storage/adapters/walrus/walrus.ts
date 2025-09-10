@@ -115,7 +115,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 				async (id) => await fetch(`${this.config.aggregator}/v1/blobs/by-quilt-patch-id/${id}`),
 			),
 		);
-		const data = await Promise.all(response.map(async (response) => await response.json()));
+		const data = await Promise.all(response.map(async (response) => await response.arrayBuffer()));
 		return data.map((data) => new Uint8Array(data));
 	}
 

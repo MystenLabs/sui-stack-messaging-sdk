@@ -371,9 +371,30 @@ describe('Integration tests - Read Path v2', () => {
 				senderMember.encryptedKey,
 			);
 
+			// download and decrypt the attachments data (the attachments are Promises that we can await)
+			const attachments = await Promise.all(
+				decryptedResult.attachments!.map(async (attachment) => {
+					return await attachment.data;
+				}),
+			);
+
 			expect(decryptedResult.text).toBeDefined();
 			expect(decryptedResult.attachments).toBeDefined();
 			expect(decryptedResult.attachments!.length).toBeGreaterThan(0);
+
+			// Verify attachment content
+			expect(attachments.length).toBe(1);
+			expect(attachments[0].length).toBeGreaterThan(0);
+
+			// Convert the decrypted attachment data back to text and verify content
+			const attachmentText = new TextDecoder().decode(attachments[0]);
+			expect(attachmentText).toBe('Test attachment content');
+
+			// Verify attachment metadata
+			const attachment = decryptedResult.attachments![0];
+			expect(attachment.fileName).toBe('test.txt');
+			expect(attachment.mimeType).toBe('text/plain');
+			expect(attachment.fileSize).toBeGreaterThan(0);
 		});
 	});
 });
