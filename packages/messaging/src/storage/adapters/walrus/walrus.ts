@@ -1,7 +1,7 @@
-import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
-import { StorageAdapter, StorageConfig, StorageOptions } from '../storage';
-import { WalrusClient } from '@mysten/walrus';
-import { WalrusResponse } from './types';
+import type { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
+import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.js';
+import type { WalrusClient } from '@mysten/walrus';
+import type { WalrusResponse } from './types.js';
 
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(

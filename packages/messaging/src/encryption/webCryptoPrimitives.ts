@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { MessagingClientError } from '../error';
-import { ENCRYPTION_PRIMITIVES_CONFIG } from './constants';
-import { EncryptionPrimitives, EncryptionPrimitivesConfig } from './types';
+import { MessagingClientError } from '../error.js';
+import { ENCRYPTION_PRIMITIVES_CONFIG } from './constants.js';
+import type { EncryptionPrimitives, EncryptionPrimitivesConfig } from './types.js';
 
 /**
  * Default implementation of the KeyProvider interface using Web Crypto API

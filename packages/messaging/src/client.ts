@@ -1,8 +1,8 @@
-import { Transaction, TransactionResult } from '@mysten/sui/transactions';
-import { Signer } from '@mysten/sui/cryptography';
+import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
+import type { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
-import { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
+import type { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
 
 import {
@@ -12,11 +12,11 @@ import {
 	sendMessage,
 	addMembers,
 	Channel,
-} from './contracts/sui_messaging/channel';
+} from './contracts/sui_messaging/channel.js';
 
-import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment';
+import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment.js';
 
-import {
+import type {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
 	ChannelObjectsByMembershipsResponse as ChannelObjectsByAddressResponse,
@@ -36,25 +36,26 @@ import {
 	DecryptMessageResult,
 	LazyDecryptAttachmentResult,
 	GetChannelMessagesRequest,
-} from './types';
-import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
-import { MessagingClientError } from './error';
-import { StorageAdapter } from './storage/adapters/storage';
-import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus';
-import { EncryptedSymmetricKey, EnvelopeEncryption } from './encryption';
+} from './types.js';
+import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
+import { MessagingClientError } from './error.js';
+import type { StorageAdapter } from './storage/adapters/storage.js';
+import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
+import type { EncryptedSymmetricKey } from './encryption/types.js';
+import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
-import { RawTransactionArgument } from './contracts/utils';
+import type { RawTransactionArgument } from './contracts/utils';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
-} from './contracts/sui_messaging/creator_cap';
+} from './contracts/sui_messaging/creator_cap.js';
 import {
 	MemberCap,
 	transferMemberCaps,
 	transferToRecipient as transferMemberCap,
-} from './contracts/sui_messaging/member_cap';
-import { none as noneConfig } from './contracts/sui_messaging/config';
-import { Message } from './contracts/sui_messaging/message';
+} from './contracts/sui_messaging/member_cap.js';
+import { none as noneConfig } from './contracts/sui_messaging/config.js';
+import { Message } from './contracts/sui_messaging/message.js';
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;

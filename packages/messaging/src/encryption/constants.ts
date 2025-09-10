@@ -1,4 +1,4 @@
-import { EncryptionPrimitivesConfig } from './types';
+import type { EncryptionPrimitivesConfig } from './types.js';
 
 export const ENCRYPTION_PRIMITIVES_CONFIG = {
 	keySize: 256,
