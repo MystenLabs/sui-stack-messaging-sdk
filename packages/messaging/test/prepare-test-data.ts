@@ -1,17 +1,31 @@
-import { setupTestEnvironment, createTestClient } from './test-helpers';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { EncryptedSymmetricKey } from '../src/encryption';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { ClientWithExtensions } from '@mysten/sui/experimental';
+import { Signer } from '@mysten/sui/cryptography';
+
+import { setupTestEnvironment, createTestClient } from './test-helpers';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
 
+import { EncryptedSymmetricKey } from '../src/encryption';
+import { MessagingClient } from '../src/client';
+
 // Test data structure
-interface TestChannelData {
+interface TestChannel {
 	channelId: string;
+	encryptedKey: EncryptedSymmetricKey;
 	members: {
 		address: string;
 		memberCapId: string;
-		encryptedKey: EncryptedSymmetricKey;
+	}[];
+}
+interface TestChannelData {
+	channelId: string;
+	encryptedKey: EncryptedSymmetricKey;
+	members: {
+		address: string;
+		memberCapId: string;
 	}[];
 	messageCount: number;
 	messages: {
@@ -55,6 +69,7 @@ async function prepareTestData(): Promise<void> {
 	const emptyChannel = await createTestChannel(client, testSetup.signer, [testUserAddresses[0]]);
 	channels.push({
 		channelId: emptyChannel.channelId,
+		encryptedKey: emptyChannel.encryptedKey,
 		members: emptyChannel.members,
 		messageCount: 0,
 		messages: [],
@@ -71,6 +86,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: smallChannel.channelId,
+		encryptedKey: smallChannel.encryptedKey,
 		members: smallChannel.members,
 		messageCount: 3,
 		messages: [
@@ -107,6 +123,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: mediumChannel.channelId,
+		encryptedKey: mediumChannel.encryptedKey,
 		members: mediumChannel.members,
 		messageCount: 10,
 		messages: mediumMessages,
@@ -139,6 +156,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: attachmentChannel.channelId,
+		encryptedKey: attachmentChannel.encryptedKey,
 		members: attachmentChannel.members,
 		messageCount: 2,
 		messages: [
@@ -173,86 +191,36 @@ async function prepareTestData(): Promise<void> {
 	}
 }
 
-interface TestChannel {
-	channelId: string;
-	members: {
-		address: string;
-		memberCapId: string;
-		encryptedKey: EncryptedSymmetricKey;
-	}[];
-}
-
 async function createTestChannel(
-	client: any,
-	creator: any,
-	initialMembers: string[],
+	client: ClientWithExtensions<{ messaging: MessagingClient }>,
+	creator: Signer,
+	initialMemberAddresses: string[],
 ): Promise<TestChannel> {
 	// Create channel
-	const { channelId } = await client.messaging.executeCreateChannelTransaction({
-		signer: creator,
-		initialMembers,
-	});
+	const { channelObject, generatedCaps, encryptedKeyBytes } =
+		await client.messaging.executeCreateChannelTransaction({
+			signer: creator,
+			initialMemberAddresses,
+		});
 
-	// Get channel object to extract encryption key info
-	const channelObjects = await client.messaging.getChannelObjectsByChannelIds([channelId]);
-	const channelObj = channelObjects[0];
-
-	// Get creator's member cap
-	const creatorMemberships = await client.messaging.getChannelMemberships({
-		address: creator.toSuiAddress(),
-	});
-	const creatorMembership = creatorMemberships.memberships.find(
-		(m: any) => m.channel_id === channelId,
-	);
-
-	if (!creatorMembership) {
-		throw new Error('Creator membership not found');
-	}
-
-	const creatorMemberCapObjects = await client.core.getObjects({
-		objectIds: [creatorMembership.member_cap_id],
-	});
-	const creatorMemberCapObject = creatorMemberCapObjects.objects[0];
-	if (creatorMemberCapObject instanceof Error || !creatorMemberCapObject.content) {
-		throw new Error('Failed to fetch creator MemberCap object');
-	}
-
-	// Parse creator member cap (not used but kept for completeness)
-	await creatorMemberCapObject.content;
-	const creatorEncryptedKey: EncryptedSymmetricKey = {
+	const channelEncryptedKey: EncryptedSymmetricKey = {
 		$kind: 'Encrypted',
-		encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
-		version: channelObj.encryption_key_history.latest_version,
+		encryptedBytes: encryptedKeyBytes,
+		version: channelObject.encryption_key_history.latest_version,
 	};
 
-	const members = [
-		{
-			address: creator.toSuiAddress(),
-			memberCapId: creatorMembership.member_cap_id,
-			encryptedKey: creatorEncryptedKey,
-		},
-	];
-
-	// Get initial members' member caps
-	for (const memberAddress of initialMembers) {
-		const memberMemberships = await client.messaging.getChannelMemberships({
-			address: memberAddress,
-		});
-		const memberMembership = memberMemberships.memberships.find(
-			(m: any) => m.channel_id === channelId,
-		);
-
-		if (memberMembership) {
-			members.push({
-				address: memberAddress,
-				memberCapId: memberMembership.member_cap_id,
-				encryptedKey: creatorEncryptedKey, // Same encryption key for all members
-			});
-		}
-	}
+	const members = generatedCaps.additionalMemberCaps.map((memberCapWithOwner) => ({
+		address: memberCapWithOwner.ownerAddress,
+		memberCapId: memberCapWithOwner.capObject.id.id,
+	}));
+	members.push({
+		address: generatedCaps.creatorMemberCap.ownerAddress,
+		memberCapId: generatedCaps.creatorMemberCap.capObject.id.id,
+	});
 
 	return {
-		channelId,
+		channelId: channelObject.id.id,
+		encryptedKey: channelEncryptedKey,
 		members,
 	};
 }
@@ -275,8 +243,7 @@ async function sendTestMessages(
 		// Find the signer for this sender
 		let signer: any = null;
 
-		if (message.sender === channel.members[0].address) {
-			// First member is the creator (use testSetup.signer)
+		if (message.sender === testSetup.signer.toSuiAddress()) {
 			signer = testSetup.signer;
 		} else {
 			// For other members, we need to get their keypair
@@ -305,7 +272,7 @@ async function sendTestMessages(
 			channelId: channel.channelId,
 			memberCapId: senderMember.memberCapId,
 			message: message.text,
-			encryptedKey: senderMember.encryptedKey,
+			encryptedKey: channel.encryptedKey,
 			attachments: messageAttachments,
 		});
 

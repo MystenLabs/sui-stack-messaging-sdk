@@ -79,32 +79,23 @@ export interface EncryptionPrimitivesConfig {
 }
 
 // Additional Authenticated Data for encryption/decryption
-// (creatorAddress1, keyVersion, sender)
+// (keyVersion, sender)
 export interface EncryptAAD {
-	channelCreatorAddress: string; // should be valid sui address
 	keyVersion: number; // u32
 	sender: string; // should be valid sui address
-}
-
-export interface CommonEncryptOptsOld {
-	creatorAddress: string; // should be valid sui address
-	sender: string; // should be valid sui address
-	encryptedKey: EncryptedSymmetricKey; // encrypted key that needs decryption via Seal
-	memberCapId: string; // required for Seal decryption
 }
 
 export type CommonEncryptOpts =
 	| {
 			$kind: 'Unencrypted';
-			channelCreatorAddress: string; // should be valid sui address
 			sender: string; // should be valid sui address
 			memberCapId: string; // required for Seal decryption
 			unEncryptedKey: SymmetricKey;
 			encryptedKey?: never;
+			channelId?: never;
 	  }
 	| {
 			$kind: 'Encrypted';
-			channelCreatorAddress: string; // should be valid sui address
 			sender: string; // should be valid sui address
 			memberCapId: string; // required for Seal decryption
 			channelId: string; // should be a valid sui Object ID

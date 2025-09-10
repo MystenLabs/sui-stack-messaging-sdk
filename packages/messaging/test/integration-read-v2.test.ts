@@ -19,17 +19,15 @@ describe('Integration tests - Read Path v2', () => {
 
 			// Convert encryptedBytes objects back to Uint8Array
 			testData.channels.forEach((channel: any) => {
-				channel.members.forEach((member: any) => {
-					if (member.encryptedKey?.encryptedBytes) {
-						// Convert the object with numeric keys back to Uint8Array
-						const bytesObj = member.encryptedKey.encryptedBytes;
-						const bytesArray = Object.keys(bytesObj)
-							.map((key) => parseInt(key))
-							.sort((a, b) => a - b)
-							.map((index) => bytesObj[index]);
-						member.encryptedKey.encryptedBytes = new Uint8Array(bytesArray);
-					}
-				});
+				// Convert channel-level encryptedKey
+				if (channel.encryptedKey?.encryptedBytes) {
+					const bytesObj = channel.encryptedKey.encryptedBytes;
+					const bytesArray = Object.keys(bytesObj)
+						.map((key) => parseInt(key))
+						.sort((a, b) => a - b)
+						.map((index) => bytesObj[index]);
+					channel.encryptedKey.encryptedBytes = new Uint8Array(bytesArray);
+				}
 			});
 
 			console.log(`📊 Loaded test data with ${testData.channels.length} channels`);
@@ -311,18 +309,18 @@ describe('Integration tests - Read Path v2', () => {
 			expect(messagesResult.messages.length).toBeGreaterThan(0);
 			const message = messagesResult.messages[0];
 
-			// Find the sender's member cap and encryption key
+			// Find the sender's member cap
 			const senderMember = testChannel.members.find((m) => m.address === message.sender);
 			if (!senderMember) {
 				throw new Error('Sender member not found in test data');
 			}
 
-			// Decrypt the message
+			// Decrypt the message using channel-level encryptedKey
 			const decryptedResult = await client.messaging.decryptMessage(
 				message,
 				testChannel.channelId,
 				senderMember.memberCapId,
-				senderMember.encryptedKey,
+				testChannel.encryptedKey,
 			);
 
 			expect(decryptedResult.text).toBeDefined();
@@ -355,7 +353,7 @@ describe('Integration tests - Read Path v2', () => {
 				throw new Error('No message with attachments found');
 			}
 
-			// Find the sender's member cap and encryption key
+			// Find the sender's member cap
 			const senderMember = attachmentChannel.members.find(
 				(m) => m.address === messageWithAttachment.sender,
 			);
@@ -363,12 +361,12 @@ describe('Integration tests - Read Path v2', () => {
 				throw new Error('Sender member not found in test data');
 			}
 
-			// Decrypt the message
+			// Decrypt the message using channel-level encryptedKey
 			const decryptedResult = await client.messaging.decryptMessage(
 				messageWithAttachment,
 				attachmentChannel.channelId,
 				senderMember.memberCapId,
-				senderMember.encryptedKey,
+				attachmentChannel.encryptedKey,
 			);
 
 			expect(decryptedResult.text).toBeDefined();

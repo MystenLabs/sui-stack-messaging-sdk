@@ -22,9 +22,6 @@ import {
 	ChannelObjectsByMembershipsResponse as ChannelObjectsByAddressResponse,
 	ChannelMembersResponse,
 	ChannelMember,
-	CreateChannelFlow,
-	CreateChannelFlowGetGeneratedCapsOpts,
-	CreateChannelFlowOpts,
 	GetLatestMessagesRequest,
 	MessagesResponse,
 	MessagingClientExtensionOptions,
@@ -36,6 +33,10 @@ import {
 	DecryptMessageResult,
 	LazyDecryptAttachmentResult,
 	GetChannelMessagesRequest,
+	ParsedCreatorCap,
+	ParsedMemberCap,
+	WithOwnerAddress,
+	GetGeneratedCapsResult,
 } from './types';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants';
 import { MessagingClientError } from './error';
@@ -292,7 +293,6 @@ export class MessagingClient {
 	// Note: Lazily downloads and decrypts attachments data(returns an array of promises that you can await)
 	async decryptMessage(
 		message: (typeof Message)['$inferType'],
-		channelCreatorAddress: string,
 		channelId: string,
 		memberCapId: string,
 		encryptedKey: EncryptedSymmetricKey,
@@ -304,7 +304,6 @@ export class MessagingClient {
 			nonce: new Uint8Array(message.nonce),
 			sender: message.sender,
 			channelId,
-			channelCreatorAddress,
 			memberCapId,
 			encryptedKey,
 		});
@@ -320,7 +319,6 @@ export class MessagingClient {
 				// Use the encrypted_metadata field directly - no download needed for metadata
 				const metadata = await this.#envelopeEncryption.decryptAttachmentMetadata({
 					$kind: 'Encrypted',
-					channelCreatorAddress,
 					encryptedBytes: new Uint8Array(attachment.encrypted_metadata),
 					nonce: new Uint8Array(attachment.metadata_nonce),
 					channelId,
@@ -341,7 +339,6 @@ export class MessagingClient {
 			({ metadata, attachment }) => ({
 				...metadata,
 				data: this.#createLazyAttachmentDataPromise({
-					channelCreatorAddress,
 					blobRef: attachment.blob_ref,
 					nonce: new Uint8Array(attachment.data_nonce),
 					channelId,
@@ -488,35 +485,27 @@ export class MessagingClient {
 	}
 
 	// ===== Write Path =====
-
 	/**
-	 * @usage
-	 * ```
-	 * const flow = client.createChannelFlow();
+	 * Creates a channel with encryption key in a single transaction
+	 * Returns a transaction builder function and the encrypted key bytes
 	 *
-	 * // Step-by-step execution
-	 * // 1. build
-	 * const tx = flow.build();
-	 * // 2. getGeneratedCaps
-	 * const { creatorCap, creatorMemberCap, additionalMemberCaps } = await flow.getGeneratedCaps({ digest });
-	 * // 3. generateAndAttachEncryptionKey
-	 * const { transaction, creatorCap, encryptedKeyBytes } = await flow.generateAndAttachEncryptionKey({ creatorCap, creatorMemberCap });
-	 * // 4. getGeneratedEncryptionKey
-	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
-	 * ```
-	 *
-	 * @returns CreateChannelFlow
+	 * @param creatorAddress - The address of the channel creator
+	 * @param initialMemberAddresses - Optional list of initial member addresses
+	 * @returns Object containing transaction builder function and encrypted key bytes
 	 */
-	createChannelFlow({
-		creatorAddress,
-		initialMemberAddresses,
-	}: CreateChannelFlowOpts): CreateChannelFlow {
-		const build = () => {
-			const tx = new Transaction();
+	async createChannel(creatorAddress: string, initialMemberAddresses?: string[]) {
+		// Generate the encrypted channel DEK using creator address
+		const { encryptedBytes: encryptedKeyBytes, nonce } =
+			await this.#envelopeEncryption.generateEncryptedChannelDEK({
+				creatorAddress,
+			});
+
+		const txBuilder = async (tx: Transaction) => {
+			// 1. Create the channel and caps
 			const config = tx.add(noneConfig());
 			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
 
-			// Add initial members if provided
+			// 2. Add initial members if provided
 			let memberCaps: RawTransactionArgument<string> | null = null;
 			if (initialMemberAddresses && initialMemberAddresses.length > 0) {
 				memberCaps = tx.add(
@@ -530,14 +519,29 @@ export class MessagingClient {
 				);
 			}
 
-			// Share the channel and transfer creator cap
+			// 3. Add the encrypted key to the channel
+			tx.add(
+				addEncryptedKey({
+					arguments: {
+						self: channel,
+						memberCap: creatorMemberCap,
+						newEncryptionKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
+						newEncryptionNonce: tx.pure.vector('u8', nonce),
+					},
+				}),
+			);
+
+			// 4. Share the channel and transfer caps
 			tx.add(shareChannel({ arguments: { self: channel, creatorCap } }));
-			// Transfer MemberCaps
+
+			// Transfer creator's member cap
 			tx.add(
 				transferMemberCap({
 					arguments: { cap: creatorMemberCap, creatorCap, recipient: creatorAddress },
 				}),
 			);
+
+			// Transfer additional member caps if any
 			if (memberCaps !== null) {
 				tx.add(
 					transferMemberCaps({
@@ -550,91 +554,46 @@ export class MessagingClient {
 				);
 			}
 
+			// Transfer creator cap
 			tx.add(transferCreatorCap({ arguments: { self: creatorCap } }));
-
-			return tx;
 		};
-
-		const getGeneratedCaps = async ({ digest }: CreateChannelFlowGetGeneratedCapsOpts) => {
-			return await this.#getGeneratedCaps(digest);
-		};
-
-		const generateAndAttachEncryptionKey = async ({
-			creatorCap,
-			creatorMemberCap,
-		}: Awaited<ReturnType<typeof getGeneratedCaps>>) => {
-			// Generate the encrypted channel DEK
-			const encryptedKeyBytes = await this.#envelopeEncryption.generateEncryptedChannelDEK({
-				channelId: creatorCap.channel_id,
-			});
-
-			const tx = new Transaction();
-
-			tx.add(
-				addEncryptedKey({
-					arguments: {
-						self: tx.object(creatorCap.channel_id),
-						memberCap: tx.object(creatorMemberCap.id.id),
-						newEncryptionKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
-					},
-				}),
-			);
-
-			return {
-				transaction: tx,
-				creatorCap,
-				encryptedKeyBytes,
-			};
-		};
-
-		const getGeneratedEncryptionKey = ({
-			creatorCap,
-			encryptedKeyBytes,
-		}: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>) => {
-			return { channelId: creatorCap.channel_id, encryptedKeyBytes };
-		};
-
-		const stepResults: {
-			build?: ReturnType<typeof build>;
-			getGeneratedCaps?: Awaited<ReturnType<typeof getGeneratedCaps>>;
-			generateAndAttachEncryptionKey?: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>;
-			getGeneratedEncryptionKey?: never;
-		} = {};
-
-		function getResults<T extends keyof typeof stepResults>(
-			step: T,
-			current: keyof typeof stepResults,
-		): NonNullable<(typeof stepResults)[T]> {
-			if (!stepResults[step]) {
-				throw new Error(`${String(step)} must be executed before calling ${String(current)}`);
-			}
-			return stepResults[step]!;
-		}
 
 		return {
-			build: () => {
-				if (!stepResults.build) {
-					stepResults.build = build();
-				}
-				return stepResults.build;
-			},
-			getGeneratedCaps: async (opts: CreateChannelFlowGetGeneratedCapsOpts) => {
-				getResults('build', 'getGeneratedCaps');
-				stepResults.getGeneratedCaps = await getGeneratedCaps(opts);
-				return stepResults.getGeneratedCaps;
-			},
-			generateAndAttachEncryptionKey: async () => {
-				stepResults.generateAndAttachEncryptionKey = await generateAndAttachEncryptionKey(
-					getResults('getGeneratedCaps', 'generateAndAttachEncryptionKey'),
-				);
-				return stepResults.generateAndAttachEncryptionKey.transaction;
-			},
-			getGeneratedEncryptionKey: () => {
-				return getGeneratedEncryptionKey(
-					getResults('generateAndAttachEncryptionKey', 'getGeneratedEncryptionKey'),
-				);
-			},
+			transactionBuilder: txBuilder,
+			encryptedKeyBytes,
 		};
+	}
+
+	/**
+	 * Create a transaction that creates a channel
+	 * Returns the transaction, and the encrypted key bytes that were attached to the channel
+	 *
+	 * @usage
+	 * ```ts
+	 * const {transaction: tx, encryptedKeyBytes} = await client.createChannelTransaction({
+	 *   creatorAddress: signer.toSuiAddress(),
+	 *   initialMembers: ['0x...']
+	 * });
+	 * ```
+	 */
+	async createChannelTransaction({
+		transaction = new Transaction(),
+		creatorAddress,
+		initialMemberAddresses,
+	}: {
+		transaction?: Transaction;
+		creatorAddress: string;
+		initialMemberAddresses?: string[];
+	}): Promise<{
+		transaction: Transaction;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	}> {
+		const { transactionBuilder, encryptedKeyBytes } = await this.createChannel(
+			creatorAddress,
+			initialMemberAddresses,
+		);
+		await transactionBuilder(transaction);
+		return { transaction, encryptedKeyBytes };
 	}
 
 	async sendMessage(
@@ -652,6 +611,7 @@ export class MessagingClient {
 			// Encrypt the message text
 			const { encryptedBytes: ciphertext, nonce: textNonce } =
 				await this.#envelopeEncryption.encryptText({
+					$kind: 'Encrypted',
 					text: message,
 					channelId,
 					sender,
@@ -711,6 +671,7 @@ export class MessagingClient {
 		const encryptedDataPayloads = await Promise.all(
 			attachments.map(async (file) => {
 				return this.#envelopeEncryption.encryptAttachmentData({
+					$kind: 'Encrypted',
 					file,
 					channelId,
 					memberCapId,
@@ -730,6 +691,7 @@ export class MessagingClient {
 		const encryptedMetadataPayloads = await Promise.all(
 			attachments.map((file) => {
 				return this.#envelopeEncryption.encryptAttachmentMetadata({
+					$kind: 'Encrypted',
 					file,
 					channelId,
 					memberCapId,
@@ -760,6 +722,67 @@ export class MessagingClient {
 				);
 			}),
 		});
+	}
+
+	/**
+	 * Executes a create channel transaction
+	 *
+	 * @param params - The parameters for creating a channel
+	 * @returns Promise with transaction digest, channel ID, creator cap ID, and encrypted key bytes
+	 */
+	async executeCreateChannelTransaction({
+		transaction,
+		signer,
+		initialMemberAddresses,
+	}: {
+		initialMemberAddresses?: string[];
+	} & { transaction?: Transaction; signer: Signer }): Promise<{
+		digest: string;
+		channelObject: ParsedChannelObject;
+		generatedCaps: GetGeneratedCapsResult;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	}> {
+		const { transaction: tx, encryptedKeyBytes } = await this.createChannelTransaction({
+			transaction,
+			creatorAddress: signer.toSuiAddress(),
+			initialMemberAddresses,
+		});
+
+		const { digest, effects } = await this.#executeTransaction(tx, signer, 'create channel', true);
+
+		// Extract the created objects from the transaction effects
+		const createdObjectIds = effects.changedObjects
+			.filter((object) => object.idOperation === 'Created')
+			.map((object) => object.id);
+
+		const createdObjects = await this.#suiClient.core.getObjects({
+			objectIds: createdObjectIds,
+		});
+
+		// Find the channel object
+		const channelType = Channel.name.replace(
+			'@local-pkg/sui-messaging',
+			this.#packageConfig.packageId,
+		);
+		const channelObject = createdObjects.objects.find(
+			(object) => !(object instanceof Error) && object.type === channelType,
+		);
+
+		if (channelObject instanceof Error || !channelObject) {
+			throw new MessagingClientError(
+				`Channel object not found in transaction effects for transaction (${digest})`,
+			);
+		}
+
+		const channelObjectParsed = Channel.parse(await channelObject.content);
+		const generatedCaps = await this.#getGeneratedCaps(digest);
+
+		return {
+			digest,
+			channelObject: channelObjectParsed,
+			generatedCaps,
+			encryptedKeyBytes,
+		};
 	}
 
 	async executeSendMessageTransaction({
@@ -796,53 +819,6 @@ export class MessagingClient {
 		return { digest, messageId };
 	}
 
-	async executeCreateChannelTransaction({
-		signer,
-		initialMembers,
-	}: {
-		initialMembers?: string[];
-	} & { signer: Signer }): Promise<{
-		digest: string;
-		channelId: string;
-		creatorCapId: string;
-		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
-	}> {
-		const flow = this.createChannelFlow({
-			creatorAddress: signer.toSuiAddress(),
-			initialMemberAddresses: initialMembers,
-		});
-
-		// Step 1: Build and execute the channel creation transaction
-		const channelTx = flow.build();
-		const { digest: channelDigest } = await this.#executeTransaction(
-			channelTx,
-			signer,
-			'create channel',
-		);
-
-		// Step 2: Get the creator cap from the transaction
-		const {
-			creatorCap,
-			creatorMemberCap,
-			additionalMemberCaps: _,
-		} = await flow.getGeneratedCaps({
-			digest: channelDigest,
-		});
-
-		// Step 3: Generate and attach encryption key
-		const attachKeyTx = await flow.generateAndAttachEncryptionKey({ creatorMemberCap });
-		const { digest: keyDigest } = await this.#executeTransaction(
-			attachKeyTx,
-			signer,
-			'attach encryption key',
-		);
-
-		// Step 4: Get the encrypted key bytes
-		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
-
-		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
-	}
-
 	// ===== Private Methods =====
 	async #executeTransaction(
 		transaction: Transaction,
@@ -870,7 +846,11 @@ export class MessagingClient {
 		return { digest, effects };
 	}
 
-	async #getGeneratedCaps(digest: string) {
+	async #getGeneratedCaps(digest: string): Promise<{
+		creatorCap: WithOwnerAddress<{ capObject: ParsedCreatorCap }>;
+		creatorMemberCap: WithOwnerAddress<{ capObject: ParsedMemberCap }>;
+		additionalMemberCaps: WithOwnerAddress<{ capObject: ParsedMemberCap }>[];
+	}> {
 		const creatorCapType = CreatorCap.name.replace(
 			'@local-pkg/sui-messaging',
 			this.#packageConfig.packageId,
@@ -909,15 +889,18 @@ export class MessagingClient {
 		}
 
 		const creatorCapParsed = CreatorCap.parse(await suiCreatorCapObject.content);
+		const creatorAddress =
+			suiCreatorCapObject.owner?.$kind === 'AddressOwner'
+				? suiCreatorCapObject.owner.AddressOwner
+				: '';
 
 		const suiCreatorMemberCapObject = createdObjects.objects.find(
 			(object) =>
 				!(object instanceof Error) &&
 				object.type === creatorMemberCapType &&
 				// only get the creator's member cap
-				object.owner.$kind === 'AddressOwner' &&
-				suiCreatorCapObject.owner.$kind === 'AddressOwner' &&
-				object.owner.AddressOwner === suiCreatorCapObject.owner.AddressOwner,
+				object.owner?.$kind === 'AddressOwner' &&
+				object.owner.AddressOwner === creatorAddress,
 		);
 
 		if (suiCreatorMemberCapObject instanceof Error || !suiCreatorMemberCapObject) {
@@ -928,27 +911,43 @@ export class MessagingClient {
 
 		const creatorMemberCapParsed = MemberCap.parse(await suiCreatorMemberCapObject.content);
 
+		// Get all additional member caps with their ownership information
 		const suiAdditionalMemberCapsObjects = createdObjects.objects.filter(
-			(object) => !(object instanceof Error) && object.type === additionalMemberCapType,
+			(object) =>
+				!(object instanceof Error) &&
+				object.type === additionalMemberCapType &&
+				object.owner?.$kind === 'AddressOwner' &&
+				object.owner.AddressOwner !== creatorAddress, // Exclude creator's member cap
 		);
 
-		// exclude the creator's member cap from the additional member caps
-		const additionalMemberCapsParsed = await Promise.all(
+		const additionalMemberCapsWithOwners = await Promise.all(
 			suiAdditionalMemberCapsObjects.map(async (object) => {
 				if (object instanceof Error) {
 					throw new MessagingClientError(
 						`AdditionalMemberCap object not found in transaction effects for transaction (${digest})`,
 					);
 				}
-				return MemberCap.parse(await object.content);
+				const memberCap = MemberCap.parse(await object.content);
+				const ownerAddress =
+					object.owner?.$kind === 'AddressOwner' ? object.owner.AddressOwner : '';
+
+				return {
+					ownerAddress,
+					capObject: memberCap,
+				};
 			}),
 		);
-		additionalMemberCapsParsed.filter((cap) => cap.id.id !== creatorMemberCapParsed.id.id);
 
 		return {
-			creatorCap: creatorCapParsed,
-			creatorMemberCap: creatorMemberCapParsed,
-			additionalMemberCaps: additionalMemberCapsParsed,
+			creatorCap: {
+				ownerAddress: creatorAddress,
+				capObject: creatorCapParsed,
+			},
+			creatorMemberCap: {
+				ownerAddress: creatorAddress,
+				capObject: creatorMemberCapParsed,
+			},
+			additionalMemberCaps: additionalMemberCapsWithOwners,
 		};
 	}
 
@@ -998,14 +997,12 @@ export class MessagingClient {
 		channelId,
 		memberCapId,
 		sender,
-		channelCreatorAddress,
 		encryptedKey,
 		blobRef,
 		nonce,
 	}: {
 		channelId: string;
 		memberCapId: string;
-		channelCreatorAddress: string;
 		sender: string;
 		encryptedKey: EncryptedSymmetricKey;
 		blobRef: string;
@@ -1019,7 +1016,6 @@ export class MessagingClient {
 				// Decrypt the data
 				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
 					$kind: 'Encrypted',
-					channelCreatorAddress,
 					encryptedBytes: new Uint8Array(encryptedData),
 					nonce: new Uint8Array(nonce),
 					channelId,

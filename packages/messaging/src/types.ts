@@ -98,6 +98,8 @@ export type ChannelMembershipsRequest = MessagingOwnedObjects;
 
 export type ParsedChannelObject = (typeof Channel)['$inferType'];
 export type ParsedMessageObject = (typeof Message)['$inferType'];
+export type ParsedCreatorCap = (typeof CreatorCap)['$inferType'];
+export type ParsedMemberCap = (typeof MemberCap)['$inferType'];
 export type Membership = { member_cap_id: string; channel_id: string };
 
 export type ChannelMembershipsResponse = PaginatedResponse<{
@@ -170,3 +172,13 @@ export interface DecryptMessageResult {
 	createdAtMs: string;
 	attachments?: LazyDecryptAttachmentResult[];
 }
+
+export type WithOwnerAddress<T> = T & {
+	ownerAddress: string;
+};
+
+export type GetGeneratedCapsResult = {
+	creatorCap: WithOwnerAddress<{ capObject: ParsedCreatorCap }>;
+	creatorMemberCap: WithOwnerAddress<{ capObject: ParsedMemberCap }>;
+	additionalMemberCaps: WithOwnerAddress<{ capObject: ParsedMemberCap }>[];
+};

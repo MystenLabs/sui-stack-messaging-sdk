@@ -8,6 +8,7 @@ use sui_messaging::admin;
 use sui_messaging::config::{Self, Config};
 
 const ENotPermitted: u64 = 0;
+const EChannelAtMaxMembers: u64 = 1;
 
 public struct Auth has store {
     member_permissions: VecMap<ID, VecSet<TypeName>>,
@@ -53,7 +54,7 @@ public(package) fun grant_permission<WPermission: drop>(
     } else {
         let config = self.config.load_value<Config>();
         let at_max_members = self.member_permissions.size() == config.max_channel_members();
-        assert!(!at_max_members, 420);
+        assert!(!at_max_members, EChannelAtMaxMembers);
 
         let permissions = vec_set::singleton(type_name::get<WPermission>());
         self.member_permissions.insert(member_cap_id, permissions);

@@ -56,15 +56,17 @@ describe('Integration tests - Write Path', () => {
 			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
 			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
-			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
-				signer,
-				initialMembers: [initialMember],
-			});
+			const { digest, channelObject, generatedCaps } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMemberAddresses: [initialMember],
+				});
 			expect(digest).toBeDefined();
-			expect(channelId).toBeDefined();
+			expect(channelObject).toBeDefined();
+			expect(generatedCaps).toBeDefined();
 
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([channelId]);
-			const channel = channelObjects[0];
+			const channel = channelObject;
+			const channelId = channel.id.id;
 
 			// Assert channel properties
 			expect(channel.id.id).toBe(channelId);
@@ -78,24 +80,10 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth).toBeDefined();
 			expect(channel.auth.member_permissions).toBeDefined();
 
-			// Assert members - get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-			expect(creatorMembership).toBeDefined();
-
-			// Get the actual MemberCap object
-			const creatorMemberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
-			});
-			const creatorMemberCapObject = creatorMemberCapObjects.objects[0];
-			if (creatorMemberCapObject instanceof Error || !creatorMemberCapObject.content) {
-				throw new Error('Failed to fetch creator MemberCap object');
-			}
-			const creatorMemberCap = MemberCap.parse(await creatorMemberCapObject.content);
+			// Assert members - use the generated caps from the transaction
+			const creatorMemberCap = generatedCaps.creatorMemberCap;
 			expect(creatorMemberCap).toBeDefined();
-			expect(creatorMemberCap.channel_id).toBe(channelId);
+			expect(creatorMemberCap.capObject.channel_id).toBe(channelId);
 
 			// Get all MemberCaps for this channel using the new auth system
 			// We'll get the channel's auth structure and extract member cap IDs
@@ -127,36 +115,20 @@ describe('Integration tests - Write Path', () => {
 
 			// Verify the creator's MemberCap is in the list
 			const foundCreatorMemberCap = channelMemberCaps.find(
-				(cap) => cap.id.id === creatorMemberCap.id.id,
+				(cap) => cap.id.id === creatorMemberCap.capObject.id.id,
 			);
 			expect(foundCreatorMemberCap).toBeDefined();
 			expect(foundCreatorMemberCap?.channel_id).toBe(channelId);
 
 			// If we have an initial member, verify their MemberCap is also in the list
-			if (initialMember) {
-				const initialMemberMemberships = await client.messaging.getChannelMemberships({
-					address: initialMember,
-				});
-				const initialMemberMembership = initialMemberMemberships.memberships.find(
-					(m) => m.channel_id === channelId,
-				);
-				expect(initialMemberMembership).toBeDefined();
-
-				// Get the actual MemberCap object
-				const initialMemberCapObjects = await client.core.getObjects({
-					objectIds: [initialMemberMembership!.member_cap_id],
-				});
-				const initialMemberCapObject = initialMemberCapObjects.objects[0];
-				if (initialMemberCapObject instanceof Error || !initialMemberCapObject.content) {
-					throw new Error('Failed to fetch initial member MemberCap object');
-				}
-				const initialMemberCap = MemberCap.parse(await initialMemberCapObject.content);
+			if (initialMember && generatedCaps.additionalMemberCaps.length > 0) {
+				const initialMemberCap = generatedCaps.additionalMemberCaps[0];
 				expect(initialMemberCap).toBeDefined();
-				expect(initialMemberCap.channel_id).toBe(channelId);
+				expect(initialMemberCap.capObject.channel_id).toBe(channelId);
 
 				// Verify the initial member's MemberCap is in the channel's member list
 				const foundInitialMemberCap = channelMemberCaps.find(
-					(cap) => cap.id.id === initialMemberCap.id.id,
+					(cap) => cap.id.id === initialMemberCap.capObject.id.id,
 				);
 				expect(foundInitialMemberCap).toBeDefined();
 			}
@@ -193,44 +165,29 @@ describe('Integration tests - Write Path', () => {
 		// Before each message test, create a fresh channel
 		beforeAll(async () => {
 			client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
-			const { channelId: newChannelId, encryptedKeyBytes } =
+			const { channelObject, generatedCaps, encryptedKeyBytes } =
 				await client.messaging.executeCreateChannelTransaction({
 					signer,
-					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
+					initialMemberAddresses: [Ed25519Keypair.generate().toSuiAddress()],
 				});
 
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([newChannelId]);
-			channelObj = channelObjects[0];
-
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
-			expect(creatorMembership).toBeDefined();
-
-			// Get the actual MemberCap object
-			const memberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
-			});
-			const memberCapObject = memberCapObjects.objects[0];
-			if (memberCapObject instanceof Error || !memberCapObject.content) {
-				throw new Error('Failed to fetch MemberCap object');
-			}
-			memberCap = MemberCap.parse(await memberCapObject.content);
+			channelObj = channelObject;
+			memberCap = generatedCaps.creatorMemberCap.capObject;
 			console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
 			expect(encryptionKeyVersion).toBe(1); // First version should be 1
 			// This should not be empty
-			expect(channelObj.encryption_key_history.latest.length).toBeGreaterThan(0);
+			expect(channelObj.encryption_key_history.latest.encrypted_bytes.length).toBeGreaterThan(0);
 			encryptionKey = {
 				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
+				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest.encrypted_bytes),
 				version: encryptionKeyVersion,
 			};
-			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_key_history.latest));
+			expect(encryptedKeyBytes).toEqual(
+				new Uint8Array(channelObj.encryption_key_history.latest.encrypted_bytes),
+			);
 		});
 
 		it('should send and decrypt a message with an attachment', async () => {

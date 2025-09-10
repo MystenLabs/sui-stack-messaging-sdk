@@ -81,9 +81,10 @@ export class EnvelopeEncryption {
 	}
 
 	// ===== Encryption methods =====
-	async generateEncryptedChannelDEK({
-		creatorAddress,
-	}: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>> {
+	async generateEncryptedChannelDEK({ creatorAddress }: GenerateEncryptedChannelDEKopts): Promise<{
+		encryptedBytes: Uint8Array<ArrayBuffer>;
+		nonce: Uint8Array<ArrayBuffer>;
+	}> {
 		if (!isValidSuiAddress(creatorAddress)) {
 			throw new Error('The creatorAddress provided is not a valid Sui Address');
 		}
@@ -99,7 +100,7 @@ export class EnvelopeEncryption {
 			id,
 			data: dek,
 		});
-		return new Uint8Array(encryptedDekBytes);
+		return { encryptedBytes: new Uint8Array(encryptedDekBytes), nonce };
 	}
 
 	generateNonce(): Uint8Array<ArrayBuffer> {
@@ -114,7 +115,7 @@ export class EnvelopeEncryption {
 		const ciphertext = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			new Uint8Array(new TextEncoder().encode(opts.text)),
 		);
 		return {
@@ -141,7 +142,7 @@ export class EnvelopeEncryption {
 		const decryptedBytes = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
 			opts.nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			opts.encryptedBytes,
 		);
 		return new TextDecoder().decode(decryptedBytes);
@@ -179,7 +180,7 @@ export class EnvelopeEncryption {
 		const encryptedData = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			new Uint8Array(fileData),
 		);
 		return { encryptedBytes: encryptedData, nonce };
@@ -204,7 +205,7 @@ export class EnvelopeEncryption {
 		const encryptedMetadata = await this.#encryptionPrimitives.encryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			new Uint8Array(new TextEncoder().encode(metadataStr)),
 		);
 
@@ -223,7 +224,7 @@ export class EnvelopeEncryption {
 		const decryptedMetadataBytes = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
 			opts.nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			opts.encryptedBytes,
 		);
 		// Parse the bytes back to JSON
@@ -244,7 +245,7 @@ export class EnvelopeEncryption {
 		const decryptedData = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
 			opts.nonce,
-			this.encryptionAAD(opts.channelCreatorAddress, dek.version, opts.sender),
+			this.encryptionAAD(dek.version, opts.sender),
 			opts.encryptedBytes,
 		);
 		return { data: decryptedData };
@@ -399,20 +400,13 @@ export class EnvelopeEncryption {
 
 	/**
 	 * Gets the Additional Authenticated Data for encryption/decryption
-	 * (creatorAddress, keyVersion, sender)
+	 * (keyVersion, sender)
 	 *
-	 * @param creatorAddress
 	 * @param keyVersion
 	 * @param sender
 	 * @returns
 	 */
-	private encryptionAAD(
-		creatorAddress: string,
-		keyVersion: number,
-		sender: string,
-	): Uint8Array<ArrayBuffer> {
-		return new Uint8Array(
-			new TextEncoder().encode(creatorAddress + keyVersion.toString() + sender),
-		);
+	private encryptionAAD(keyVersion: number, sender: string): Uint8Array<ArrayBuffer> {
+		return new Uint8Array(new TextEncoder().encode(keyVersion.toString() + sender));
 	}
 }

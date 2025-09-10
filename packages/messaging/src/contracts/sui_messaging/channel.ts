@@ -15,6 +15,13 @@ export const Channel = new MoveStruct({ name: `${$moduleName}::Channel`, fields:
         /** The version of this object, for handling updgrades. */
         version: bcs.u64(),
         /**
+         * The address of the Channel's creator
+         *
+         * Note: We are using this as part of the seal identity bytes so we endup with a
+         * key-namespace: [pkgId][creator's address][random nonce]
+         */
+        creator: bcs.Address,
+        /**
          * The Authorization struct, gating actions to member permissions. Note: It also,
          * practically, keeps tracks of the members (MemberCap ID -> Permissions)
          */
@@ -117,13 +124,15 @@ export interface AddEncryptedKeyArguments {
     self: RawTransactionArgument<string>;
     memberCap: RawTransactionArgument<string>;
     newEncryptionKeyBytes: RawTransactionArgument<number[]>;
+    newEncryptionNonce: RawTransactionArgument<number[]>;
 }
 export interface AddEncryptedKeyOptions {
     package?: string;
     arguments: AddEncryptedKeyArguments | [
         self: RawTransactionArgument<string>,
         memberCap: RawTransactionArgument<string>,
-        newEncryptionKeyBytes: RawTransactionArgument<number[]>
+        newEncryptionKeyBytes: RawTransactionArgument<number[]>,
+        newEncryptionNonce: RawTransactionArgument<number[]>
     ];
 }
 /** Add the encrypted Channel Key (a key encrypted with Seal) to the Channel. */
@@ -132,9 +141,10 @@ export function addEncryptedKey(options: AddEncryptedKeyOptions) {
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::member_cap::MemberCap`,
+        'vector<u8>',
         'vector<u8>'
     ] satisfies string[];
-    const parameterNames = ["self", "memberCap", "newEncryptionKeyBytes"];
+    const parameterNames = ["self", "memberCap", "newEncryptionKeyBytes", "newEncryptionNonce"];
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'channel',
