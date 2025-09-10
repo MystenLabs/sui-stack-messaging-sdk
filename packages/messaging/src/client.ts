@@ -491,14 +491,22 @@ export class MessagingClient {
 	 *
 	 * @param creatorAddress - The address of the channel creator
 	 * @param initialMemberAddresses - Optional list of initial member addresses
+	 * @param initialMessage - Optional initial message to send to the channel
 	 * @returns Object containing transaction builder function and encrypted key bytes
 	 */
-	async createChannel(creatorAddress: string, initialMemberAddresses?: string[]) {
+	async createChannel(
+		creatorAddress: string,
+		initialMemberAddresses?: string[],
+		initialMessage?: string,
+	) {
 		// Generate the encrypted channel DEK using creator address
-		const { encryptedBytes: encryptedKeyBytes, nonce } =
-			await this.#envelopeEncryption.generateEncryptedChannelDEK({
-				creatorAddress,
-			});
+		const {
+			encryptedBytes: encryptedKeyBytes,
+			nonce,
+			unencryptedKey,
+		} = await this.#envelopeEncryption.generateEncryptedChannelDEK({
+			creatorAddress,
+		});
 
 		const txBuilder = async (tx: Transaction) => {
 			// 1. Create the channel and caps
@@ -554,6 +562,45 @@ export class MessagingClient {
 				);
 			}
 
+			// 5. Send initial message if provided
+			if (initialMessage) {
+				// Encrypt the initial message using the unencrypted key
+				const { encryptedBytes: ciphertext, nonce: textNonce } =
+					await this.#envelopeEncryption.encryptText({
+						$kind: 'Unencrypted',
+						text: initialMessage,
+						sender: creatorAddress,
+						unEncryptedKey: unencryptedKey,
+					});
+
+				// Create empty attachments vector for initial message
+				const emptyAttachments = tx.moveCall({
+					package: '0x1',
+					module: 'vector',
+					function: 'empty',
+					arguments: [],
+					typeArguments: [
+						this.#packageConfig.packageId
+							? Attachment.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId)
+							: Attachment.name,
+					],
+				});
+
+				// Send the initial message
+				tx.add(
+					sendMessage({
+						package: this.#packageConfig.packageId,
+						arguments: {
+							self: channel,
+							memberCap: creatorMemberCap,
+							ciphertext: tx.pure.vector('u8', ciphertext),
+							nonce: tx.pure.vector('u8', textNonce),
+							attachments: emptyAttachments,
+						},
+					}),
+				);
+			}
+
 			// Transfer creator cap
 			tx.add(transferCreatorCap({ arguments: { self: creatorCap } }));
 		};
@@ -572,7 +619,8 @@ export class MessagingClient {
 	 * ```ts
 	 * const {transaction: tx, encryptedKeyBytes} = await client.createChannelTransaction({
 	 *   creatorAddress: signer.toSuiAddress(),
-	 *   initialMembers: ['0x...']
+	 *   initialMembers: ['0x...'],
+	 *   initialMessage: 'Welcome to the channel!'
 	 * });
 	 * ```
 	 */
@@ -580,10 +628,12 @@ export class MessagingClient {
 		transaction = new Transaction(),
 		creatorAddress,
 		initialMemberAddresses,
+		initialMessage,
 	}: {
 		transaction?: Transaction;
 		creatorAddress: string;
 		initialMemberAddresses?: string[];
+		initialMessage?: string;
 	}): Promise<{
 		transaction: Transaction;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
@@ -591,6 +641,7 @@ export class MessagingClient {
 		const { transactionBuilder, encryptedKeyBytes } = await this.createChannel(
 			creatorAddress,
 			initialMemberAddresses,
+			initialMessage,
 		);
 		await transactionBuilder(transaction);
 		return { transaction, encryptedKeyBytes };
@@ -734,8 +785,10 @@ export class MessagingClient {
 		transaction,
 		signer,
 		initialMemberAddresses,
+		initialMessage,
 	}: {
 		initialMemberAddresses?: string[];
+		initialMessage?: string;
 	} & { transaction?: Transaction; signer: Signer }): Promise<{
 		digest: string;
 		channelObject: ParsedChannelObject;
@@ -746,6 +799,7 @@ export class MessagingClient {
 			transaction,
 			creatorAddress: signer.toSuiAddress(),
 			initialMemberAddresses,
+			initialMessage,
 		});
 
 		const { digest, effects } = await this.#executeTransaction(tx, signer, 'create channel', true);

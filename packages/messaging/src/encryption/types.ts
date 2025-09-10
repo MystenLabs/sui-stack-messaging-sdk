@@ -89,7 +89,7 @@ export type CommonEncryptOpts =
 	| {
 			$kind: 'Unencrypted';
 			sender: string; // should be valid sui address
-			memberCapId: string; // required for Seal decryption
+			memberCapId?: string; // not needed for unencrypted keys
 			unEncryptedKey: SymmetricKey;
 			encryptedKey?: never;
 			channelId?: never;

@@ -84,6 +84,7 @@ export class EnvelopeEncryption {
 	async generateEncryptedChannelDEK({ creatorAddress }: GenerateEncryptedChannelDEKopts): Promise<{
 		encryptedBytes: Uint8Array<ArrayBuffer>;
 		nonce: Uint8Array<ArrayBuffer>;
+		unencryptedKey: SymmetricKey;
 	}> {
 		if (!isValidSuiAddress(creatorAddress)) {
 			throw new Error('The creatorAddress provided is not a valid Sui Address');
@@ -100,7 +101,15 @@ export class EnvelopeEncryption {
 			id,
 			data: dek,
 		});
-		return { encryptedBytes: new Uint8Array(encryptedDekBytes), nonce };
+		return {
+			encryptedBytes: new Uint8Array(encryptedDekBytes),
+			nonce,
+			unencryptedKey: {
+				$kind: 'Unencrypted',
+				bytes: dek,
+				version: 1, // Initial version for new channels
+			},
+		};
 	}
 
 	generateNonce(): Uint8Array<ArrayBuffer> {
