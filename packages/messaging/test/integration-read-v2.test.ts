@@ -48,7 +48,8 @@ describe('Integration tests - Read Path v2', () => {
 
 	describe('Channel Memberships', () => {
 		it('should fetch channel memberships with pagination', async () => {
-			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
+			const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const testUser = testData.channels[0].members[0].address;
 
 			// Test pagination

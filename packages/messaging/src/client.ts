@@ -172,13 +172,26 @@ export class MessagingClient {
 			...request,
 			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
 		});
-		// parse MemberCaps
+		// Filter out any error objects
+		const validObjects = memberCapsRes.objects.filter(
+			(object): object is Experimental_SuiClientTypes.ObjectResponse => !(object instanceof Error),
+		);
+
+		if (validObjects.length === 0) {
+			return {
+				hasNextPage: memberCapsRes.hasNextPage,
+				cursor: memberCapsRes.cursor,
+				memberships: [],
+			};
+		}
+
+		// Get all object contents efficiently
+		const contents = await this.#getObjectContents(validObjects);
+
+		// Parse all MemberCaps
 		const memberships = await Promise.all(
-			memberCapsRes.objects.map(async (object) => {
-				if (object instanceof Error || !object.content) {
-					throw new MessagingClientError(`Failed to parse MemberCap object: ${object}`);
-				}
-				const parsedMemberCap = MemberCap.parse(await object.content);
+			contents.map(async (content) => {
+				const parsedMemberCap = MemberCap.parse(content);
 				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
 			}),
 		);
@@ -1147,5 +1160,53 @@ export class MessagingClient {
 			hasNextPage: false,
 			direction,
 		};
+	}
+	/**
+	 * Helper method to get object contents, handling both SuiClient and SuiGrpcClient
+	 */
+	async #getObjectContents(
+		objects: Experimental_SuiClientTypes.ObjectResponse[],
+	): Promise<Uint8Array[]> {
+		// First, try to get all contents directly (works for SuiClient)
+		const contentPromises = objects.map(async (object) => {
+			try {
+				return await object.content;
+			} catch (error) {
+				// If this is the gRPC error, we'll handle it below
+				if (
+					error instanceof Error &&
+					error.message.includes('GRPC does not return object contents')
+				) {
+					return null; // Mark for batch fetching
+				}
+				throw error;
+			}
+		});
+
+		const contents = await Promise.all(contentPromises);
+
+		// Check if any failed with the gRPC error
+		const needsBatchFetch = contents.some((content) => content === null);
+
+		if (needsBatchFetch) {
+			// Batch fetch all objects that need content
+			const objectIds = objects.map((obj) => obj.id);
+			const objectResponses = await this.#suiClient.core.getObjects({ objectIds });
+
+			// Map the results back to the original order and await the content
+			const batchContents = await Promise.all(
+				objectResponses.objects.map(async (obj) => {
+					if (obj instanceof Error || !obj.content) {
+						throw new MessagingClientError(`Failed to fetch object content: ${obj}`);
+					}
+					return await obj.content;
+				}),
+			);
+
+			return batchContents;
+		}
+
+		// Filter out null values and return
+		return contents.filter((content): content is Uint8Array => content !== null);
 	}
 }
