@@ -1,7 +1,7 @@
-module sui_messaging::seal_policies;
+module sui_stack_messaging::seal_policies;
 
-use sui_messaging::channel::Channel;
-use sui_messaging::member_cap::MemberCap;
+use sui_stack_messaging::channel::Channel;
+use sui_stack_messaging::member_cap::MemberCap;
 
 // === Errors ===
 const ENoAccess: u64 = 0;

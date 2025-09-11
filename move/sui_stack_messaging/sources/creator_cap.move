@@ -1,4 +1,4 @@
-module sui_messaging::creator_cap;
+module sui_stack_messaging::creator_cap;
 
 /// Channel Creator Capability
 ///

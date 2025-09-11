@@ -5,7 +5,7 @@ import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from 
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
 import * as object from './deps/sui/object.js';
-const $moduleName = '@local-pkg/sui-messaging::creator_cap';
+const $moduleName = '@local-pkg/sui-stack-messaging::creator_cap';
 export const CreatorCap = new MoveStruct({ name: `${$moduleName}::CreatorCap`, fields: {
         id: object.UID,
         channel_id: bcs.Address
@@ -21,7 +21,7 @@ export interface TransferToSenderOptions {
 }
 /** Transfer a CreatorCap to the transaction sender. */
 export function transferToSender(options: TransferToSenderOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::creator_cap::CreatorCap`
     ] satisfies string[];

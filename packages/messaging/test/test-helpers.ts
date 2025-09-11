@@ -9,12 +9,12 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
 
-import { MessagingClient } from '../src/client';
+import { SuiStackMessagingClient } from '../src/client';
 import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
 
-import * as channelModule from '../src/contracts/sui_messaging/channel';
-import * as memberCapModule from '../src/contracts/sui_messaging/member_cap';
-import * as messageModule from '../src/contracts/sui_messaging/message';
+import * as channelModule from '../src/contracts/sui_stack_messaging/channel';
+import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_cap';
+import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
 import { SuiGrpcClient } from '@mysten/sui-grpc';
@@ -107,8 +107,8 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		])
 		.withCopyDirectoriesToContainer([
 			{
-				source: path.resolve(__dirname, '../../../move/sui_messaging'),
-				target: '/sui/sui_messaging',
+				source: path.resolve(__dirname, '../../../move/sui_stack_messaging'),
+				target: '/sui/sui_stack_messaging',
 			},
 		])
 		.withNetwork(dockerNetwork)
@@ -177,7 +177,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		'sui',
 		'client',
 		'publish',
-		'./sui_messaging',
+		'./sui_stack_messaging',
 		'--json',
 	]);
 
@@ -201,7 +201,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		mvr: {
 			overrides: {
 				packages: {
-					'@local-pkg/sui-messaging': packageId,
+					'@local-pkg/sui-stack-messaging': packageId,
 				},
 			},
 		},
@@ -244,7 +244,7 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 		mvr: {
 			overrides: {
 				packages: {
-					'@local-pkg/sui-messaging': config.packageConfig.packageId,
+					'@local-pkg/sui-stack-messaging': config.packageConfig.packageId,
 				},
 			},
 		},
@@ -256,7 +256,7 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 		mvr: {
 			overrides: {
 				packages: {
-					'@local-pkg/sui-messaging': config.packageConfig.packageId,
+					'@local-pkg/sui-stack-messaging': config.packageConfig.packageId,
 				},
 			},
 		},
@@ -349,11 +349,11 @@ class MockStorageAdapter implements StorageAdapter {
 }
 
 /**
- * Creates a fully extended MessagingClient for tests.
+ * Creates a fully extended SuiStackMessagingClient for tests.
  * @param suiRpcClient - The base SuiClient.
  * @param config - The test configuration.
  * @param signer - The signer to use for transactions.
- * @returns An instance of the extended MessagingClient.
+ * @returns An instance of the extended SuiStackMessagingClient.
  */
 export function createTestClient(
 	suiRpcClient: Experimental_BaseClient,
@@ -365,7 +365,7 @@ export function createTestClient(
 				.$extend(MockSealClient.asClientExtension())
 				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
-					MessagingClient.experimental_asClientExtension({
+					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (_client) => new MockStorageAdapter(),
 						sessionKeyConfig: {
@@ -383,7 +383,7 @@ export function createTestClient(
 					}),
 				)
 				.$extend(
-					MessagingClient.experimental_asClientExtension({
+					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (client) => {
 							if (!config.walrusConfig) {

@@ -17,11 +17,11 @@ import type {
 	SessionKeyConfig,
 } from './encryption/types.js';
 
-import type { MemberCap } from './contracts/sui_messaging/member_cap.js';
-import type { CreatorCap } from './contracts/sui_messaging/creator_cap.js';
+import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
+import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
 import type { StorageAdapter } from './storage/adapters/storage.js';
-import type { Channel } from './contracts/sui_messaging/channel.js';
-import type { Message } from './contracts/sui_messaging/message.js';
+import type { Channel } from './contracts/sui_stack_messaging/channel.js';
+import type { Message } from './contracts/sui_stack_messaging/message.js';
 
 export type MessagingClientExtensionOptions =
 	| {

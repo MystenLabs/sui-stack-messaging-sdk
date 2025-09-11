@@ -12,9 +12,9 @@ import {
 	sendMessage,
 	addMembers,
 	Channel,
-} from './contracts/sui_messaging/channel.js';
+} from './contracts/sui_stack_messaging/channel.js';
 
-import { _new as newAttachment, Attachment } from './contracts/sui_messaging/attachment.js';
+import { _new as newAttachment, Attachment } from './contracts/sui_stack_messaging/attachment.js';
 
 import type {
 	ChannelMembershipsRequest,
@@ -50,16 +50,16 @@ import type { RawTransactionArgument } from './contracts/utils';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
-} from './contracts/sui_messaging/creator_cap.js';
+} from './contracts/sui_stack_messaging/creator_cap.js';
 import {
 	MemberCap,
 	transferMemberCaps,
 	transferToRecipient as transferMemberCap,
-} from './contracts/sui_messaging/member_cap.js';
-import { none as noneConfig } from './contracts/sui_messaging/config.js';
-import { Message } from './contracts/sui_messaging/message.js';
+} from './contracts/sui_stack_messaging/member_cap.js';
+import { none as noneConfig } from './contracts/sui_stack_messaging/config.js';
+import { Message } from './contracts/sui_stack_messaging/message.js';
 
-export class MessagingClient {
+export class SuiStackMessagingClient {
 	#suiClient: MessagingCompatibleClient;
 	#packageConfig: MessagingPackageConfig;
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
@@ -149,7 +149,7 @@ export class MessagingClient {
 							});
 						};
 
-				return new MessagingClient({
+				return new SuiStackMessagingClient({
 					suiClient: client,
 					storage,
 					packageConfig,
@@ -279,7 +279,7 @@ export class MessagingClient {
 	): Promise<ChannelMembershipsResponse> {
 		const memberCapsRes = await this.#suiClient.core.getOwnedObjects({
 			...request,
-			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
+			type: MemberCap.name.replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId),
 		});
 		// Filter out any error objects
 		const validObjects = memberCapsRes.objects.filter(
@@ -819,7 +819,7 @@ export class MessagingClient {
 	): Promise<TransactionResult> {
 		const attachmentType = this.#packageConfig.packageId
 			? // todo: this needs better handling - it's needed for the integration tests
-				Attachment.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId)
+				Attachment.name.replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId)
 			: Attachment.name;
 
 		if (!attachments || attachments.length === 0) {
@@ -1007,15 +1007,15 @@ export class MessagingClient {
 
 	async #getGeneratedCaps(digest: string) {
 		const creatorCapType = CreatorCap.name.replace(
-			'@local-pkg/sui-messaging',
+			'@local-pkg/sui-stack-messaging',
 			this.#packageConfig.packageId,
 		);
 		const creatorMemberCapType = MemberCap.name.replace(
-			'@local-pkg/sui-messaging',
+			'@local-pkg/sui-stack-messaging',
 			this.#packageConfig.packageId,
 		);
 		const additionalMemberCapType = MemberCap.name.replace(
-			'@local-pkg/sui-messaging',
+			'@local-pkg/sui-stack-messaging',
 			this.#packageConfig.packageId,
 		);
 

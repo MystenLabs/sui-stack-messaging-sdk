@@ -1,11 +1,11 @@
-module sui_messaging::auth;
+module sui_stack_messaging::auth;
 
 use std::type_name::{Self, TypeName};
 use sui::vec_map::{Self, VecMap};
 use sui::vec_set::{Self, VecSet};
 use sui::versioned::{Self, Versioned};
-use sui_messaging::admin;
-use sui_messaging::config::{Self, Config};
+use sui_stack_messaging::admin;
+use sui_stack_messaging::config::{Self, Config};
 
 const ENotPermitted: u64 = 0;
 

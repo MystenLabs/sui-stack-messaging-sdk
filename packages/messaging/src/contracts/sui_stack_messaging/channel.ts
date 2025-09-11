@@ -9,7 +9,7 @@ import * as auth from './auth.js';
 import * as table_vec from './deps/sui/table_vec.js';
 import * as message from './message.js';
 import * as encryption_key_history from './encryption_key_history.js';
-const $moduleName = '@local-pkg/sui-messaging::channel';
+const $moduleName = '@local-pkg/sui-stack-messaging::channel';
 export const Channel = new MoveStruct({ name: `${$moduleName}::Channel`, fields: {
         id: object.UID,
         /** The version of this object, for handling updgrades. */
@@ -70,7 +70,7 @@ export interface NewOptions {
  * ChannelID as identity bytes -> add_encrypted_key(CreatorCap)
  */
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `0x0000000000000000000000000000000000000000000000000000000000000001::option::Option<${packageAddress}::config::Config>`,
         '0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock'
@@ -100,7 +100,7 @@ export interface ShareOptions {
  * interacted with.
  */
 export function share(options: ShareOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::creator_cap::CreatorCap`
@@ -128,7 +128,7 @@ export interface AddEncryptedKeyOptions {
 }
 /** Add the encrypted Channel Key (a key encrypted with Seal) to the Channel. */
 export function addEncryptedKey(options: AddEncryptedKeyOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::member_cap::MemberCap`,
@@ -157,7 +157,7 @@ export interface AddMembersOptions {
 }
 /** Add new members to the Channel with the default SimpleMessenger permission */
 export function addMembers(options: AddMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::member_cap::MemberCap`,
@@ -190,7 +190,7 @@ export interface RemoveMembersOptions {
  * asking for a new_encryption_key arg?
  */
 export function removeMembers(options: RemoveMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::member_cap::MemberCap`,
@@ -224,7 +224,7 @@ export interface SendMessageOptions {
 }
 /** Send a new message to the Channel */
 export function sendMessage(options: SendMessageOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`,
         `${packageAddress}::member_cap::MemberCap`,
@@ -255,7 +255,7 @@ export interface NamespaceOptions {
  * we use the Channel's UID bytes
  */
 export function namespace(options: NamespaceOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::channel::Channel`
     ] satisfies string[];
