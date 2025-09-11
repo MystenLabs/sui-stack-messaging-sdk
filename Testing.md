@@ -1,9 +1,9 @@
 ## Table of Contents
 
-[Home - Overview and Installation](./README.md)
-[Developer Setup](./Setup.md)
-[SDK API Reference](./APIRef.md)
-Example App - TBD
+- [Home - Overview and Installation](./README.md)
+- [Developer Setup](./Setup.md)
+- [SDK API Reference](./APIRef.md)
+- Example App - TBD
 
 # Integration Testing
 

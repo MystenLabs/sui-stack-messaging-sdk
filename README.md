@@ -51,7 +51,7 @@ For questions about the SDK, use case discussions, or integration support, conta
 
 ## Table of Contents
 
-[Developer Setup](./Setup.md)
-[SDK API Reference](./APIRef.md)
-[Integration Testing](./Testing.md)
-Example App - TBD
+- [Developer Setup](./Setup.md)
+- [SDK API Reference](./APIRef.md)
+- [Integration Testing](./Testing.md)
+- Example App - TBD
