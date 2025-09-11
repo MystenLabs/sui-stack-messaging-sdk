@@ -1,21 +1,24 @@
 import { SuiClient } from '@mysten/sui/client';
+import { SealClient } from '@mysten/seal';
+import { WalrusClient } from '@mysten/walrus';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
 
 import { MessagingClient } from '../src/client';
 import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
-import { WalrusClient } from '@mysten/walrus';
-import { SealClient } from '@mysten/seal';
 
 import * as channelModule from '../src/contracts/sui_messaging/channel';
 import * as memberCapModule from '../src/contracts/sui_messaging/member_cap';
 import * as messageModule from '../src/contracts/sui_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { Experimental_BaseClient } from '@mysten/sui/dist/cjs/experimental';
 
 // --- Constants ---
 
@@ -36,6 +39,7 @@ export const TestConstants = {
 export interface TestEnvironmentSetup {
 	config: TestConfig;
 	suiClient: SuiClient;
+	suiGrpcClient?: SuiGrpcClient;
 	signer: Signer;
 	packageId: string;
 	cleanup?: () => Promise<void>;
@@ -246,6 +250,18 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 		},
 	});
 
+	const suiGrpcClient = new SuiGrpcClient({
+		network: 'testnet',
+		baseUrl: getFullnodeUrl('testnet'),
+		mvr: {
+			overrides: {
+				packages: {
+					'@local-pkg/sui-messaging': config.packageConfig.packageId,
+				},
+			},
+		},
+	});
+
 	// Create test signer for testnet using secret key
 	if (!config.secretKey) {
 		throw new Error('TESTNET_SECRET_KEY is required for testnet tests');
@@ -255,6 +271,7 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 	return {
 		config,
 		suiClient,
+		suiGrpcClient,
 		signer,
 		packageId: config.packageConfig.packageId,
 		// No cleanup needed for testnet since we're not using Docker containers
@@ -333,14 +350,18 @@ class MockStorageAdapter implements StorageAdapter {
 
 /**
  * Creates a fully extended MessagingClient for tests.
- * @param suiJsonRpcClient - The base SuiClient.
+ * @param suiRpcClient - The base SuiClient.
  * @param config - The test configuration.
  * @param signer - The signer to use for transactions.
  * @returns An instance of the extended MessagingClient.
  */
-export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig, signer: Signer) {
+export function createTestClient(
+	suiRpcClient: Experimental_BaseClient,
+	config: TestConfig,
+	signer: Signer,
+) {
 	return config.environment === 'localnet'
-		? suiJsonRpcClient
+		? suiRpcClient
 				.$extend(MockSealClient.asClientExtension())
 				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
@@ -354,7 +375,7 @@ export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig
 						},
 					}),
 				)
-		: suiJsonRpcClient
+		: suiRpcClient
 				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
 					SealClient.asClientExtension({

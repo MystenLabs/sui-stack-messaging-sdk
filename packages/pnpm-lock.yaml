@@ -132,25 +132,25 @@ importers:
       '@mysten/bcs':
         specifier: ^1.7.0
         version: 1.7.0
-      '@mysten/build-scripts':
-        specifier: workspace:*
-        version: link:../build-scripts
       '@mysten/seal':
-        specifier: ^0.5.0
-        version: 0.5.0(typescript@5.9.2)
+        specifier: ^0.6.0
+        version: 0.6.0(typescript@5.9.2)
       '@mysten/sui':
-        specifier: ^1.37.5
-        version: 1.37.5(typescript@5.9.2)
+        specifier: ^1.38.0
+        version: 1.38.0(typescript@5.9.2)
       '@mysten/sui-grpc':
-        specifier: ^0.0.16
-        version: 0.0.16(typescript@5.9.2)
+        specifier: ^0.1.0
+        version: 0.1.0(typescript@5.9.2)
       '@mysten/walrus':
-        specifier: ^0.6.5
-        version: 0.6.5(typescript@5.9.2)
+        specifier: ^0.7.0
+        version: 0.7.0(typescript@5.9.2)
       '@protobuf-ts/grpcweb-transport':
         specifier: ^2.11.1
         version: 2.11.1
     devDependencies:
+      '@mysten/build-scripts':
+        specifier: workspace:*
+        version: link:../build-scripts
       '@mysten/codegen':
         specifier: ^0.4.4
         version: 0.4.4
@@ -1480,28 +1480,38 @@ packages:
   '@mysten/bcs@1.7.0':
     resolution: {integrity: sha512-8zE2Jzj2ai55RlVXx2pEMbbq+X3vB+uPGBvZr0F79IdTwuwcu4QdFG3PT/zHsytsvATkn+z0f2YDWhM5916u2A==}
 
+  '@mysten/bcs@1.8.0':
+    resolution: {integrity: sha512-bDoLN1nN+XPONsvpNyNyqYHndM3PKWS419GLeRnbLoWyNm4bnyD1X4luEpJLLDq400hBuXiCan4RWjofvyTUIQ==}
+
   '@mysten/codegen@0.4.4':
     resolution: {integrity: sha512-tHaD5Wh/XsN2cr0eqz62W52ksxVW5W3IKREWvLXSU/CpCD4ULzF+xdfaWMJU5KLuouk+7JAjGA9T6Eubv8R46Q==}
     hasBin: true
 
-  '@mysten/seal@0.5.0':
-    resolution: {integrity: sha512-8Uh2CoHEnND5lYCjsyaO7UYIgDPy6Ms5hOtsD38KA7XVZZ3SgFLRrhXUzLsQ8yhzV82gisIzIIyh1NTDeFwKdQ==}
+  '@mysten/seal@0.6.0':
+    resolution: {integrity: sha512-2LmV8Uwkk6O5mzEzwE/CEsHzpCHg7EC7StTgODSRvzTM3piTll1QrJbzEu+vp1+keDZzxadCcUk6VKLQhoh+lw==}
 
-  '@mysten/sui-grpc@0.0.16':
-    resolution: {integrity: sha512-qV2+pDifljbRXsiYVNmDdRMt+no4JO1PgueFiqplxVjKUMaZStyPB3M+w3CNil7+LkGHs9C3mP3cJAqH6rKBVQ==}
+  '@mysten/sui-grpc@0.1.0':
+    resolution: {integrity: sha512-LhMdAF2EQWo3etuIaprRMGZ+Qc27RjFIUkXGflt4kk1GjyT3342U8IiZHlMKZ04/rZzbOcI/zK4OlW13Gvl2ig==}
 
   '@mysten/sui@1.37.5':
     resolution: {integrity: sha512-kAKizRUdhC/gwQ7UkubbmwTno5UoA1a7Ps8R6GlPVWpCfpVM2HytmwFDOKVMA+51Qji4BaNxyq25SRpJw76fPw==}
     engines: {node: '>=18'}
 
+  '@mysten/sui@1.38.0':
+    resolution: {integrity: sha512-tH6V4BJsYi5d97MOiLoOhyldrYxkm/cu8dYV52asqh1i88HrSVMbPAJ9sVoeWN2Ju+QsJ/Go4ldSjdCkaBCyJQ==}
+    engines: {node: '>=18'}
+
   '@mysten/utils@0.1.1':
     resolution: {integrity: sha512-jvhJC6/2la1QHltukQXzfyTZ+VVHxe187JjPx+mEXRUWyAo6jCSdioOQJIfaGu4K4i+37KeiydXRwV/bq/7UJQ==}
+
+  '@mysten/utils@0.2.0':
+    resolution: {integrity: sha512-CM6kJcJHX365cK6aXfFRLBiuyXc5WSBHQ43t94jqlCAIRw8umgNcTb5EnEA9n31wPAQgLDGgbG/rCUISCTJ66w==}
 
   '@mysten/walrus-wasm@0.1.1':
     resolution: {integrity: sha512-j+12gNbPAIkgY7g1d4aCF2rXDpgTLQsyjEdu0s7A8xlu/95u5quP7Tc7Jz7VLFfbtkJigBpGyPZ/8J2tZv4cJA==}
 
-  '@mysten/walrus@0.6.5':
-    resolution: {integrity: sha512-QVLXAAzfgLVP8ZR1pcd93adV20jclm6y7Rm9jbwSqxnoOm48IkJuF8hqP3D00ypgyLYLAO7SUy5NgXUSE/x1CQ==}
+  '@mysten/walrus@0.7.0':
+    resolution: {integrity: sha512-UQf84CYP8bEkvq9T7mGSvQ3r1yQvBMQX+gJ3w5JldhqIp8qV0FRPbVYv+hokFAnmQuCJVHBJ4XX4iA5Jpyf4ww==}
 
   '@napi-rs/wasm-runtime@0.2.12':
     resolution: {integrity: sha512-ZVWUcfwY4E/yPitQJl481FjFo3K22D6qF0DuFH6Y/nbnE11GY5uguDxZMGXPQ8WQ0128MXQD7TnfHyK4oWoIJQ==}
@@ -6174,6 +6184,11 @@ snapshots:
       '@mysten/utils': 0.1.1
       '@scure/base': 1.2.6
 
+  '@mysten/bcs@1.8.0':
+    dependencies:
+      '@mysten/utils': 0.2.0
+      '@scure/base': 1.2.6
+
   '@mysten/codegen@0.4.4':
     dependencies:
       '@mysten/bcs': 1.7.0
@@ -6190,10 +6205,10 @@ snapshots:
       - '@gql.tada/svelte-support'
       - '@gql.tada/vue-support'
 
-  '@mysten/seal@0.5.0(typescript@5.9.2)':
+  '@mysten/seal@0.6.0(typescript@5.9.2)':
     dependencies:
-      '@mysten/bcs': 1.7.0
-      '@mysten/sui': 1.37.5(typescript@5.9.2)
+      '@mysten/bcs': 1.8.0
+      '@mysten/sui': 1.38.0(typescript@5.9.2)
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
     transitivePeerDependencies:
@@ -6201,10 +6216,10 @@ snapshots:
       - '@gql.tada/vue-support'
       - typescript
 
-  '@mysten/sui-grpc@0.0.16(typescript@5.9.2)':
+  '@mysten/sui-grpc@0.1.0(typescript@5.9.2)':
     dependencies:
-      '@mysten/sui': 1.37.5(typescript@5.9.2)
-      '@mysten/utils': 0.1.1
+      '@mysten/sui': 1.38.0(typescript@5.9.2)
+      '@mysten/utils': 0.2.0
       '@protobuf-ts/grpcweb-transport': 2.11.1
       '@protobuf-ts/runtime': 2.11.1
       '@protobuf-ts/runtime-rpc': 2.11.1
@@ -6232,17 +6247,40 @@ snapshots:
       - '@gql.tada/vue-support'
       - typescript
 
+  '@mysten/sui@1.38.0(typescript@5.9.2)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.11.0)
+      '@mysten/bcs': 1.8.0
+      '@mysten/utils': 0.2.0
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      gql.tada: 1.8.13(graphql@16.11.0)(typescript@5.9.2)
+      graphql: 16.11.0
+      poseidon-lite: 0.2.1
+      valibot: 0.36.0
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
   '@mysten/utils@0.1.1':
+    dependencies:
+      '@scure/base': 1.2.6
+
+  '@mysten/utils@0.2.0':
     dependencies:
       '@scure/base': 1.2.6
 
   '@mysten/walrus-wasm@0.1.1': {}
 
-  '@mysten/walrus@0.6.5(typescript@5.9.2)':
+  '@mysten/walrus@0.7.0(typescript@5.9.2)':
     dependencies:
-      '@mysten/bcs': 1.7.0
-      '@mysten/sui': 1.37.5(typescript@5.9.2)
-      '@mysten/utils': 0.1.1
+      '@mysten/bcs': 1.8.0
+      '@mysten/sui': 1.38.0(typescript@5.9.2)
+      '@mysten/utils': 0.2.0
       '@mysten/walrus-wasm': 0.1.1
       dataloader: 2.2.3
     transitivePeerDependencies:

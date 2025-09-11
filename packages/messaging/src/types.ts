@@ -110,6 +110,12 @@ export type ChannelObjectsByMembershipsResponse = PaginatedResponse<{
 	channelObjects: ParsedChannelObject[];
 }>;
 
+export interface GetChannelObjectsByChannelIdsRequest {
+	channelIds: string[];
+	userAddress: string; // The address of the user requesting the channel objects (needed for decryption)
+	memberCapIds?: string[]; // Optional: member cap IDs for each channel (avoids individual lookups)
+}
+
 export type ChannelMember = {
 	memberAddress: string;
 	memberCapId: string;
@@ -143,12 +149,14 @@ export interface PollingState {
 
 export interface GetLatestMessagesRequest {
 	channelId: string;
+	userAddress: string; // The address of the user requesting the messages (needed for decryption)
 	pollingState: PollingState;
 	limit?: number; // default: 50
 }
 
 export interface GetChannelMessagesRequest {
 	channelId: string;
+	userAddress: string; // The address of the user requesting the messages (needed for decryption)
 	cursor?: bigint | null; // The message index to start from
 	limit?: number; // default: 50
 	direction?: 'backward' | 'forward'; // default: 'backward'
@@ -171,4 +179,28 @@ export interface DecryptMessageResult {
 	sender: string;
 	createdAtMs: string;
 	attachments?: LazyDecryptAttachmentResult[];
+}
+
+// New types for decrypted data
+export interface DecryptedMessage {
+	text: string;
+	sender: string;
+	createdAtMs: string;
+	attachments?: LazyDecryptAttachmentResult[];
+}
+
+export interface DecryptedChannelObject extends Omit<ParsedChannelObject, 'last_message'> {
+	last_message?: DecryptedMessage | null;
+}
+
+export interface DecryptedMessagesResponse {
+	messages: DecryptedMessage[];
+	cursor: bigint | null;
+	hasNextPage: boolean;
+	direction: 'backward' | 'forward';
+}
+
+export interface DecryptedChannelObjectsByAddressResponse
+	extends Omit<ChannelObjectsByMembershipsResponse, 'channelObjects'> {
+	channelObjects: DecryptedChannelObject[];
 }

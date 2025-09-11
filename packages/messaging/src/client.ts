@@ -19,14 +19,12 @@ import { _new as newAttachment, Attachment } from './contracts/sui_messaging/att
 import type {
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
-	ChannelObjectsByMembershipsResponse as ChannelObjectsByAddressResponse,
 	ChannelMembersResponse,
 	ChannelMember,
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
 	CreateChannelFlowOpts,
 	GetLatestMessagesRequest,
-	MessagesResponse,
 	MessagingClientExtensionOptions,
 	MessagingClientOptions,
 	MessagingCompatibleClient,
@@ -36,6 +34,10 @@ import type {
 	DecryptMessageResult,
 	LazyDecryptAttachmentResult,
 	GetChannelMessagesRequest,
+	DecryptedChannelObject,
+	DecryptedMessagesResponse,
+	DecryptedChannelObjectsByAddressResponse,
+	GetChannelObjectsByChannelIdsRequest,
 } from './types.js';
 import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
 import { MessagingClientError } from './error.js';
@@ -158,147 +160,50 @@ export class MessagingClient {
 		};
 	}
 
-	// ===== Read Path =====
+	// ===== Private Helper Methods =====
 
 	/**
-	 * Get channel memberships for a user
-	 * @param request - Pagination and filter options
-	 * @returns Channel memberships with pagination info
-	 */
-	async getChannelMemberships(
-		request: ChannelMembershipsRequest,
-	): Promise<ChannelMembershipsResponse> {
-		const memberCapsRes = await this.#suiClient.core.getOwnedObjects({
-			...request,
-			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
-		});
-		// parse MemberCaps
-		const memberships = await Promise.all(
-			memberCapsRes.objects.map(async (object) => {
-				if (object instanceof Error || !object.content) {
-					throw new MessagingClientError(`Failed to parse MemberCap object: ${object}`);
-				}
-				const parsedMemberCap = MemberCap.parse(await object.content);
-				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
-			}),
-		);
-
-		return {
-			hasNextPage: memberCapsRes.hasNextPage,
-			cursor: memberCapsRes.cursor,
-			memberships,
-		};
-	}
-
-	/**
-	 * Get channel objects for a user
-	 * @param request - Pagination and filter options
-	 * @returns Channel objects with pagination info
-	 */
-	async getChannelObjectsByAddress(
-		request: ChannelMembershipsRequest,
-	): Promise<ChannelObjectsByAddressResponse> {
-		const membershipsPaginated = await this.getChannelMemberships(request);
-		const channelObjects = await this.getChannelObjectsByChannelIds(
-			membershipsPaginated.memberships.map((m) => m.channel_id),
-		);
-
-		return {
-			hasNextPage: membershipsPaginated.hasNextPage,
-			cursor: membershipsPaginated.cursor,
-			channelObjects,
-		};
-	}
-
-	/**
-	 * Get channel objects by channel IDs
-	 * @param channelIds - Array of channel IDs
-	 * @returns Parsed channel objects
-	 */
-	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
-		const channelObjectsRes = await this.#suiClient.core.getObjects({
-			objectIds: channelIds,
-		});
-		return await Promise.all(
-			channelObjectsRes.objects.map(async (object) => {
-				if (object instanceof Error || !object.content) {
-					throw new MessagingClientError(`Failed to parse Channel object: ${object}`);
-				}
-				return Channel.parse(await object.content);
-			}),
-		);
-	}
-
-	/**
-	 * Get all members of a channel
+	 * Get user's member cap ID for a specific channel
+	 * @param userAddress - The user's address
 	 * @param channelId - The channel ID
-	 * @returns Channel members with addresses and member cap IDs
+	 * @returns Member cap ID
 	 */
-	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
-		// 1. Get the channel object to access the auth structure
-		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-		const channel = channelObjects[0];
+	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
+		const memberships = await this.getChannelMemberships({ address: userAddress });
+		const membership = memberships.memberships.find((m) => m.channel_id === channelId);
 
-		// 2. Extract member cap IDs from the auth structure
-		const memberCapIds = channel.auth.member_permissions.contents.map((entry) => entry.key);
-
-		if (memberCapIds.length === 0) {
-			return { members: [] };
+		if (!membership) {
+			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 		}
 
-		// 3. Fetch all MemberCap objects
-		const memberCapObjects = await this.#suiClient.core.getObjects({
-			objectIds: memberCapIds,
-		});
-
-		// 4. Parse MemberCap objects and extract member addresses
-		const members: ChannelMember[] = [];
-		for (const obj of memberCapObjects.objects) {
-			if (obj instanceof Error || !obj.content) {
-				console.warn('Failed to fetch MemberCap object:', obj);
-				continue;
-			}
-
-			try {
-				const memberCap = MemberCap.parse(await obj.content);
-
-				// Get the owner of the MemberCap object
-				if (obj.owner) {
-					let memberAddress: string;
-					if (obj.owner.$kind === 'AddressOwner') {
-						memberAddress = obj.owner.AddressOwner;
-					} else if (obj.owner.$kind === 'ObjectOwner') {
-						// For object-owned MemberCaps, we can't easily get the address
-						// This is a limitation of the current approach
-						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
-						continue;
-					} else {
-						console.warn('MemberCap has unknown ownership type:', obj.owner);
-						continue;
-					}
-
-					members.push({
-						memberAddress,
-						memberCapId: memberCap.id.id,
-					});
-				}
-			} catch (error) {
-				console.warn('Failed to parse MemberCap object:', error);
-			}
-		}
-
-		return { members };
+		return membership.member_cap_id;
 	}
 
 	/**
-	 * Decrypt a message
+	 * Get encryption key from channel
+	 * @param channel - The channel object
+	 * @returns Encrypted symmetric key
+	 */
+	async #getEncryptionKeyFromChannel(channel: ParsedChannelObject): Promise<EncryptedSymmetricKey> {
+		const encryptedKeyBytes = channel.encryption_key_history.latest;
+		const keyVersion = channel.encryption_key_history.latest_version;
+
+		return {
+			$kind: 'Encrypted' as const,
+			encryptedBytes: new Uint8Array(encryptedKeyBytes),
+			version: keyVersion,
+		};
+	}
+
+	/**
+	 * Decrypt a message (private method)
 	 * @param message - The encrypted message object
 	 * @param channelId - The channel ID
 	 * @param memberCapId - The member cap ID
 	 * @param encryptedKey - The encrypted symmetric key
 	 * @returns Decrypted message with lazy-loaded attachments
 	 */
-	async decryptMessage(
+	async #decryptMessage(
 		message: (typeof Message)['$inferType'],
 		channelId: string,
 		memberCapId: string,
@@ -362,21 +267,223 @@ export class MessagingClient {
 		};
 	}
 
+	// ===== Read Path =====
+
 	/**
-	 * Get messages from a channel with pagination
-	 * @param request - Request parameters including channelId, cursor, limit, and direction
-	 * @returns Messages with pagination info
+	 * Get channel memberships for a user
+	 * @param request - Pagination and filter options
+	 * @returns Channel memberships with pagination info
+	 */
+	async getChannelMemberships(
+		request: ChannelMembershipsRequest,
+	): Promise<ChannelMembershipsResponse> {
+		const memberCapsRes = await this.#suiClient.core.getOwnedObjects({
+			...request,
+			type: MemberCap.name.replace('@local-pkg/sui-messaging', this.#packageConfig.packageId),
+		});
+		// Filter out any error objects
+		const validObjects = memberCapsRes.objects.filter(
+			(object): object is Experimental_SuiClientTypes.ObjectResponse => !(object instanceof Error),
+		);
+
+		if (validObjects.length === 0) {
+			return {
+				hasNextPage: memberCapsRes.hasNextPage,
+				cursor: memberCapsRes.cursor,
+				memberships: [],
+			};
+		}
+
+		// Get all object contents efficiently
+		const contents = await this.#getObjectContents(validObjects);
+
+		// Parse all MemberCaps
+		const memberships = await Promise.all(
+			contents.map(async (content) => {
+				const parsedMemberCap = MemberCap.parse(content);
+				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
+			}),
+		);
+
+		return {
+			hasNextPage: memberCapsRes.hasNextPage,
+			cursor: memberCapsRes.cursor,
+			memberships,
+		};
+	}
+
+	/**
+	 * Get channel objects for a user (returns decrypted data)
+	 * @param request - Pagination and filter options
+	 * @returns Decrypted channel objects with pagination info
+	 */
+	async getChannelObjectsByAddress(
+		request: ChannelMembershipsRequest,
+	): Promise<DecryptedChannelObjectsByAddressResponse> {
+		const membershipsPaginated = await this.getChannelMemberships(request);
+		const channelObjects = await this.getChannelObjectsByChannelIds({
+			channelIds: membershipsPaginated.memberships.map((m) => m.channel_id),
+			userAddress: request.address,
+			memberCapIds: membershipsPaginated.memberships.map((m) => m.member_cap_id),
+		});
+
+		return {
+			hasNextPage: membershipsPaginated.hasNextPage,
+			cursor: membershipsPaginated.cursor,
+			channelObjects,
+		};
+	}
+
+	/**
+	 * Get channel objects by channel IDs (returns decrypted data)
+	 * @param request - Request with channel IDs and user address, and optionally memberCapIds
+	 * @returns Decrypted channel objects
+	 */
+	async getChannelObjectsByChannelIds(
+		request: GetChannelObjectsByChannelIdsRequest,
+	): Promise<DecryptedChannelObject[]> {
+		const { channelIds, userAddress, memberCapIds } = request;
+
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: channelIds,
+		});
+
+		const parsedChannels = await Promise.all(
+			channelObjectsRes.objects.map(async (object) => {
+				if (object instanceof Error || !object.content) {
+					throw new MessagingClientError(`Failed to parse Channel object: ${object}`);
+				}
+				return Channel.parse(await object.content);
+			}),
+		);
+
+		// Decrypt each channel's last_message if it exists
+		const decryptedChannels = await Promise.all(
+			parsedChannels.map(async (channel, index) => {
+				const decryptedChannel: DecryptedChannelObject = {
+					...channel,
+					last_message: null,
+				};
+
+				// Decrypt last_message if it exists
+				if (channel.last_message) {
+					try {
+						// Use provided memberCapId or fetch it
+						const memberCapId =
+							memberCapIds?.[index] || (await this.#getUserMemberCapId(userAddress, channel.id.id));
+						const encryptedKey = await this.#getEncryptionKeyFromChannel(channel);
+						const decryptedMessage = await this.#decryptMessage(
+							channel.last_message,
+							channel.id.id,
+							memberCapId,
+							encryptedKey,
+						);
+						decryptedChannel.last_message = decryptedMessage;
+					} catch (error) {
+						// If decryption fails, set last_message to null
+						console.warn(`Failed to decrypt last message for channel ${channel.id.id}:`, error);
+						decryptedChannel.last_message = null;
+					}
+				}
+
+				return decryptedChannel;
+			}),
+		);
+
+		return decryptedChannels;
+	}
+
+	/**
+	 * Get all members of a channel
+	 * @param channelId - The channel ID
+	 * @returns Channel members with addresses and member cap IDs
+	 */
+	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+		// 1. Get the channel object to access the auth structure
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: [channelId],
+		});
+		const channelObject = channelObjectsRes.objects[0];
+		if (channelObject instanceof Error || !channelObject.content) {
+			throw new MessagingClientError(`Failed to parse Channel object: ${channelObject}`);
+		}
+		const channel = Channel.parse(await channelObject.content);
+
+		// 2. Extract member cap IDs from the auth structure
+		const memberCapIds = channel.auth.member_permissions.contents.map((entry) => entry.key);
+
+		if (memberCapIds.length === 0) {
+			return { members: [] };
+		}
+
+		// 3. Fetch all MemberCap objects
+		const memberCapObjects = await this.#suiClient.core.getObjects({
+			objectIds: memberCapIds,
+		});
+
+		// 4. Parse MemberCap objects and extract member addresses
+		const members: ChannelMember[] = [];
+		for (const obj of memberCapObjects.objects) {
+			if (obj instanceof Error || !obj.content) {
+				console.warn('Failed to fetch MemberCap object:', obj);
+				continue;
+			}
+
+			try {
+				const memberCap = MemberCap.parse(await obj.content);
+
+				// Get the owner of the MemberCap object
+				if (obj.owner) {
+					let memberAddress: string;
+					if (obj.owner.$kind === 'AddressOwner') {
+						memberAddress = obj.owner.AddressOwner;
+					} else if (obj.owner.$kind === 'ObjectOwner') {
+						// For object-owned MemberCaps, we can't easily get the address
+						// This is a limitation of the current approach
+						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
+						continue;
+					} else {
+						console.warn('MemberCap has unknown ownership type:', obj.owner);
+						continue;
+					}
+
+					members.push({
+						memberAddress,
+						memberCapId: memberCap.id.id,
+					});
+				}
+			} catch (error) {
+				console.warn('Failed to parse MemberCap object:', error);
+			}
+		}
+
+		return { members };
+	}
+
+	/**
+	 * Get messages from a channel with pagination (returns decrypted messages)
+	 * @param request - Request parameters including channelId, userAddress, cursor, limit, and direction
+	 * @returns Decrypted messages with pagination info
 	 */
 	async getChannelMessages({
 		channelId,
+		userAddress,
 		cursor = null,
 		limit = 50,
 		direction = 'backward',
-	}: GetChannelMessagesRequest): Promise<MessagesResponse> {
-		// 1. Get channel metadata
-		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-		const messagesTableId = channelObjects[0].messages.contents.id.id;
-		const totalMessagesCount = BigInt(channelObjects[0].messages_count);
+	}: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse> {
+		// 1. Get channel metadata (we need the raw channel object for metadata, not decrypted)
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: [channelId],
+		});
+		const channelObject = channelObjectsRes.objects[0];
+		if (channelObject instanceof Error || !channelObject.content) {
+			throw new MessagingClientError(`Failed to parse Channel object: ${channelObject}`);
+		}
+		const channel = Channel.parse(await channelObject.content);
+
+		const messagesTableId = channel.messages.contents.id.id;
+		const totalMessagesCount = BigInt(channel.messages_count);
 
 		// 2. Validate inputs
 		if (totalMessagesCount === BigInt(0)) {
@@ -403,18 +510,39 @@ export class MessagingClient {
 		}
 
 		// 5. Fetch and parse messages
-		const messages = await this.#fetchMessagesInRange(messagesTableId, fetchRange);
+		const rawMessages = await this.#fetchMessagesInRange(messagesTableId, fetchRange);
 
-		// 6. Determine next pagination
+		// 6. Decrypt messages
+		const memberCapId = await this.#getUserMemberCapId(userAddress, channelId);
+		const encryptedKey = await this.#getEncryptionKeyFromChannel(channel);
+
+		const decryptedMessages = await Promise.all(
+			rawMessages.map(async (message) => {
+				try {
+					return await this.#decryptMessage(message, channelId, memberCapId, encryptedKey);
+				} catch (error) {
+					console.warn(`Failed to decrypt message in channel ${channelId}:`, error);
+					// Return a placeholder for failed decryption
+					return {
+						text: '[Failed to decrypt message]',
+						sender: message.sender,
+						createdAtMs: message.created_at_ms,
+						attachments: [],
+					};
+				}
+			}),
+		);
+
+		// 7. Determine next pagination
 		const nextPagination = this.#determineNextPagination({
 			fetchRange,
 			direction,
 			totalMessagesCount,
 		});
 
-		// 6. Create response
+		// 8. Create response
 		return {
-			messages,
+			messages: decryptedMessages,
 			cursor: nextPagination.cursor,
 			hasNextPage: nextPagination.hasNextPage,
 			direction,
@@ -422,18 +550,26 @@ export class MessagingClient {
 	}
 
 	/**
-	 * Get new messages since last polling state
-	 * @param request - Request with channelId, pollingState, and limit
-	 * @returns New messages since last poll
+	 * Get new messages since last polling state (returns decrypted messages)
+	 * @param request - Request with channelId, userAddress, pollingState, and limit
+	 * @returns New decrypted messages since last poll
 	 */
 	async getLatestMessages({
 		channelId,
+		userAddress,
 		pollingState,
 		limit = 50,
-	}: GetLatestMessagesRequest): Promise<MessagesResponse> {
+	}: GetLatestMessagesRequest): Promise<DecryptedMessagesResponse> {
 		// 1. Get current channel state to check for new messages
-		const channelObjects = await this.getChannelObjectsByChannelIds([channelId]);
-		const latestMessageCount = BigInt(channelObjects[0].messages_count);
+		const channelObjectsRes = await this.#suiClient.core.getObjects({
+			objectIds: [channelId],
+		});
+		const channelObject = channelObjectsRes.objects[0];
+		if (channelObject instanceof Error || !channelObject.content) {
+			throw new MessagingClientError(`Failed to parse Channel object: ${channelObject}`);
+		}
+		const channel = Channel.parse(await channelObject.content);
+		const latestMessageCount = BigInt(channel.messages_count);
 
 		// 2. Check if there are new messages since last poll
 		const newMessagesCount = latestMessageCount - pollingState.lastMessageCount;
@@ -454,6 +590,7 @@ export class MessagingClient {
 
 		const response = await this.getChannelMessages({
 			channelId,
+			userAddress,
 			cursor: pollingState.lastCursor,
 			limit: fetchLimit,
 			direction: 'backward',
@@ -1140,12 +1277,60 @@ export class MessagingClient {
 	/**
 	 * Create an empty messages response
 	 */
-	#createEmptyMessagesResponse(direction: 'backward' | 'forward'): MessagesResponse {
+	#createEmptyMessagesResponse(direction: 'backward' | 'forward'): DecryptedMessagesResponse {
 		return {
 			messages: [],
 			cursor: null,
 			hasNextPage: false,
 			direction,
 		};
+	}
+	/**
+	 * Helper method to get object contents, handling both SuiClient and SuiGrpcClient
+	 */
+	async #getObjectContents(
+		objects: Experimental_SuiClientTypes.ObjectResponse[],
+	): Promise<Uint8Array[]> {
+		// First, try to get all contents directly (works for SuiClient)
+		const contentPromises = objects.map(async (object) => {
+			try {
+				return await object.content;
+			} catch (error) {
+				// If this is the gRPC error, we'll handle it below
+				if (
+					error instanceof Error &&
+					error.message.includes('GRPC does not return object contents')
+				) {
+					return null; // Mark for batch fetching
+				}
+				throw error;
+			}
+		});
+
+		const contents = await Promise.all(contentPromises);
+
+		// Check if any failed with the gRPC error
+		const needsBatchFetch = contents.some((content) => content === null);
+
+		if (needsBatchFetch) {
+			// Batch fetch all objects that need content
+			const objectIds = objects.map((obj) => obj.id);
+			const objectResponses = await this.#suiClient.core.getObjects({ objectIds });
+
+			// Map the results back to the original order and await the content
+			const batchContents = await Promise.all(
+				objectResponses.objects.map(async (obj) => {
+					if (obj instanceof Error || !obj.content) {
+						throw new MessagingClientError(`Failed to fetch object content: ${obj}`);
+					}
+					return await obj.content;
+				}),
+			);
+
+			return batchContents;
+		}
+
+		// Filter out null values and return
+		return contents.filter((content): content is Uint8Array => content !== null);
 	}
 }
