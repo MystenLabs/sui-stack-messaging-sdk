@@ -5,8 +5,7 @@ import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
-import { EncryptedSymmetricKey } from '../src/encryption';
-import { Channel } from '../src/contracts/sui_messaging/channel';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_messaging/member_cap';
 
 // Type alias for our fully extended client
@@ -63,7 +62,10 @@ describe('Integration tests - Write Path', () => {
 			expect(digest).toBeDefined();
 			expect(channelId).toBeDefined();
 
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([channelId]);
+			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: signer.toSuiAddress(),
+			});
 			const channel = channelObjects[0];
 
 			// Assert channel properties
@@ -186,7 +188,7 @@ describe('Integration tests - Write Path', () => {
 
 	describe('Message Sending', () => {
 		let client: TestClient;
-		let channelObj: (typeof Channel)['$inferType'];
+		let channelObj: any; // Will be DecryptedChannelObject from the API
 		let memberCap: (typeof MemberCap)['$inferType'];
 		let encryptionKey: EncryptedSymmetricKey;
 
@@ -199,7 +201,10 @@ describe('Integration tests - Write Path', () => {
 					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
 				});
 
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([newChannelId]);
+			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: [newChannelId],
+				userAddress: signer.toSuiAddress(),
+			});
 			channelObj = channelObjects[0];
 
 			// Get the creator's MemberCap
@@ -257,6 +262,7 @@ describe('Integration tests - Write Path', () => {
 			// const channelObjFresh = channelObjectsFresh[0]; // Not used in current test
 			const messagesResponse = await client.messaging.getChannelMessages({
 				channelId: memberCap.channel_id,
+				userAddress: signer.toSuiAddress(),
 				limit: 10,
 				direction: 'backward',
 			});
@@ -265,8 +271,8 @@ describe('Integration tests - Write Path', () => {
 			const sentMessage = messagesResponse.messages[0];
 
 			expect(sentMessage.sender).toBe(signer.toSuiAddress());
-			expect(sentMessage.key_version).toBe(1);
-			expect(sentMessage.created_at_ms).toMatch(/[0-9]+/);
+			expect(sentMessage.text).toBe(messageText);
+			expect(sentMessage.createdAtMs).toMatch(/[0-9]+/);
 			expect(sentMessage.attachments).toHaveLength(1);
 		}, 320000);
 
@@ -289,21 +295,22 @@ describe('Integration tests - Write Path', () => {
 
 			const messagesResponse = await client.messaging.getChannelMessages({
 				channelId: memberCap.channel_id,
+				userAddress: signer.toSuiAddress(),
 				limit: 10,
 				direction: 'backward',
 			});
 
-			// Decrypt the messages
-			const decryptedMessages = await Promise.all(
-				messagesResponse.messages.map((m) =>
-					client.messaging.decryptMessage(m, memberCap.channel_id, memberCap.id.id, encryptionKey),
-				),
-			);
+			// Messages are now automatically decrypted, so we can use them directly
+			const decryptedMessages = messagesResponse.messages;
 
 			console.log(
 				'messages',
 				JSON.stringify(
-					decryptedMessages.map((m) => ({ created_at_ms: m.createdAtMs, sender: m.sender })),
+					decryptedMessages.map((m) => ({
+						createdAtMs: m.createdAtMs,
+						sender: m.sender,
+						text: m.text,
+					})),
 					null,
 					2,
 				),
