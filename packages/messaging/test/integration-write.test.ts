@@ -6,7 +6,7 @@ import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
-import { MemberCap } from '../src/contracts/sui_messaging/member_cap';
+import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;

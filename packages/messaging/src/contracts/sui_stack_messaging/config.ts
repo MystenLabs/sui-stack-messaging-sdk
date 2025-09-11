@@ -4,7 +4,7 @@
 import { MoveTuple, MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
-const $moduleName = '@local-pkg/sui-messaging::config';
+const $moduleName = '@local-pkg/sui-stack-messaging::config';
 export const EditConfig = new MoveTuple({ name: `${$moduleName}::EditConfig`, fields: [bcs.bool()] });
 export const Config = new MoveStruct({ name: `${$moduleName}::Config`, fields: {
         max_channel_members: bcs.u64(),
@@ -21,7 +21,7 @@ export interface DefaultOptions {
     ];
 }
 export function _default(options: DefaultOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'config',
@@ -50,7 +50,7 @@ export interface NewOptions {
     ];
 }
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         'u64',
         'u64',
@@ -74,7 +74,7 @@ export interface NoneOptions {
     ];
 }
 export function none(options: NoneOptions = {}) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     return (tx: Transaction) => tx.moveCall({
         package: packageAddress,
         module: 'config',
@@ -91,7 +91,7 @@ export interface IsValidConfigOptions {
     ];
 }
 export function isValidConfig(options: IsValidConfigOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -113,7 +113,7 @@ export interface ConfigMaxChannelMembersOptions {
     ];
 }
 export function configMaxChannelMembers(options: ConfigMaxChannelMembersOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -135,7 +135,7 @@ export interface ConfigMaxChannelRolesOptions {
     ];
 }
 export function configMaxChannelRoles(options: ConfigMaxChannelRolesOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -157,7 +157,7 @@ export interface ConfigMaxMessageTextCharsOptions {
     ];
 }
 export function configMaxMessageTextChars(options: ConfigMaxMessageTextCharsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -179,7 +179,7 @@ export interface ConfigMaxMessageAttachmentsOptions {
     ];
 }
 export function configMaxMessageAttachments(options: ConfigMaxMessageAttachmentsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -201,7 +201,7 @@ export interface ConfigRequireInvitationOptions {
     ];
 }
 export function configRequireInvitation(options: ConfigRequireInvitationOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -223,7 +223,7 @@ export interface ConfigRequireRequestOptions {
     ];
 }
 export function configRequireRequest(options: ConfigRequireRequestOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];
@@ -245,7 +245,7 @@ export interface ConfigEmitEventsOptions {
     ];
 }
 export function configEmitEvents(options: ConfigEmitEventsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::config::Config`
     ] satisfies string[];

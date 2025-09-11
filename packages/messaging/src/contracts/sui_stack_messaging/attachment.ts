@@ -4,7 +4,7 @@
 import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
-const $moduleName = '@local-pkg/sui-messaging::attachment';
+const $moduleName = '@local-pkg/sui-stack-messaging::attachment';
 export const Attachment = new MoveStruct({ name: `${$moduleName}::Attachment`, fields: {
         blob_ref: bcs.string(),
         encrypted_metadata: bcs.vector(bcs.u8()),
@@ -30,7 +30,7 @@ export interface NewOptions {
     ];
 }
 export function _new(options: NewOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         '0x0000000000000000000000000000000000000000000000000000000000000001::string::String',
         'vector<u8>',
@@ -56,7 +56,7 @@ export interface BlobRefOptions {
     ];
 }
 export function blobRef(options: BlobRefOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::attachment::Attachment`
     ] satisfies string[];
@@ -78,7 +78,7 @@ export interface DataNonceOptions {
     ];
 }
 export function dataNonce(options: DataNonceOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::attachment::Attachment`
     ] satisfies string[];
