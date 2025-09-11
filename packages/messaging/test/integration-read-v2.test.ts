@@ -107,8 +107,12 @@ describe('Integration tests - Read Path v2', () => {
 		it('should fetch specific channel objects by IDs', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const channelIds = testData.channels.map((ch) => ch.channelId);
+			const testUser = testData.channels[0].members[0].address;
 
-			const result = await client.messaging.getChannelObjectsByChannelIds(channelIds);
+			const result = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds,
+				userAddress: testUser,
+			});
 
 			expect(result.length).toBe(channelIds.length);
 			expect(result.every((ch) => channelIds.includes(ch.id.id))).toBe(true);
@@ -118,9 +122,13 @@ describe('Integration tests - Read Path v2', () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const nonExistentChannelId =
 				'0x0000000000000000000000000000000000000000000000000000000000000000';
+			const testUser = testData.channels[0].members[0].address;
 
 			await expect(
-				client.messaging.getChannelObjectsByChannelIds([nonExistentChannelId]),
+				client.messaging.getChannelObjectsByChannelIds({
+					channelIds: [nonExistentChannelId],
+					userAddress: testUser,
+				}),
 			).rejects.toThrow();
 		});
 	});
@@ -154,9 +162,11 @@ describe('Integration tests - Read Path v2', () => {
 			if (!testChannel) {
 				throw new Error('No channel with messages found for testing');
 			}
+			const testUser = testChannel.members[0].address;
 
 			const result = await client.messaging.getChannelMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				limit: 5,
 				direction: 'backward',
 			});
@@ -175,9 +185,11 @@ describe('Integration tests - Read Path v2', () => {
 			if (!testChannel) {
 				throw new Error('No channel with messages found for testing');
 			}
+			const testUser = testChannel.members[0].address;
 
 			const result = await client.messaging.getChannelMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				limit: 5,
 				direction: 'forward',
 			});
@@ -196,10 +208,12 @@ describe('Integration tests - Read Path v2', () => {
 			if (!testChannel) {
 				throw new Error('No channel with enough messages found for pagination testing');
 			}
+			const testUser = testChannel.members[0].address;
 
 			// First page
 			const firstPage = await client.messaging.getChannelMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				limit: 2,
 				direction: 'backward',
 			});
@@ -210,6 +224,7 @@ describe('Integration tests - Read Path v2', () => {
 			// Second page using cursor
 			const secondPage = await client.messaging.getChannelMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				cursor: firstPage.cursor,
 				limit: 2,
 				direction: 'backward',
@@ -218,8 +233,8 @@ describe('Integration tests - Read Path v2', () => {
 			expect(secondPage.messages.length).toBeGreaterThan(0);
 
 			// Messages should be different
-			const firstPageIds = firstPage.messages.map((m) => m.sender + m.created_at_ms);
-			const secondPageIds = secondPage.messages.map((m) => m.sender + m.created_at_ms);
+			const firstPageIds = firstPage.messages.map((m) => m.sender + m.createdAtMs);
+			const secondPageIds = secondPage.messages.map((m) => m.sender + m.createdAtMs);
 			expect(firstPageIds).not.toEqual(secondPageIds);
 		});
 
@@ -231,8 +246,10 @@ describe('Integration tests - Read Path v2', () => {
 				throw new Error('No empty channel found for testing');
 			}
 
+			const testUser = emptyChannel.members[0].address;
 			const result = await client.messaging.getChannelMessages({
 				channelId: emptyChannel.channelId,
+				userAddress: testUser,
 				limit: 10,
 				direction: 'backward',
 			});
@@ -251,9 +268,11 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Create initial polling state
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([
-				testChannel.channelId,
-			]);
+			const testUser = testChannel.members[0].address;
+			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: [testChannel.channelId],
+				userAddress: testUser,
+			});
 			const currentMessageCount = BigInt(channelObjects[0].messages_count);
 
 			const pollingState = {
@@ -265,6 +284,7 @@ describe('Integration tests - Read Path v2', () => {
 			// Should return empty since no new messages
 			const result = await client.messaging.getLatestMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				pollingState,
 				limit: 10,
 			});
@@ -282,9 +302,11 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Try with cursor beyond message count
+			const testUser = testChannel.members[0].address;
 			await expect(
 				client.messaging.getChannelMessages({
 					channelId: testChannel.channelId,
+					userAddress: testUser,
 					cursor: BigInt(999999),
 					limit: 10,
 					direction: 'backward',
@@ -303,32 +325,21 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Get messages
+			const testUser = testChannel.members[0].address;
 			const messagesResult = await client.messaging.getChannelMessages({
 				channelId: testChannel.channelId,
+				userAddress: testUser,
 				limit: 1,
 				direction: 'backward',
 			});
 
 			expect(messagesResult.messages.length).toBeGreaterThan(0);
-			const message = messagesResult.messages[0];
+			const decryptedMessage = messagesResult.messages[0];
 
-			// Find the sender's member cap and encryption key
-			const senderMember = testChannel.members.find((m) => m.address === message.sender);
-			if (!senderMember) {
-				throw new Error('Sender member not found in test data');
-			}
-
-			// Decrypt the message
-			const decryptedResult = await client.messaging.decryptMessage(
-				message,
-				testChannel.channelId,
-				senderMember.memberCapId,
-				senderMember.encryptedKey,
-			);
-
-			expect(decryptedResult.text).toBeDefined();
-			expect(decryptedResult.sender).toBe(message.sender);
-			expect(decryptedResult.createdAtMs).toBe(message.created_at_ms);
+			// Messages are now automatically decrypted
+			expect(decryptedMessage.text).toBeDefined();
+			expect(decryptedMessage.sender).toBeDefined();
+			expect(decryptedMessage.createdAtMs).toBeDefined();
 		});
 
 		it('should handle messages with attachments', async () => {
@@ -342,8 +353,10 @@ describe('Integration tests - Read Path v2', () => {
 			}
 
 			// Get messages
+			const testUser = attachmentChannel.members[0].address;
 			const messagesResult = await client.messaging.getChannelMessages({
 				channelId: attachmentChannel.channelId,
+				userAddress: testUser,
 				limit: 10,
 				direction: 'backward',
 			});
@@ -356,21 +369,8 @@ describe('Integration tests - Read Path v2', () => {
 				throw new Error('No message with attachments found');
 			}
 
-			// Find the sender's member cap and encryption key
-			const senderMember = attachmentChannel.members.find(
-				(m) => m.address === messageWithAttachment.sender,
-			);
-			if (!senderMember) {
-				throw new Error('Sender member not found in test data');
-			}
-
-			// Decrypt the message
-			const decryptedResult = await client.messaging.decryptMessage(
-				messageWithAttachment,
-				attachmentChannel.channelId,
-				senderMember.memberCapId,
-				senderMember.encryptedKey,
-			);
+			// Messages are now automatically decrypted
+			const decryptedResult = messageWithAttachment;
 
 			// download and decrypt the attachments data (the attachments are Promises that we can await)
 			const attachments = await Promise.all(
