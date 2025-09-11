@@ -1,15 +1,15 @@
-module sui_messaging::channel;
+module sui_stack_messaging::channel;
 
 use sui::clock::Clock;
 use sui::table_vec::{Self, TableVec};
-use sui_messaging::admin;
-use sui_messaging::attachment::Attachment;
-use sui_messaging::auth::{Self, Auth};
-use sui_messaging::config::{Config, EditConfig};
-use sui_messaging::creator_cap::{Self, CreatorCap};
-use sui_messaging::encryption_key_history::{Self, EncryptionKeyHistory, EditEncryptionKey};
-use sui_messaging::member_cap::{Self, MemberCap};
-use sui_messaging::message::{Self, Message};
+use sui_stack_messaging::admin;
+use sui_stack_messaging::attachment::Attachment;
+use sui_stack_messaging::auth::{Self, Auth};
+use sui_stack_messaging::config::{Config, EditConfig};
+use sui_stack_messaging::creator_cap::{Self, CreatorCap};
+use sui_stack_messaging::encryption_key_history::{Self, EncryptionKeyHistory, EditEncryptionKey};
+use sui_stack_messaging::member_cap::{Self, MemberCap};
+use sui_stack_messaging::message::{Self, Message};
 
 // === Constants ===
 const MAX_NONCE_BYTES: u64 = 12;

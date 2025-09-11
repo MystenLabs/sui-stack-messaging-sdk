@@ -1,6 +1,6 @@
-module sui_messaging::member_cap;
+module sui_stack_messaging::member_cap;
 
-use sui_messaging::creator_cap::CreatorCap;
+use sui_stack_messaging::creator_cap::CreatorCap;
 
 const EWrongChannelCreator: u64 = 0;
 const EVectorsLengthMismatch: u64 = 1;

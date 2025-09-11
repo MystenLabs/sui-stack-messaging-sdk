@@ -1,5 +1,5 @@
 {
-	"name": "@mysten/messaging",
+	"name": "@mysten/sui-stack-messaging-sdk",
 	"version": "0.0.1",
 	"description": "Messaging SDK",
 	"license": "Apache-2.0",

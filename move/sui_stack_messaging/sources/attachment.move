@@ -1,4 +1,4 @@
-module sui_messaging::attachment;
+module sui_stack_messaging::attachment;
 
 use std::string::String;
 
