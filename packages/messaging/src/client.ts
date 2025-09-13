@@ -5,6 +5,7 @@ import { bcs } from '@mysten/sui/bcs';
 import type {
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
+import type { SessionKey } from '@mysten/seal';
 
 import {
 	_new as newChannel,
@@ -938,6 +939,22 @@ export class SuiStackMessagingClient {
 		}
 
 		return { digest, messageId };
+	}
+
+	/**
+	 * Update the external SessionKey instance (useful for React context updates)
+	 * Only works when the client was configured with an external SessionKey
+	 */
+	updateSessionKey(newSessionKey: SessionKey): void {
+		this.#envelopeEncryption.updateSessionKey(newSessionKey);
+	}
+
+	/**
+	 * Force refresh the managed SessionKey (useful for testing or manual refresh)
+	 * Only works when the client was configured with SessionKeyConfig
+	 */
+	async refreshSessionKey(): Promise<SessionKey> {
+		return this.#envelopeEncryption.refreshSessionKey();
 	}
 
 	/**
