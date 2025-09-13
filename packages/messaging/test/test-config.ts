@@ -54,7 +54,6 @@ function getLocalnetConfig(): TestConfig {
 		phrase: process.env.PHRASE || '',
 		packageConfig: {
 			packageId,
-			memberCapType: `${packageId}::channel::MemberCap`,
 			sealApproveContract: {
 				packageId,
 				module: 'seal_policies',
@@ -93,7 +92,6 @@ function getTestnetConfig(): TestConfig {
 		secretKey,
 		packageConfig: {
 			packageId,
-			memberCapType: `${packageId}::member_cap::MemberCap`,
 			sealApproveContract: {
 				packageId: sealApprovePackageId,
 				module: 'seal_policies',

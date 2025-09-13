@@ -1,6 +1,5 @@
 import { SuiClient } from '@mysten/sui/client';
 import { SealClient } from '@mysten/seal';
-import { WalrusClient } from '@mysten/walrus';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
@@ -220,7 +219,6 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		packageConfig: {
 			...config.packageConfig,
 			packageId,
-			memberCapType: `${packageId}::channel::MemberCap`,
 			sealApproveContract: {
 				...config.packageConfig.sealApproveContract,
 				packageId,
@@ -320,18 +318,6 @@ class MockSealClient {
 	}
 }
 
-class MockWalrusClient {
-	/**
-	 * Returns the client extension to be used with `SuiClient.$extend`.
-	 * This mirrors the real SealClient's API for consistency.
-	 */
-	static asClientExtension() {
-		return {
-			name: 'walrus' as const,
-			register: () => new MockWalrusClient() as unknown as WalrusClient,
-		};
-	}
-}
 
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
@@ -363,7 +349,6 @@ export function createTestClient(
 	return config.environment === 'localnet'
 		? suiRpcClient
 				.$extend(MockSealClient.asClientExtension())
-				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
 					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
@@ -376,7 +361,6 @@ export function createTestClient(
 					}),
 				)
 		: suiRpcClient
-				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
 					SealClient.asClientExtension({
 						serverConfigs: config.sealConfig?.serverConfigs || [],

@@ -19,7 +19,7 @@ import type {
 
 import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
 import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
-import type { StorageAdapter } from './storage/adapters/storage.js';
+import type { StorageAdapter, StorageConfig } from './storage/adapters/storage.js';
 import type { Channel } from './contracts/sui_stack_messaging/channel.js';
 import type { Message } from './contracts/sui_stack_messaging/message.js';
 
@@ -27,13 +27,25 @@ export type MessagingClientExtensionOptions =
 	| {
 			packageConfig?: MessagingPackageConfig;
 			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			storage: (client: ClientWithExtensions<any>) => StorageAdapter;
 			sessionKeyConfig?: SessionKeyConfig;
 	  }
 	| {
 			packageConfig?: MessagingPackageConfig;
 			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			storage: (client: ClientWithExtensions<any>) => StorageAdapter;
+			sessionKey?: SessionKey;
+	  }
+	| {
+			packageConfig?: MessagingPackageConfig;
+			network?: 'mainnet' | 'testnet';
+			walrusStorageConfig: StorageConfig;
+			sessionKeyConfig?: SessionKeyConfig;
+	  }
+	| {
+			packageConfig?: MessagingPackageConfig;
+			network?: 'mainnet' | 'testnet';
+			walrusStorageConfig: StorageConfig;
 			sessionKey?: SessionKey;
 	  };
 
@@ -78,7 +90,6 @@ export interface CreateChannelFlow {
 
 export interface MessagingPackageConfig {
 	packageId: string;
-	memberCapType: string;
 	sealApproveContract: SealApproveContract;
 	sealSessionKeyTTLmins: number;
 }
@@ -204,3 +215,38 @@ export interface DecryptedChannelObjectsByAddressResponse
 	extends Omit<ChannelObjectsByMembershipsResponse, 'channelObjects'> {
 	channelObjects: DecryptedChannelObject[];
 }
+
+// Static create method configuration types
+export type ClientTransportType = 'jsonrpc' | 'grpc';
+
+export interface SealConfig {
+	serverConfigs: any[]; // Replace with proper SealServerConfig type when available
+}
+
+export interface WalrusConfig {
+	publisher: string;
+	aggregator: string;
+	epochs: number;
+}
+
+// Base configuration that's common to all variants
+interface BaseMessagingClientCreateOptions {
+	transport: 'jsonrpc' | 'grpc';
+	network: 'testnet' | 'mainnet';
+	rpcUrl?: string;
+	packageConfig?: MessagingPackageConfig;
+	seal: SealConfig;
+}
+
+// Storage configuration variants
+type StorageOptions = 
+	| { storage: (client: ClientWithExtensions<any>) => StorageAdapter }
+	| { walrusStorage: WalrusConfig };
+
+// Session key configuration variants  
+type SessionOptions = 
+	| { sessionKeyConfig: SessionKeyConfig }
+	| { sessionKey: SessionKey };
+
+// Final type combining all variants
+export type MessagingClientCreateOptions = BaseMessagingClientCreateOptions & StorageOptions & SessionOptions;

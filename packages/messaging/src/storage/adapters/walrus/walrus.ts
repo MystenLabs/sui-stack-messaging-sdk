@@ -7,7 +7,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
 		// Client parameter kept for future implementation - currently unused
 		// @ts-ignore TS6138 - intentionally unused parameter for future implementation
-		private readonly _client: ClientWithExtensions<{ walrus: WalrusClient }>,
+		private readonly _client: ClientWithExtensions<{ walrus?: WalrusClient }>,
 		private readonly config: StorageConfig,
 	) {}
 
