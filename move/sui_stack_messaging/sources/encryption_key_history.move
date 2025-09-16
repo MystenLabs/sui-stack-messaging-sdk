@@ -1,7 +1,7 @@
-module sui_messaging::encryption_key_history;
+module sui_stack_messaging::encryption_key_history;
 
 use sui::table_vec::{Self, TableVec};
-use sui_messaging::auth::Auth;
+use sui_stack_messaging::auth::Auth;
 
 const MAX_KEY_BYTES: u64 = 512;
 const NONCE_SIZE_BYTES: u64 = 12;

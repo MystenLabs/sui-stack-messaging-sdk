@@ -1,25 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import {
+import type {
 	ClientWithExtensions,
 	Experimental_CoreClient,
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
-import {
+import type { SealClient, SessionKey } from '@mysten/seal';
+import type { WalrusClient } from '@mysten/walrus';
+import type { Transaction } from '@mysten/sui/transactions';
+
+import type {
 	AttachmentMetadata,
 	EncryptedSymmetricKey,
 	SealApproveContract,
 	SessionKeyConfig,
-} from './encryption';
-import { SealClient, SessionKey } from '@mysten/seal';
-import { WalrusClient } from '@mysten/walrus';
-import { MemberCap } from './contracts/sui_messaging/member_cap';
-import { Transaction } from '@mysten/sui/dist/cjs/transactions';
-import { CreatorCap } from './contracts/sui_messaging/creator_cap';
-import { StorageAdapter } from './storage/adapters/storage';
-import { Channel } from './contracts/sui_messaging/channel';
-import { Message } from './contracts/sui_messaging/message';
+} from './encryption/types.js';
+
+import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
+import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
+import type { StorageAdapter } from './storage/adapters/storage.js';
+import type { Channel } from './contracts/sui_stack_messaging/channel.js';
+import type { Message } from './contracts/sui_stack_messaging/message.js';
 
 export type MessagingClientExtensionOptions =
 	| {
@@ -98,8 +100,6 @@ export type ChannelMembershipsRequest = MessagingOwnedObjects;
 
 export type ParsedChannelObject = (typeof Channel)['$inferType'];
 export type ParsedMessageObject = (typeof Message)['$inferType'];
-export type ParsedCreatorCap = (typeof CreatorCap)['$inferType'];
-export type ParsedMemberCap = (typeof MemberCap)['$inferType'];
 export type Membership = { member_cap_id: string; channel_id: string };
 
 export type ChannelMembershipsResponse = PaginatedResponse<{
@@ -143,12 +143,14 @@ export interface PollingState {
 
 export interface GetLatestMessagesRequest {
 	channelId: string;
+	userAddress: string; // The address of the user requesting the messages (needed for decryption)
 	pollingState: PollingState;
 	limit?: number; // default: 50
 }
 
 export interface GetChannelMessagesRequest {
 	channelId: string;
+	userAddress: string; // The address of the user requesting the messages (needed for decryption)
 	cursor?: bigint | null; // The message index to start from
 	limit?: number; // default: 50
 	direction?: 'backward' | 'forward'; // default: 'backward'
@@ -173,12 +175,26 @@ export interface DecryptMessageResult {
 	attachments?: LazyDecryptAttachmentResult[];
 }
 
-export type WithOwnerAddress<T> = T & {
-	ownerAddress: string;
-};
+// New types for decrypted data
+export interface DecryptedMessage {
+	text: string;
+	sender: string;
+	createdAtMs: string;
+	attachments?: LazyDecryptAttachmentResult[];
+}
 
-export type GetGeneratedCapsResult = {
-	creatorCap: WithOwnerAddress<{ capObject: ParsedCreatorCap }>;
-	creatorMemberCap: WithOwnerAddress<{ capObject: ParsedMemberCap }>;
-	additionalMemberCaps: WithOwnerAddress<{ capObject: ParsedMemberCap }>[];
-};
+export interface DecryptedChannelObject extends Omit<ParsedChannelObject, 'last_message'> {
+	last_message?: DecryptedMessage | null;
+}
+
+export interface DecryptedMessagesResponse {
+	messages: DecryptedMessage[];
+	cursor: bigint | null;
+	hasNextPage: boolean;
+	direction: 'backward' | 'forward';
+}
+
+export interface DecryptedChannelObjectsByAddressResponse
+	extends Omit<ChannelObjectsByMembershipsResponse, 'channelObjects'> {
+	channelObjects: DecryptedChannelObject[];
+}

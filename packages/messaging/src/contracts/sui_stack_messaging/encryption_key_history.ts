@@ -4,7 +4,7 @@
 import { MoveStruct, MoveTuple } from '../utils/index.js';
 import { bcs } from '@mysten/sui/bcs';
 import * as table_vec from './deps/sui/table_vec.js';
-const $moduleName = '@local-pkg/sui-messaging::encryption_key_history';
+const $moduleName = '@local-pkg/sui-stack-messaging::encryption_key_history';
 export const EncryptedKey = new MoveStruct({ name: `${$moduleName}::EncryptedKey`, fields: {
         encrypted_bytes: bcs.vector(bcs.u8()),
         nonce: bcs.vector(bcs.u8())

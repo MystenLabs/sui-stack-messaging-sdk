@@ -57,10 +57,8 @@ export class EnvelopeEncryption {
 
 	private async getSessionKey(): Promise<SessionKey> {
 		if (this.#sessionKey && !this.#sessionKey.isExpired()) {
-			console.log('using cached session key');
 			return this.#sessionKey;
 		}
-		console.log('creating new session key');
 
 		if (!this.#sessionKeyConfig) {
 			throw new Error(
@@ -389,7 +387,10 @@ export class EnvelopeEncryption {
 				txBytes,
 			});
 		} catch (error) {
-			console.error('Error decrypting channel DEK', error);
+			console.error(
+				`Error decrypting channel DEK for channel ${channelId} with memberCapId ${memberCapId}:`,
+				error,
+			);
 			throw error;
 		}
 		// const dekBytes = await this.#suiClient.seal.decrypt({

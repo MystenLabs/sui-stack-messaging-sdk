@@ -7,8 +7,8 @@ const config: SuiCodegenConfig = {
 	output: './src/contracts',
 	packages: [
 		{
-			package: '@local-pkg/sui-messaging',
-			path: '../../move/sui_messaging',
+			package: '@local-pkg/sui-stack-messaging',
+			path: '../../move/sui_stack_messaging',
 		},
 	],
 };

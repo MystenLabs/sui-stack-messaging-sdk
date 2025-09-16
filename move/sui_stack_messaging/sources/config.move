@@ -1,4 +1,4 @@
-module sui_messaging::config;
+module sui_stack_messaging::config;
 
 // === Errors ===
 const ETooManyMembers: u64 = 0;

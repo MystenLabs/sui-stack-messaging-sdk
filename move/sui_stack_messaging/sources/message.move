@@ -1,9 +1,9 @@
-module sui_messaging::message;
+module sui_stack_messaging::message;
 
 use std::string::String;
 use sui::clock::Clock;
 use sui::event;
-use sui_messaging::attachment::Attachment;
+use sui_stack_messaging::attachment::Attachment;
 
 // === Errors ===
 

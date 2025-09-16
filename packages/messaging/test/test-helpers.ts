@@ -1,21 +1,24 @@
 import { SuiClient } from '@mysten/sui/client';
+import { SealClient } from '@mysten/seal';
+import { WalrusClient } from '@mysten/walrus';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
 
-import { MessagingClient } from '../src/client';
+import { SuiStackMessagingClient } from '../src/client';
 import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
-import { WalrusClient } from '@mysten/walrus';
-import { SealClient } from '@mysten/seal';
 
-import * as channelModule from '../src/contracts/sui_messaging/channel';
-import * as memberCapModule from '../src/contracts/sui_messaging/member_cap';
-import * as messageModule from '../src/contracts/sui_messaging/message';
+import * as channelModule from '../src/contracts/sui_stack_messaging/channel';
+import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_cap';
+import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { Experimental_BaseClient } from '@mysten/sui/dist/cjs/experimental';
 
 // --- Constants ---
 
@@ -36,6 +39,7 @@ export const TestConstants = {
 export interface TestEnvironmentSetup {
 	config: TestConfig;
 	suiClient: SuiClient;
+	suiGrpcClient?: SuiGrpcClient;
 	signer: Signer;
 	packageId: string;
 	cleanup?: () => Promise<void>;
@@ -103,8 +107,8 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		])
 		.withCopyDirectoriesToContainer([
 			{
-				source: path.resolve(__dirname, '../../../move/sui_messaging'),
-				target: '/sui/sui_messaging',
+				source: path.resolve(__dirname, '../../../move/sui_stack_messaging'),
+				target: '/sui/sui_stack_messaging',
 			},
 		])
 		.withNetwork(dockerNetwork)
@@ -173,7 +177,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		'sui',
 		'client',
 		'publish',
-		'./sui_messaging',
+		'./sui_stack_messaging',
 		'--json',
 	]);
 
@@ -197,7 +201,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		mvr: {
 			overrides: {
 				packages: {
-					'@local-pkg/sui-messaging': packageId,
+					'@local-pkg/sui-stack-messaging': packageId,
 				},
 			},
 		},
@@ -240,7 +244,19 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 		mvr: {
 			overrides: {
 				packages: {
-					'@local-pkg/sui-messaging': config.packageConfig.packageId,
+					'@local-pkg/sui-stack-messaging': config.packageConfig.packageId,
+				},
+			},
+		},
+	});
+
+	const suiGrpcClient = new SuiGrpcClient({
+		network: 'testnet',
+		baseUrl: getFullnodeUrl('testnet'),
+		mvr: {
+			overrides: {
+				packages: {
+					'@local-pkg/sui-stack-messaging': config.packageConfig.packageId,
 				},
 			},
 		},
@@ -255,6 +271,7 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 	return {
 		config,
 		suiClient,
+		suiGrpcClient,
 		signer,
 		packageId: config.packageConfig.packageId,
 		// No cleanup needed for testnet since we're not using Docker containers
@@ -332,19 +349,23 @@ class MockStorageAdapter implements StorageAdapter {
 }
 
 /**
- * Creates a fully extended MessagingClient for tests.
- * @param suiJsonRpcClient - The base SuiClient.
+ * Creates a fully extended SuiStackMessagingClient for tests.
+ * @param suiRpcClient - The base SuiClient.
  * @param config - The test configuration.
  * @param signer - The signer to use for transactions.
- * @returns An instance of the extended MessagingClient.
+ * @returns An instance of the extended SuiStackMessagingClient.
  */
-export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig, signer: Signer) {
+export function createTestClient(
+	suiRpcClient: Experimental_BaseClient,
+	config: TestConfig,
+	signer: Signer,
+) {
 	return config.environment === 'localnet'
-		? suiJsonRpcClient
+		? suiRpcClient
 				.$extend(MockSealClient.asClientExtension())
 				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
-					MessagingClient.experimental_asClientExtension({
+					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (_client) => new MockStorageAdapter(),
 						sessionKeyConfig: {
@@ -354,7 +375,7 @@ export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig
 						},
 					}),
 				)
-		: suiJsonRpcClient
+		: suiRpcClient
 				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
 					SealClient.asClientExtension({
@@ -362,7 +383,7 @@ export function createTestClient(suiJsonRpcClient: SuiClient, config: TestConfig
 					}),
 				)
 				.$extend(
-					MessagingClient.experimental_asClientExtension({
+					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (client) => {
 							if (!config.walrusConfig) {

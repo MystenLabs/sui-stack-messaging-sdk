@@ -1,9 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { MessagingClientError } from '../error';
-import { ENCRYPTION_PRIMITIVES_CONFIG } from './constants';
-import { EncryptionPrimitives, EncryptionPrimitivesConfig } from './types';
+import { MessagingClientError } from '../error.js';
+import { ENCRYPTION_PRIMITIVES_CONFIG } from './constants.js';
+import type { EncryptionPrimitives, EncryptionPrimitivesConfig } from './types.js';
 
 /**
  * Default implementation of the KeyProvider interface using Web Crypto API
@@ -28,7 +28,9 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	// ===== Key methods =====
 
 	/**
-	 * Generates a cryptographically secure random Data Encryption Key(DEK)
+	 * Generate a cryptographically secure random Data Encryption Key
+	 * @param length - Optional key length
+	 * @returns Random DEK bytes
 	 */
 	async generateDEK(length?: number): Promise<Uint8Array<ArrayBuffer>> {
 		switch (this.config.dekAlgorithm) {
@@ -46,7 +48,9 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 	}
 
 	/**
-	 * Generates a cryptographically secure nonce
+	 * Generate a cryptographically secure nonce
+	 * @param length - Optional nonce length
+	 * @returns Random nonce bytes
 	 */
 	generateNonce(length?: number): Uint8Array<ArrayBuffer> {
 		return crypto.getRandomValues(new Uint8Array(length ?? this.config.nonceSize));
@@ -54,11 +58,12 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 
 	// ===== Encryption methods =====
 	/**
-	 * Encrypts bytes using a Data Encryption Key (DEK) and a nonce
-	 * @param {Uint8Array} key
-	 * @param {Uint8Array} nonce
-	 * @param {Uint8Array} bytesToEncrypt
-	 * @returns {Promise<Uint8Array>} The encrypted bytes as a Uint8Array
+	 * Encrypt bytes using a Data Encryption Key and nonce
+	 * @param key - The encryption key
+	 * @param nonce - The encryption nonce
+	 * @param aad - Additional authenticated data
+	 * @param bytesToEncrypt - The bytes to encrypt
+	 * @returns Encrypted bytes
 	 */
 	async encryptBytes(
 		key: Uint8Array<ArrayBuffer>,
@@ -93,6 +98,14 @@ export class WebCryptoPrimitives implements EncryptionPrimitives {
 		}
 	}
 
+	/**
+	 * Decrypt bytes using a Data Encryption Key and nonce
+	 * @param key - The decryption key
+	 * @param nonce - The decryption nonce
+	 * @param aad - Additional authenticated data
+	 * @param encryptedBytes - The bytes to decrypt
+	 * @returns Decrypted bytes
+	 */
 	async decryptBytes(
 		key: Uint8Array<ArrayBuffer>,
 		nonce: Uint8Array<ArrayBuffer>,

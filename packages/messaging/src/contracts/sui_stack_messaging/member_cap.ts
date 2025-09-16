@@ -5,7 +5,7 @@ import { MoveStruct, normalizeMoveArguments, type RawTransactionArgument } from 
 import { bcs } from '@mysten/sui/bcs';
 import { type Transaction } from '@mysten/sui/transactions';
 import * as object from './deps/sui/object.js';
-const $moduleName = '@local-pkg/sui-messaging::member_cap';
+const $moduleName = '@local-pkg/sui-stack-messaging::member_cap';
 export const MemberCap = new MoveStruct({ name: `${$moduleName}::MemberCap`, fields: {
         id: object.UID,
         channel_id: bcs.Address
@@ -28,7 +28,7 @@ export interface TransferToRecipientOptions {
  * Channel Creator, after a Channel is created and shared.
  */
 export function transferToRecipient(options: TransferToRecipientOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::member_cap::MemberCap`,
         `${packageAddress}::creator_cap::CreatorCap`,
@@ -60,7 +60,7 @@ export interface TransferMemberCapsOptions {
  * Channel Creator, after a Channel is created and shared.
  */
 export function transferMemberCaps(options: TransferMemberCapsOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         'vector<address>',
         `vector<${packageAddress}::member_cap::MemberCap>`,
@@ -84,7 +84,7 @@ export interface ChannelIdOptions {
     ];
 }
 export function channelId(options: ChannelIdOptions) {
-    const packageAddress = options.package ?? '@local-pkg/sui-messaging';
+    const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
     const argumentsTypes = [
         `${packageAddress}::member_cap::MemberCap`
     ] satisfies string[];

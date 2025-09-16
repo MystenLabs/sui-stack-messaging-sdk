@@ -1,7 +1,7 @@
-import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
-import { StorageAdapter, StorageConfig, StorageOptions } from '../storage';
-import { WalrusClient } from '@mysten/walrus';
-import { WalrusResponse } from './types';
+import type { ClientWithExtensions } from '@mysten/sui/experimental';
+import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.js';
+import type { WalrusClient } from '@mysten/walrus';
+import type { WalrusResponse } from './types.js';
 
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
@@ -115,7 +115,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 				async (id) => await fetch(`${this.config.aggregator}/v1/blobs/by-quilt-patch-id/${id}`),
 			),
 		);
-		const data = await Promise.all(response.map(async (response) => await response.json()));
+		const data = await Promise.all(response.map(async (response) => await response.arrayBuffer()));
 		return data.map((data) => new Uint8Array(data));
 	}
 

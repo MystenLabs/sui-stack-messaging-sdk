@@ -1,11 +1,11 @@
 #[test_only]
-module sui_messaging::sui_messaging_tests;
+module sui_stack_messaging::sui_stack_messaging_tests;
 
-use sui_messaging::attachment::Attachment;
-use sui_messaging::channel::{Self, Channel};
-use sui_messaging::config;
-use sui_messaging::creator_cap::CreatorCap;
-use sui_messaging::member_cap::MemberCap;
+use sui_stack_messaging::attachment::Attachment;
+use sui_stack_messaging::channel::{Self, Channel};
+use sui_stack_messaging::config;
+use sui_stack_messaging::creator_cap::CreatorCap;
+use sui_stack_messaging::member_cap::MemberCap;
 
 // TODO: implement one2one flow test:
 // - create channel with default config
@@ -21,7 +21,7 @@ const ENotEnoughMessages: u64 = 2;
 use sui::test_scenario::{Self as ts};
 
 #[test_only]
-use sui_messaging::{attachment};
+use sui_stack_messaging::{attachment};
 
 #[test_only]
 use sui::clock;

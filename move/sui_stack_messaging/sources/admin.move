@@ -2,7 +2,7 @@
 /// Change package version
 /// Change Channel object's version
 /// Change limit constants
-module sui_messaging::admin;
+module sui_stack_messaging::admin;
 
 // === Errors ===
 

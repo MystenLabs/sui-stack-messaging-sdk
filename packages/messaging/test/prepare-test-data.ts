@@ -8,8 +8,8 @@ import { Signer } from '@mysten/sui/cryptography';
 import { setupTestEnvironment, createTestClient } from './test-helpers';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
 
-import { EncryptedSymmetricKey } from '../src/encryption';
-import { MessagingClient } from '../src/client';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
+import { SuiStackMessagingClient } from '../src/client';
 
 // Test data structure
 interface TestChannel {
@@ -192,7 +192,7 @@ async function prepareTestData(): Promise<void> {
 }
 
 async function createTestChannel(
-	client: ClientWithExtensions<{ messaging: MessagingClient }>,
+	client: ClientWithExtensions<{ messaging: SuiStackMessagingClient }>,
 	creator: Signer,
 	initialMemberAddresses: string[],
 ): Promise<TestChannel> {
@@ -209,13 +209,34 @@ async function createTestChannel(
 		version: channelObject.encryption_key_history.latest_version,
 	};
 
-	const members = generatedCaps.additionalMemberCaps.map((memberCapWithOwner) => ({
-		address: memberCapWithOwner.ownerAddress,
-		memberCapId: memberCapWithOwner.capObject.id.id,
-	}));
-	members.push({
-		address: generatedCaps.creatorMemberCap.ownerAddress,
-		memberCapId: generatedCaps.creatorMemberCap.capObject.id.id,
+	console.log(
+		`Created channel ${channelObject.id.id} with encryption key version ${channelObject.encryption_key_history.latest_version}`,
+	);
+	console.log(`Encrypted key bytes length: ${encryptedKeyBytes.length}`);
+
+	// compare the encryptedKeyBytes with the channelObject.encryption_key_history.latest.encrypted_bytes
+	console.log(
+		`Encrypted key bytes match: ${encryptedKeyBytes.length === channelObject.encryption_key_history.latest.encrypted_bytes.length}`,
+	);
+
+	const members = generatedCaps.additionalMemberCaps
+		.filter((memberCapWithOwner: any) => memberCapWithOwner.ownerAddress !== null)
+		.map((memberCapWithOwner: any) => ({
+			address: memberCapWithOwner.ownerAddress,
+			memberCapId: memberCapWithOwner.capObject.id.id,
+		}));
+
+	// Add the creator member cap if it has a valid owner address
+	if (generatedCaps.creatorMemberCap.ownerAddress !== null) {
+		members.push({
+			address: generatedCaps.creatorMemberCap.ownerAddress,
+			memberCapId: generatedCaps.creatorMemberCap.capObject.id.id,
+		});
+	}
+
+	console.log(`Channel ${channelObject.id.id} has ${members.length} members:`);
+	members.forEach((member: any) => {
+		console.log(`  - Address: ${member.address}, MemberCap: ${member.memberCapId}`);
 	});
 
 	return {
@@ -266,6 +287,10 @@ async function sendTestMessages(
 		}
 
 		const messageAttachments = message.hasAttachments && attachments ? [attachments[0]] : undefined;
+
+		console.log(
+			`Sending message from ${message.sender} to channel ${channel.channelId} using memberCapId ${senderMember.memberCapId}`,
+		);
 
 		await client.messaging.executeSendMessageTransaction({
 			signer,
