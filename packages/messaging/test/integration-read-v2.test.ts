@@ -100,23 +100,15 @@ describe('Integration tests - Read Path v2', () => {
 				limit: 10,
 			});
 
-			// Filter out the problematic corrupted channel for now
-			const problematicChannelId =
-				'0xb6489359ebd1fb8ed218387f4bb78672c23c558202e4f7e254decbab49ebde21';
-			const filteredChannels = result.channelObjects.filter(
-				(ch) => ch.id.id !== problematicChannelId,
-			);
-
 			console.log(`Found ${result.channelObjects.length} total channels for user ${testUser}`);
-			console.log(
-				`Filtered out problematic channel, ${filteredChannels.length} channels remaining`,
-			);
-			filteredChannels.forEach((ch, index) => {
+			result.channelObjects.forEach((ch, index) => {
 				console.log(`  ${index + 1}. Channel: ${ch.id.id}, Messages: ${ch.messages_count}`);
 			});
 
-			expect(filteredChannels.length).toBeGreaterThan(0);
-			expect(filteredChannels.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(true);
+			expect(result.channelObjects.length).toBeGreaterThan(0);
+			expect(result.channelObjects.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(
+				true,
+			);
 		});
 
 		it('should fetch specific channel objects by IDs', async () => {
@@ -131,13 +123,9 @@ describe('Integration tests - Read Path v2', () => {
 				limit: 10,
 			});
 
-			// Filter to only include channels from our test data, excluding the problematic channel
-			const problematicChannelId =
-				'0xb6489359ebd1fb8ed218387f4bb78672c23c558202e4f7e254decbab49ebde21';
+			// Filter to only include channels from our test data
 			const testChannelIds = testData.channels.map((ch) => ch.channelId);
-			const testChannels = result.channelObjects.filter(
-				(ch) => testChannelIds.includes(ch.id.id) && ch.id.id !== problematicChannelId,
-			);
+			const testChannels = result.channelObjects.filter((ch) => testChannelIds.includes(ch.id.id));
 
 			expect(testChannels.length).toBe(testChannelIds.length);
 			expect(testChannels.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(true);
@@ -157,15 +145,8 @@ describe('Integration tests - Read Path v2', () => {
 				limit: 10,
 			});
 
-			// Filter out the problematic corrupted channel for now
-			const problematicChannelId =
-				'0xb6489359ebd1fb8ed218387f4bb78672c23c558202e4f7e254decbab49ebde21';
-			const filteredChannels = result.channelObjects.filter(
-				(ch) => ch.id.id !== problematicChannelId,
-			);
-
 			// Just verify we get some channels (the ones the user is actually a member of)
-			expect(filteredChannels.length).toBeGreaterThan(0);
+			expect(result.channelObjects.length).toBeGreaterThan(0);
 		});
 	});
 
@@ -320,14 +301,9 @@ describe('Integration tests - Read Path v2', () => {
 				limit: 10,
 			});
 
-			// Filter out the problematic corrupted channel for now
-			const problematicChannelId =
-				'0xb6489359ebd1fb8ed218387f4bb78672c23c558202e4f7e254decbab49ebde21';
-			const filteredChannels = allChannelObjects.channelObjects.filter(
-				(ch) => ch.id.id !== problematicChannelId,
+			const channelObject = allChannelObjects.channelObjects.find(
+				(ch) => ch.id.id === testChannel.channelId,
 			);
-
-			const channelObject = filteredChannels.find((ch) => ch.id.id === testChannel.channelId);
 			if (!channelObject) {
 				throw new Error(`Channel ${testChannel.channelId} not found in user's channels`);
 			}
