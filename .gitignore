@@ -34,6 +34,7 @@ testnet-setup.*.sh
 **/test-data.*.json
 **/*secret*
 **/*key*
+!**/encryption_key_history*
 **/*phrase*
 **/*private*
 **/*.env*
@@ -43,3 +44,4 @@ testnet-setup.*.sh
 load-tests/k6/details*.json
 
 .DS_store
+CLAUDE.md
