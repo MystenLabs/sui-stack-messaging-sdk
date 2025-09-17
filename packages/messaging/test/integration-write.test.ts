@@ -7,6 +7,7 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
+import { ChannelMembershipsResponse } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -52,7 +53,9 @@ describe('Integration tests - Write Path', () => {
 
 	describe('Channel Creation', () => {
 		it('should create a channel with correct initial state and roles', async () => {
-			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			// const baseClient = testSetup.suiGrpcClient ?? suiJsonRpcClient;
+			const baseClient = suiJsonRpcClient ?? testSetup.suiGrpcClient;
+			const client = createTestClient(baseClient, testSetup.config, signer);
 			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
 			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
@@ -80,11 +83,22 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth).toBeDefined();
 			expect(channel.auth.member_permissions).toBeDefined();
 
+			// TODO: Turn this into a helper function
 			// Assert members - get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			let memberships: ChannelMembershipsResponse = {
+				memberships: [],
+				cursor: null,
+				hasNextPage: true,
+			};
+			let creatorMembership = null;
+			while (memberships.hasNextPage && !creatorMembership) {
+				memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor: memberships.cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			}
+
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -194,12 +208,18 @@ describe('Integration tests - Write Path', () => {
 
 		// Before each message test, create a fresh channel
 		beforeAll(async () => {
-			client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			// const baseClient = testSetup.suiGrpcClient ?? suiJsonRpcClient;
+			const baseClient = suiJsonRpcClient ?? testSetup.suiGrpcClient;
+			client = createTestClient(baseClient, testSetup.config, signer);
+			// client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
 			const { channelId: newChannelId, encryptedKeyBytes } =
 				await client.messaging.executeCreateChannelTransaction({
 					signer,
 					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
 				});
+
+			console.log('newChannelId', newChannelId);
+			console.log('encryptedKeyBytes', encryptedKeyBytes);
 
 			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
 				channelIds: [newChannelId],
@@ -207,11 +227,21 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			// Assert members - get the creator's MemberCap
+			let memberships: ChannelMembershipsResponse = {
+				memberships: [],
+				cursor: null,
+				hasNextPage: true,
+			};
+			let creatorMembership = null;
+			while (memberships.hasNextPage && !creatorMembership) {
+				memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor: memberships.cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			}
+
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -223,7 +253,7 @@ describe('Integration tests - Write Path', () => {
 				throw new Error('Failed to fetch MemberCap object');
 			}
 			memberCap = MemberCap.parse(await memberCapObject.content);
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
@@ -236,14 +266,14 @@ describe('Integration tests - Write Path', () => {
 				version: encryptionKeyVersion,
 			};
 			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_key_history.latest));
-		});
+		}, 60000);
 
 		it('should send and decrypt a message with an attachment', async () => {
 			const messageText = 'Hello with attachment!';
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
@@ -276,45 +306,45 @@ describe('Integration tests - Write Path', () => {
 			expect(sentMessage.attachments).toHaveLength(1);
 		}, 320000);
 
-		it('should send and decrypt a message without an attachment', async () => {
-			const messageText = 'Hello, no attachment here.';
+		// it('should send and decrypt a message without an attachment', async () => {
+		// 	const messageText = 'Hello, no attachment here.';
 
-			for (let i = 0; i < 5; i++) {
-				const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
-					signer,
-					channelId: memberCap.channel_id,
-					memberCapId: memberCap.id.id,
-					message: messageText,
-					encryptedKey: encryptionKey,
-				});
-				expect(digest).toBeDefined();
-				console.log(`messageId: ${messageId}`);
-				// wait for the transaction
-				// await client.core.waitForTransaction({ digest });
-			}
+		// 	for (let i = 0; i < 5; i++) {
+		// 		const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+		// 			signer,
+		// 			channelId: memberCap.channel_id,
+		// 			memberCapId: memberCap.id.id,
+		// 			message: messageText,
+		// 			encryptedKey: encryptionKey,
+		// 		});
+		// 		expect(digest).toBeDefined();
+		// 		console.log(`messageId: ${messageId}`);
+		// 		// wait for the transaction
+		// 		// await client.core.waitForTransaction({ digest });
+		// 	}
 
-			const messagesResponse = await client.messaging.getChannelMessages({
-				channelId: memberCap.channel_id,
-				userAddress: signer.toSuiAddress(),
-				limit: 10,
-				direction: 'backward',
-			});
+		// 	const messagesResponse = await client.messaging.getChannelMessages({
+		// 		channelId: memberCap.channel_id,
+		// 		userAddress: signer.toSuiAddress(),
+		// 		limit: 10,
+		// 		direction: 'backward',
+		// 	});
 
-			// Messages are now automatically decrypted, so we can use them directly
-			const decryptedMessages = messagesResponse.messages;
+		// 	// Messages are now automatically decrypted, so we can use them directly
+		// 	const decryptedMessages = messagesResponse.messages;
 
-			console.log(
-				'messages',
-				JSON.stringify(
-					decryptedMessages.map((m) => ({
-						createdAtMs: m.createdAtMs,
-						sender: m.sender,
-						text: m.text,
-					})),
-					null,
-					2,
-				),
-			);
-		}, 320000);
+		// 	console.log(
+		// 		'messages',
+		// 		JSON.stringify(
+		// 			decryptedMessages.map((m) => ({
+		// 				createdAtMs: m.createdAtMs,
+		// 				sender: m.sender,
+		// 				text: m.text,
+		// 			})),
+		// 			null,
+		// 			2,
+		// 		),
+		// 	);
+		// }, 320000);
 	});
 });

@@ -1,6 +1,11 @@
-import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
+import {
+	BuildTransactionOptions,
+	Transaction,
+	TransactionDataBuilder,
+	type TransactionResult,
+} from '@mysten/sui/transactions';
 import type { Signer } from '@mysten/sui/cryptography';
-import { deriveDynamicFieldID } from '@mysten/sui/utils';
+import { deriveDynamicFieldID, fromBase64, SUI_TYPE_ARG } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
 import type { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import { WalrusClient } from '@mysten/walrus';
@@ -58,18 +63,22 @@ import {
 } from './contracts/sui_stack_messaging/member_cap.js';
 import { none as noneConfig } from './contracts/sui_stack_messaging/config.js';
 import { Message } from './contracts/sui_stack_messaging/message.js';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
 
 export class SuiStackMessagingClient {
 	#suiClient: MessagingCompatibleClient;
 	#packageConfig: MessagingPackageConfig;
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
-	// TODO: Leave the responsibility of caching to the caller
-	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
-	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
+
+	// Caching for efficiency
+	#memberCapIdCache: Map<string, string> = new Map(); // `${userAddress}:${channelId}` --> memberCapId
+	#maxCacheSize: number = 250; // Maximum number of entries in the cache
 
 	private constructor(public options: MessagingClientOptions) {
-		this.#suiClient = options.suiClient;
+		// Check if we need to proxy the gRPC client
+		const originalClient = options.suiClient;
+		this.#suiClient = this.#createGrpcCompatibleClient(originalClient);
 		this.#storage = options.storage;
 
 		if (options.network && !options.packageConfig) {
@@ -163,19 +172,95 @@ export class SuiStackMessagingClient {
 	// ===== Private Helper Methods =====
 
 	/**
+	 * Ensure cache doesn't exceed maximum size by evicting least recently used entries
+	 * Uses a simple LRU approach: Map maintains insertion order, so we remove the oldest entries
+	 */
+	#enforceCacheSizeLimit(): void {
+		if (this.#memberCapIdCache.size <= this.#maxCacheSize) {
+			return;
+		}
+
+		// Calculate how many entries to remove
+		const entriesToRemove = this.#memberCapIdCache.size - this.#maxCacheSize;
+
+		// Remove the oldest entries (Map iterates in insertion order)
+		let removed = 0;
+		for (const key of this.#memberCapIdCache.keys()) {
+			if (removed >= entriesToRemove) {
+				break;
+			}
+			this.#memberCapIdCache.delete(key);
+			removed++;
+		}
+	}
+
+	/**
+	 * Invalidate cache entries for a specific user
+	 * @param userAddress - The user's address
+	 */
+	#invalidateUserCache(userAddress: string): void {
+		// Remove all member cap ID entries for this user
+		const keysToDelete: string[] = [];
+		for (const key of this.#memberCapIdCache.keys()) {
+			if (key.startsWith(`${userAddress}:`)) {
+				keysToDelete.push(key);
+			}
+		}
+		keysToDelete.forEach((key) => this.#memberCapIdCache.delete(key));
+	}
+
+	/**
+	 * Invalidate cache entries for a specific channel
+	 * @param channelId - The channel ID
+	 */
+	#invalidateChannelCache(channelId: string): void {
+		// Remove all member cap ID entries for this channel
+		const keysToDelete: string[] = [];
+		for (const key of this.#memberCapIdCache.keys()) {
+			if (key.endsWith(`:${channelId}`)) {
+				keysToDelete.push(key);
+			}
+		}
+		keysToDelete.forEach((key) => this.#memberCapIdCache.delete(key));
+	}
+
+	/**
 	 * Get user's member cap ID for a specific channel
 	 * @param userAddress - The user's address
 	 * @param channelId - The channel ID
 	 * @returns Member cap ID
 	 */
 	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
-		const memberships = await this.getChannelMemberships({ address: userAddress });
-		const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+		// Check cache first
+		const cacheKey = `${userAddress}:${channelId}`;
+		const cachedMemberCapId = this.#memberCapIdCache.get(cacheKey);
+		if (cachedMemberCapId) {
+			// Move to end to mark as recently used (LRU)
+			this.#memberCapIdCache.delete(cacheKey);
+			this.#memberCapIdCache.set(cacheKey, cachedMemberCapId);
+			return cachedMemberCapId;
+		}
+
+		// Get all memberships for the user
+		let memberships = await this.getChannelMemberships({ address: userAddress });
+		let membership = memberships.memberships.find((m) => m.channel_id === channelId);
+
+		// If not found in first page and there are more pages, search through all pages
+		while (!membership && memberships.hasNextPage) {
+			memberships = await this.getChannelMemberships({
+				address: userAddress,
+				cursor: memberships.cursor,
+			});
+			membership = memberships.memberships.find((m) => m.channel_id === channelId);
+		}
 
 		if (!membership) {
 			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 		}
 
+		// Cache the result and enforce size limit
+		this.#memberCapIdCache.set(cacheKey, membership.member_cap_id);
+		this.#enforceCacheSizeLimit();
 		return membership.member_cap_id;
 	}
 
@@ -267,6 +352,31 @@ export class SuiStackMessagingClient {
 		};
 	}
 
+	// ===== Cache Management =====
+
+	/**
+	 * Clear all caches
+	 */
+	clearCaches(): void {
+		this.#memberCapIdCache.clear();
+	}
+
+	/**
+	 * Clear cache for a specific user
+	 * @param userAddress - The user's address
+	 */
+	clearUserCache(userAddress: string): void {
+		this.#invalidateUserCache(userAddress);
+	}
+
+	/**
+	 * Clear cache for a specific channel
+	 * @param channelId - The channel ID
+	 */
+	clearChannelCache(channelId: string): void {
+		this.#invalidateChannelCache(channelId);
+	}
+
 	// ===== Read Path =====
 
 	/**
@@ -295,11 +405,32 @@ export class SuiStackMessagingClient {
 		}
 
 		// Get all object contents efficiently
-		const contents = await this.#getObjectContents(validObjects);
+		// const contents = await this.#getObjectContents(validObjects);
+		// Check if #suiClient is SuiGrpcClient
+		let awaitedContents: Uint8Array[];
+		if (this.#suiClient instanceof SuiGrpcClient) {
+			const objectResponses = await this.#suiClient.core.getObjects({
+				objectIds: validObjects.map((obj) => obj.id),
+			});
+			awaitedContents = await Promise.all(
+				objectResponses.objects.map(async (obj) => {
+					if (obj instanceof Error || !obj.content) {
+						throw new MessagingClientError('Failed to get object contents');
+					}
+					return await obj.content;
+				}),
+			);
+		} else {
+			awaitedContents = await Promise.all(validObjects.map(async (obj) => await obj.content));
+		}
+
+		// const awaitedContents = this.#suiClient instanceof SuiGrpcClient ? await this.#suiClient.core.getObjects(
+		// 	{ objectIds: validObjects.map((obj) => obj.id) }
+		// ).then((res) => res.objects) : await Promise.all(validObjects.map(async (obj) => await obj.content));
 
 		// Parse all MemberCaps
 		const memberships = await Promise.all(
-			contents.map(async (content) => {
+			awaitedContents.map(async (content) => {
 				const parsedMemberCap = MemberCap.parse(content);
 				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
 			}),
@@ -513,6 +644,7 @@ export class SuiStackMessagingClient {
 		const rawMessages = await this.#fetchMessagesInRange(messagesTableId, fetchRange);
 
 		// 6. Decrypt messages
+		// TODO: cache memberCapID
 		const memberCapId = await this.#getUserMemberCapId(userAddress, channelId);
 		const encryptedKey = await this.#getEncryptionKeyFromChannel(channel);
 
@@ -975,6 +1107,9 @@ export class SuiStackMessagingClient {
 		// Step 4: Get the encrypted key bytes
 		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 
+		// Invalidate cache for the creator since they now have a new channel
+		this.#invalidateUserCache(signer.toSuiAddress());
+
 		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
 	}
 
@@ -987,22 +1122,582 @@ export class SuiStackMessagingClient {
 	) {
 		transaction.setSenderIfNotSet(signer.toSuiAddress());
 
-		const { digest, effects } = await signer.signAndExecuteTransaction({
-			transaction,
-			client: this.#suiClient,
-		});
+		// Check if we're using gRPC client
+		const isGrpcClient = this.#suiClient.constructor.name === 'SuiGrpcClient';
 
-		if (effects?.status.error) {
-			throw new MessagingClientError(`Failed to ${action} (${digest}): ${effects?.status.error}`);
+		if (isGrpcClient) {
+			// For gRPC clients, use a custom execution flow
+			return await this.#executeTransactionGrpc(transaction, signer, action, waitForTransaction);
+		} else {
+			// For JSON-RPC clients, use the standard flow
+			const { digest, effects } = await signer.signAndExecuteTransaction({
+				transaction,
+				client: this.#suiClient,
+			});
+
+			if (effects?.status.error) {
+				throw new MessagingClientError(`Failed to ${action} (${digest}): ${effects?.status.error}`);
+			}
+
+			if (waitForTransaction) {
+				await this.#suiClient.core.waitForTransaction({
+					digest,
+				});
+			}
+
+			return { digest, effects };
+		}
+	}
+
+	async #executeTransactionGrpc(
+		transaction: Transaction,
+		signer: Signer,
+		action: string,
+		waitForTransaction: boolean = true,
+	) {
+		console.log('=== Starting gRPC transaction execution ===');
+
+		// Build the transaction with our gRPC-compatible client
+		console.log('Building transaction...');
+		const transactionDataBytes = await transaction.build({ client: this.#suiClient });
+		console.log('Transaction built successfully, bytes length:', transactionDataBytes.length);
+
+		// Sign the transaction - this returns SenderSignedData bytes as base64 string
+		console.log('Signing transaction...');
+		const { signature, bytes } = await signer.signTransaction(transactionDataBytes);
+		console.log('Transaction signed successfully');
+
+		// Convert the base64 string back to Uint8Array for the gRPC client
+		const senderSignedDataBytes = fromBase64(bytes);
+
+		// Use the gRPC client's executeTransaction with the SenderSignedData bytes
+		console.log('Executing transaction via gRPC...');
+		const response = await this.#suiClient.core.executeTransaction({
+			transaction: senderSignedDataBytes, // SenderSignedData bytes
+			signatures: [signature], // Array of signature strings
+		});
+		console.log('Transaction executed successfully');
+
+		if (response.transaction?.effects?.status?.error) {
+			throw new MessagingClientError(
+				`Failed to ${action}: ${response.transaction.effects.status.error}`,
+			);
 		}
 
-		if (!!waitForTransaction) {
+		if (waitForTransaction) {
 			await this.#suiClient.core.waitForTransaction({
-				digest,
+				digest: response.transaction.digest,
 			});
 		}
 
-		return { digest, effects };
+		return {
+			digest: response.transaction.digest,
+			effects: response.transaction.effects,
+		};
+	}
+
+	/**
+	 * Creates a gRPC client proxy that intercepts resolveTransactionPlugin calls
+	 */
+	#createGrpcCompatibleClientOld(originalClient: any) {
+		// Check if this is already a gRPC client
+		if (originalClient.constructor.name !== 'SuiGrpcClient') {
+			return originalClient;
+		}
+
+		console.log('Creating gRPC client proxy for executeTransaction and resolveTransactionPlugin');
+
+		// Define gas configuration helper functions locally
+		async function setGasPrice(transactionData: any, client: SuiGrpcClient) {
+			if (!transactionData.gasConfig.price) {
+				try {
+					const gasPrice = await client.core.getReferenceGasPrice();
+					transactionData.gasConfig.price = String(gasPrice.referenceGasPrice);
+				} catch (error) {
+					console.warn('Failed to get reference gas price, using default:', error);
+					transactionData.gasConfig.price = '1000'; // Default gas price
+				}
+			}
+		}
+
+		async function setGasBudget(transactionData: any, client: SuiGrpcClient) {
+			if (transactionData.gasConfig.budget) {
+				return;
+			}
+
+			try {
+				// For gRPC clients, we'll use a simpler approach - set a reasonable default
+				const defaultGasBudget = 100000000; // 0.1 SUI
+				transactionData.gasConfig.budget = String(defaultGasBudget);
+				console.log('Set default gas budget:', defaultGasBudget);
+			} catch (error) {
+				console.warn('Failed to set gas budget, using default:', error);
+				transactionData.gasConfig.budget = '100000000'; // 0.1 SUI default
+			}
+		}
+
+		async function setGasPayment(transactionData: any, client: SuiGrpcClient) {
+			if (transactionData.gasConfig.payment && transactionData.gasConfig.payment.length > 0) {
+				return;
+			}
+
+			try {
+				const owner = transactionData.gasConfig.owner || transactionData.sender;
+				if (!owner) {
+					throw new Error('No sender or owner found for gas payment');
+				}
+
+				const coins = await client.core.getCoins({
+					address: owner,
+					coinType: SUI_TYPE_ARG, // SUI coin type
+				});
+
+				if (!coins.objects || coins.objects.length === 0) {
+					throw new Error('No SUI coins found for gas payment');
+				}
+
+				// Get full object details to get the digest
+				const coinObjectIds = coins.objects.map((coin) => coin.id);
+				const coinObjects = await client.core.getObjects({
+					objectIds: coinObjectIds,
+				});
+
+				// Filter out coins that are also used as input and map to payment format
+				const paymentCoins = coins.objects
+					.map((coin, index) => {
+						const fullObject = coinObjects.objects[index];
+						if (fullObject instanceof Error || !fullObject) {
+							console.warn(`Failed to get full object for coin ${coin.id}`);
+							return null;
+						}
+
+						// Check if this coin is used as input
+						const matchingInput = transactionData.inputs.find((input: any) => {
+							if (input.Object?.ImmOrOwnedObject) {
+								return coin.id === input.Object.ImmOrOwnedObject.objectId;
+							}
+							return false;
+						});
+
+						if (matchingInput) {
+							return null; // Skip this coin as it's used as input
+						}
+
+						return {
+							objectId: coin.id,
+							digest: fullObject.digest,
+							version: coin.version,
+						};
+					})
+					.filter((coin) => coin !== null);
+
+				if (paymentCoins.length === 0) {
+					throw new Error('No valid gas coins found for the transaction');
+				}
+
+				transactionData.gasConfig.payment = paymentCoins;
+				console.log('Set gas payment coins:', paymentCoins.length);
+			} catch (error) {
+				console.warn('Failed to set gas payment:', error);
+				throw new Error('Could not set gas payment for transaction');
+			}
+		}
+
+		// Create a new client object with the same prototype and properties
+		const proxiedClient = Object.create(Object.getPrototypeOf(originalClient));
+		Object.assign(proxiedClient, originalClient);
+
+		// Override resolveTransactionPlugin
+		proxiedClient.core.resolveTransactionPlugin = () => {
+			return async function (
+				transactionData: TransactionDataBuilder,
+				options: BuildTransactionOptions,
+				next: () => Promise<void>,
+			) {
+				console.log('=== gRPC Plugin Started ===');
+				console.log('transactionData.inputs.length:', transactionData.inputs.length);
+				console.log('options.onlyTransactionKind:', options.onlyTransactionKind);
+
+				try {
+					// Handle object resolution
+					// for (const input of transactionData.inputs) {
+					// 	console.log('Processing input:', input);
+					// 	if (input.UnresolvedObject) {
+					// 		console.log('Found UnresolvedObject:', input.UnresolvedObject.objectId);
+					// 		try {
+					// 			const objectResponse = await originalClient.core.getObject({
+					// 				objectId: input.UnresolvedObject.objectId,
+					// 			});
+
+					// 			if (objectResponse && !(objectResponse instanceof Error)) {
+					// 				console.log('Successfully resolved object:', input.UnresolvedObject.objectId);
+					// 				if (
+					// 					objectResponse.object.owner &&
+					// 					typeof objectResponse.object.owner === 'object' &&
+					// 					'Shared' in objectResponse.object.owner
+					// 				) {
+					// 					(input as any).Object = {
+					// 						SharedObject: {
+					// 							objectId: input.UnresolvedObject.objectId,
+					// 							initialSharedVersion:
+					// 								objectResponse.object.owner.Shared.initialSharedVersion,
+					// 							mutable: true,
+					// 						},
+					// 					};
+					// 				} else {
+					// 					(input as any).Object = {
+					// 						ImmOrOwnedObject: {
+					// 							objectId: input.UnresolvedObject.objectId,
+					// 							version: objectResponse.object.version,
+					// 							digest: objectResponse.object.digest,
+					// 						},
+					// 					};
+					// 				}
+					// 				delete (input as any).UnresolvedObject;
+					// 			}
+					// 		} catch (error) {
+					// 			console.error('Failed to resolve object:', input.UnresolvedObject.objectId, error);
+					// 			throw error;
+					// 		}
+					// 	} else if (input.UnresolvedPure) {
+					// 		console.log('Found UnresolvedPure input');
+					// 		throw new Error('UnresolvedPure inputs not supported with gRPC client yet');
+					// 	}
+					// }
+
+					// Handle gas configuration
+					if (!options.onlyTransactionKind) {
+						console.log('Setting gas configuration...');
+						await setGasPrice(transactionData, originalClient);
+						await setGasBudget(transactionData, originalClient);
+						await setGasPayment(transactionData, originalClient);
+						console.log('Gas configuration completed');
+					}
+
+					console.log('=== gRPC Plugin completed successfully ===');
+				} catch (error) {
+					console.error('=== Error in gRPC Plugin ===', error);
+					throw error;
+				} finally {
+					console.log('=== Calling next() ===');
+					return await next();
+					console.log('=== next() completed ===');
+				}
+			};
+		};
+
+		// Override executeTransaction with debug logging
+		proxiedClient.core.executeTransaction = async function (
+			options: Experimental_SuiClientTypes.ExecuteTransactionOptions,
+		): Promise<Experimental_SuiClientTypes.ExecuteTransactionResponse> {
+			console.log('=== gRPC executeTransaction called ===');
+			console.log('Transaction bytes length:', options.transaction?.length);
+			console.log('Signatures count:', options.signatures?.length);
+			console.log('First signature:', options.signatures?.[0]);
+
+			const { response } = await originalClient.transactionExecutionService.executeTransaction({
+				transaction: {
+					bcs: {
+						value: options.transaction,
+					},
+				},
+				signatures: options.signatures.map((signature) => ({
+					bcs: {
+						value: fromBase64(signature),
+					},
+					signature: {
+						oneofKind: undefined,
+					},
+				})),
+				readMask: {
+					paths: [
+						'transaction.digest',
+						'transaction.transaction',
+						'transaction.effects',
+						'transaction.signatures',
+					],
+				},
+			});
+
+			console.log('=== gRPC response received ===');
+			console.log('Response transaction:', response.transaction);
+			console.log(
+				'Response transaction.bcs.value length:',
+				response.transaction?.bcs?.value?.length,
+			);
+
+			return {
+				transaction: parseTransactionWithDebug(response.transaction!),
+			};
+		};
+
+		// Debug version of parseTransaction
+		function parseTransactionWithDebug(
+			transaction: any,
+		): Experimental_SuiClientTypes.TransactionResponse {
+			console.log('=== parseTransactionWithDebug called ===');
+			console.log('Transaction object:', transaction);
+			console.log(
+				'Transaction.transaction.bcs.value length:',
+				transaction.transaction?.bcs?.value?.length,
+			);
+
+			// Check if this is already a parsed transaction (gRPC format)
+			if (
+				transaction.transaction &&
+				transaction.transaction.bcs &&
+				transaction.transaction.bcs.value
+			) {
+				console.log('Detected gRPC format - transaction already parsed');
+
+				// The gRPC response already contains the parsed transaction data
+				// We need to reconstruct the response in the expected format
+				const objectTypes: Record<string, string> = {};
+				transaction.inputObjects?.forEach((object: any) => {
+					if (object.objectId && object.objectType) {
+						objectTypes[object.objectId] = object.objectType;
+					}
+				});
+
+				transaction.outputObjects?.forEach((object: any) => {
+					if (object.objectId && object.objectType) {
+						objectTypes[object.objectId] = object.objectType;
+					}
+				});
+
+				console.log('=== parseTransactionWithDebug completed successfully (gRPC format) ===');
+
+				return {
+					digest: transaction.digest!,
+					epoch: transaction.effects?.epoch?.toString() ?? null,
+					effects: transaction.effects,
+					objectTypes: Promise.resolve(objectTypes),
+					transaction: {
+						...transaction.transaction,
+						bcs: transaction.transaction.bcs.value, // Use the BCS bytes directly
+					},
+					signatures: transaction.signatures,
+				};
+			}
+
+			// Fallback to original parsing logic for other formats
+			const bcsValue = transaction.bcs?.value;
+
+			if (!bcsValue) {
+				console.error('ERROR: No BCS data found in transaction!');
+				console.error('Available keys:', Object.keys(transaction));
+				throw new Error('No BCS data found in transaction');
+			}
+
+			try {
+				console.log('Attempting to parse SenderSignedData...');
+				const parsedTx = bcs.SenderSignedData.parse(bcsValue)[0];
+				console.log('Successfully parsed SenderSignedData:', parsedTx);
+				console.log('parsedTx.intentMessage:', parsedTx.intentMessage);
+				console.log('parsedTx.intentMessage.value:', parsedTx.intentMessage?.value);
+
+				if (!parsedTx.intentMessage?.value) {
+					console.error('ERROR: parsedTx.intentMessage.value is undefined!');
+					throw new Error('parsedTx.intentMessage.value is undefined');
+				}
+
+				const bytes = bcs.TransactionData.serialize(parsedTx.intentMessage.value).toBytes();
+				const data = TransactionDataBuilder.restore({
+					version: 2,
+					sender: parsedTx.intentMessage.value.V1.sender,
+					expiration: parsedTx.intentMessage.value.V1.expiration,
+					gasData: parsedTx.intentMessage.value.V1.gasData,
+					inputs: parsedTx.intentMessage.value.V1.kind.ProgrammableTransaction!.inputs,
+					commands: parsedTx.intentMessage.value.V1.kind.ProgrammableTransaction!.commands,
+				});
+
+				const objectTypes: Record<string, string> = {};
+				transaction.inputObjects?.forEach((object: any) => {
+					if (object.objectId && object.objectType) {
+						objectTypes[object.objectId] = object.objectType;
+					}
+				});
+
+				transaction.outputObjects?.forEach((object: any) => {
+					if (object.objectId && object.objectType) {
+						objectTypes[object.objectId] = object.objectType;
+					}
+				});
+
+				console.log('=== parseTransactionWithDebug completed successfully (parsed format) ===');
+
+				return {
+					digest: transaction.digest!,
+					epoch: transaction.effects?.epoch?.toString() ?? null,
+					effects: transaction.effects,
+					objectTypes: Promise.resolve(objectTypes),
+					transaction: {
+						...data,
+						bcs: bytes,
+					},
+					signatures: parsedTx.txSignatures,
+				};
+			} catch (error) {
+				console.error('ERROR in parseTransactionWithDebug:', error);
+				console.error('Transaction data that failed to parse:', {
+					bcsValue: bcsValue,
+					bcsValueLength: bcsValue?.length,
+					bcsValueType: typeof bcsValue,
+				});
+				throw error;
+			}
+		}
+
+		return proxiedClient;
+	}
+
+	#createGrpcCompatibleClient(originalClient: any) {
+		// Check if this is already a gRPC client
+		if (originalClient.constructor.name !== 'SuiGrpcClient') {
+			return originalClient;
+		}
+
+		console.log('Creating gRPC client wrapper');
+		const originalGrpcClient: SuiGrpcClient = originalClient;
+
+		// Create a simple wrapper that overrides only what we need
+		const wrapper = Object.create(originalGrpcClient);
+
+		// Override resolveTransactionPlugin
+		wrapper.core.resolveTransactionPlugin = () => {
+			return async function (transactionData: any, options: any, next: () => Promise<void>) {
+				// Set gas configuration
+				if (!options.onlyTransactionKind) {
+					if (!transactionData.gasConfig) {
+						transactionData.gasConfig = {};
+					}
+
+					// Set gas price
+					if (!transactionData.gasConfig.price) {
+						transactionData.gasConfig.price = 1000n;
+					}
+
+					// Set gas budget
+					if (!transactionData.gasConfig.budget) {
+						transactionData.gasConfig.budget = 100000000n;
+					}
+
+					// Set gas payment
+					if (!transactionData.gasConfig.payment) {
+						const owner = transactionData.gasConfig.owner || transactionData.sender;
+						if (!owner) {
+							throw new Error('No sender or owner found for gas payment');
+						}
+						const coins = await originalGrpcClient.core.getCoins({
+							address: owner,
+							coinType: SUI_TYPE_ARG, // SUI coin type
+						});
+
+						if (!coins.objects || coins.objects.length === 0) {
+							throw new Error('No SUI coins found for gas payment');
+						}
+
+						// Get full object details to get the digest
+						const coinObjectIds = coins.objects.map((coin) => coin.id);
+						const coinObjects = await originalGrpcClient.core.getObjects({
+							objectIds: coinObjectIds,
+						});
+
+						// Filter out coins that are also used as input and map to payment format
+						const paymentCoins = coins.objects
+							.map((coin, index) => {
+								const fullObject = coinObjects.objects[index];
+								if (fullObject instanceof Error || !fullObject) {
+									console.warn(`Failed to get full object for coin ${coin.id}`);
+									return null;
+								}
+
+								// Check if this coin is used as input
+								const matchingInput = transactionData.inputs.find((input: any) => {
+									if (input.Object?.ImmOrOwnedObject) {
+										return coin.id === input.Object.ImmOrOwnedObject.objectId;
+									}
+									return false;
+								});
+
+								if (matchingInput) {
+									return null; // Skip this coin as it's used as input
+								}
+
+								return {
+									objectId: coin.id,
+									digest: fullObject.digest,
+									version: coin.version,
+								};
+							})
+							.filter((coin) => coin !== null);
+
+						if (paymentCoins.length === 0) {
+							throw new Error('No valid gas coins found for the transaction');
+						}
+
+						transactionData.gasConfig.payment = paymentCoins;
+					}
+				}
+
+				return await next();
+			};
+		};
+		// Override resolveTransactionPlugin with minimal gas config
+		// wrapper.core.resolveTransactionPlugin = () => {
+		// 	return async function (transactionData: any, options: any, next: () => Promise<void>) {
+		// 		// Only set gas config if needed
+		// 		if (!options.onlyTransactionKind && !transactionData.gasConfig) {
+		// 			transactionData.gasConfig = {
+		// 				price: 1000n, // Fixed gas price
+		// 				budget: 100000000n, // Fixed gas budget (0.1 SUI)
+		// 				payment: [], // Will be set by the transaction builder
+		// 			};
+		// 		}
+
+		// 		return await next();
+		// 	};
+		// };
+
+		// Override executeTransaction to bypass the buggy parseTransaction
+		wrapper.core.executeTransaction = async (options: any) => {
+			// Call the original gRPC service directly
+			const { response } = await originalGrpcClient.transactionExecutionService.executeTransaction({
+				transaction: {
+					bcs: {
+						value: options.transaction,
+					},
+				},
+				signatures: options.signatures.map((signature: string) => ({
+					bcs: {
+						value: fromBase64(signature),
+					},
+					signature: {
+						oneofKind: undefined,
+					},
+				})),
+				readMask: {
+					paths: [
+						'transaction.digest',
+						'transaction.transaction',
+						'transaction.effects',
+						'transaction.signatures',
+					],
+				},
+			});
+
+			// Return the response directly without going through parseTransaction
+			// The gRPC response already has the correct structure
+			return {
+				transaction: {
+					digest: response.transaction?.digest,
+					effects: response.transaction?.effects,
+					// Add any other fields you need from the response
+				},
+			};
+		};
+
+		return wrapper;
 	}
 
 	async #getGeneratedCaps(digest: string) {
@@ -1291,6 +1986,8 @@ export class SuiStackMessagingClient {
 	async #getObjectContents(
 		objects: Experimental_SuiClientTypes.ObjectResponse[],
 	): Promise<Uint8Array[]> {
+		console.log('objects length: ', objects.length);
+
 		// First, try to get all contents directly (works for SuiClient)
 		const contentPromises = objects.map(async (object) => {
 			try {
@@ -1326,6 +2023,8 @@ export class SuiStackMessagingClient {
 					return await obj.content;
 				}),
 			);
+
+			console.log('batchContents length: ', batchContents.length);
 
 			return batchContents;
 		}
