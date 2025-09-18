@@ -5,9 +5,10 @@ import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
-import { EncryptedSymmetricKey } from '../src/encryption';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { Channel } from '../src/contracts/sui_messaging/channel';
 import { MemberCap } from '../src/contracts/sui_messaging/member_cap';
+import { ChannelMembershipsResponse } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -53,7 +54,9 @@ describe('Integration tests - Write Path', () => {
 
 	describe('Channel Creation', () => {
 		it('should create a channel with correct initial state and roles', async () => {
-			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
+			// const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
 			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
 			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
@@ -78,11 +81,21 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth).toBeDefined();
 			expect(channel.auth.member_permissions).toBeDefined();
 
+			// TODO: Turn this into a helper function
 			// Assert members - get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			let memberships: ChannelMembershipsResponse = {
+				memberships: [],
+				cursor: null,
+				hasNextPage: true,
+			};
+			let creatorMembership = null;
+			while (memberships.hasNextPage && !creatorMembership) {
+				memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor: memberships.cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -202,11 +215,21 @@ describe('Integration tests - Write Path', () => {
 			const channelObjects = await client.messaging.getChannelObjectsByChannelIds([newChannelId]);
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			// TODO: Turn this into a helper function
+			// Assert members - get the creator's MemberCap
+			let memberships: ChannelMembershipsResponse = {
+				memberships: [],
+				cursor: null,
+				hasNextPage: true,
+			};
+			let creatorMembership = null;
+			while (memberships.hasNextPage && !creatorMembership) {
+				memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor: memberships.cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object

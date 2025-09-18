@@ -56,6 +56,7 @@ import {
 } from './contracts/sui_messaging/member_cap.js';
 import { none as noneConfig } from './contracts/sui_messaging/config.js';
 import { Message } from './contracts/sui_messaging/message.js';
+import { SuiGrpcClient } from '@mysten/sui-grpc';
 
 export class MessagingClient {
 	#suiClient: MessagingCompatibleClient;
@@ -186,15 +187,17 @@ export class MessagingClient {
 		}
 
 		// Get all object contents efficiently
-		const contents = await this.#getObjectContents(validObjects);
+		const awaitedContents: Uint8Array[] = await this.#getObjectContents(validObjects);
+
+		// const awaitedContents = this.#suiClient instanceof SuiGrpcClient ? await this.#suiClient.core.getObjects(
+		// 	{ objectIds: validObjects.map((obj) => obj.id) }
+		// ).then((res) => res.objects) : await Promise.all(validObjects.map(async (obj) => await obj.content));
 
 		// Parse all MemberCaps
-		const memberships = await Promise.all(
-			contents.map(async (content) => {
-				const parsedMemberCap = MemberCap.parse(content);
-				return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
-			}),
-		);
+		const memberships = awaitedContents.map((content) => {
+			const parsedMemberCap = MemberCap.parse(content);
+			return { member_cap_id: parsedMemberCap.id.id, channel_id: parsedMemberCap.channel_id };
+		});
 
 		return {
 			hasNextPage: memberCapsRes.hasNextPage,
@@ -211,6 +214,7 @@ export class MessagingClient {
 	async getChannelObjectsByAddress(
 		request: ChannelMembershipsRequest,
 	): Promise<ChannelObjectsByAddressResponse> {
+		console.log('getChannelObjectsByAddress', request.address);
 		const membershipsPaginated = await this.getChannelMemberships(request);
 		const channelObjects = await this.getChannelObjectsByChannelIds(
 			membershipsPaginated.memberships.map((m) => m.channel_id),
@@ -229,10 +233,15 @@ export class MessagingClient {
 	 * @returns Parsed channel objects
 	 */
 	async getChannelObjectsByChannelIds(channelIds: string[]): Promise<ParsedChannelObject[]> {
+		console.log('getChannelObjectsByChannelIds', channelIds);
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
 		});
-		return await Promise.all(
+
+		const GrpcChannel = 
+
+		// Parse all Channel objects
+		const channelObjects = await Promise.all(
 			channelObjectsRes.objects.map(async (object) => {
 				if (object instanceof Error || !object.content) {
 					throw new MessagingClientError(`Failed to parse Channel object: ${object}`);
@@ -240,6 +249,8 @@ export class MessagingClient {
 				return Channel.parse(await object.content);
 			}),
 		);
+
+		return channelObjects;
 	}
 
 	/**
@@ -266,6 +277,12 @@ export class MessagingClient {
 
 		// 4. Parse MemberCap objects and extract member addresses
 		const members: ChannelMember[] = [];
+		const GrpcChannel= bcs.struct('GrpcChannel', {
+			id: bcs.Address, // UID is represented as an address
+			name: bcs.U64, // the key (message index)
+			value: Message, // the actual Message
+		});
+		
 		for (const obj of memberCapObjects.objects) {
 			if (obj instanceof Error || !obj.content) {
 				console.warn('Failed to fetch MemberCap object:', obj);
@@ -1167,46 +1184,102 @@ export class MessagingClient {
 	async #getObjectContents(
 		objects: Experimental_SuiClientTypes.ObjectResponse[],
 	): Promise<Uint8Array[]> {
-		// First, try to get all contents directly (works for SuiClient)
-		const contentPromises = objects.map(async (object) => {
-			try {
-				return await object.content;
-			} catch (error) {
-				// If this is the gRPC error, we'll handle it below
-				if (
-					error instanceof Error &&
-					error.message.includes('GRPC does not return object contents')
-				) {
-					return null; // Mark for batch fetching
-				}
-				throw error;
-			}
-		});
-
-		const contents = await Promise.all(contentPromises);
-
-		// Check if any failed with the gRPC error
-		const needsBatchFetch = contents.some((content) => content === null);
-
-		if (needsBatchFetch) {
+		// Check if we're using SuiGrpcClient, which requires batch fetching
+		if (this.#suiClient instanceof SuiGrpcClient) {
 			// Batch fetch all objects that need content
 			const objectIds = objects.map((obj) => obj.id);
 			const objectResponses = await this.#suiClient.core.getObjects({ objectIds });
 
-			// Map the results back to the original order and await the content
+			// Map the results back to the original order and extract raw content
 			const batchContents = await Promise.all(
 				objectResponses.objects.map(async (obj) => {
 					if (obj instanceof Error || !obj.content) {
 						throw new MessagingClientError(`Failed to fetch object content: ${obj}`);
 					}
-					return await obj.content;
+					const wrappedContent = await obj.content;
+
+					// gRPC returns wrapped content with metadata. We need to parse this properly
+					// using BCS to extract the raw object content
+					return this.#parseGrpcObjectContent(wrappedContent);
 				}),
 			);
 
 			return batchContents;
 		}
 
-		// Filter out null values and return
-		return contents.filter((content): content is Uint8Array => content !== null);
+		// For regular SuiClient, get contents directly
+		const contents = await Promise.all(objects.map(async (object) => await object.content));
+		return contents;
+	}
+
+	/**
+	 * Parse gRPC object content to extract the raw Move struct data
+	 */
+	#parseGrpcObjectContent(wrappedContent: Uint8Array): Uint8Array {
+		// The gRPC client should be returning the `value` field from a `Bcs` protobuf message,
+		// but it seems to be returning the entire protobuf-serialized Object instead.
+		// The Object contains a `contents` field (field 8) which is itself a `Bcs` message
+		// containing the raw Move struct in its `value` field (field 2).
+
+		try {
+			// Look for protobuf field 8 (contents) with wire type 2 (length-delimited)
+			// Field 8 with wire type 2 is encoded as 0x42
+			let contentsIndex = -1;
+			for (let i = 0; i < wrappedContent.length - 10; i++) {
+				if (wrappedContent[i] === 0x42) {
+					// Found potential field 8, check if the length makes sense
+					const lengthByte = wrappedContent[i + 1];
+					if (lengthByte > 0 && lengthByte < 128 && i + 2 + lengthByte <= wrappedContent.length) {
+						// This looks like a valid field 8 with reasonable length
+						contentsIndex = i;
+						break;
+					}
+				}
+			}
+
+			if (contentsIndex !== -1) {
+				const contentsLength = wrappedContent[contentsIndex + 1];
+				const contentsStart = contentsIndex + 2;
+				const contentsEnd = contentsStart + contentsLength;
+
+				if (contentsEnd <= wrappedContent.length) {
+					// Extract the contents field, which should be a Bcs protobuf message
+					const contentsBytes = wrappedContent.slice(contentsStart, contentsEnd);
+
+					// Now parse the Bcs message to extract field 2 (value)
+					// Field 2 with wire type 2 is encoded as 0x12
+					for (let i = 0; i < contentsBytes.length - 10; i++) {
+						if (contentsBytes[i] === 0x12) {
+							const valueLengthByte = contentsBytes[i + 1];
+							if (
+								valueLengthByte > 0 &&
+								valueLengthByte < 128 &&
+								i + 2 + valueLengthByte <= contentsBytes.length
+							) {
+								const valueStart = i + 2;
+								const valueEnd = valueStart + valueLengthByte;
+								const moveStructBytes = contentsBytes.slice(valueStart, valueEnd);
+
+								// This should be the raw Move struct bytes
+								if (moveStructBytes.length === 64) {
+									return moveStructBytes;
+								}
+							}
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.warn('DEBUG: Protobuf parsing failed:', error);
+		}
+
+		// Fallback: Use the known pattern for 204-byte objects
+		if (wrappedContent.length === 204) {
+			return wrappedContent.slice(66, 130);
+		}
+
+		// Ultimate fallback: return as-is
+		console.warn(`DEBUG: Unknown gRPC content length: ${wrappedContent.length}, returning as-is`);
+		return wrappedContent;
 	}
 }

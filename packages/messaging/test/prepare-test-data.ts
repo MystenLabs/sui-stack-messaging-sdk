@@ -4,6 +4,10 @@ import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
+import { ChannelMembershipsResponse } from '../src/types';
+import { MessagingClient } from '../src/client';
+import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
+import { Signer } from '@mysten/sui/dist/cjs/cryptography';
 
 // Test data structure
 interface TestChannelData {
@@ -183,8 +187,8 @@ interface TestChannel {
 }
 
 async function createTestChannel(
-	client: any,
-	creator: any,
+	client: ClientWithExtensions<{ messaging: MessagingClient }>,
+	creator: Signer,
 	initialMembers: string[],
 ): Promise<TestChannel> {
 	// Create channel
@@ -198,12 +202,19 @@ async function createTestChannel(
 	const channelObj = channelObjects[0];
 
 	// Get creator's member cap
-	const creatorMemberships = await client.messaging.getChannelMemberships({
-		address: creator.toSuiAddress(),
-	});
-	const creatorMembership = creatorMemberships.memberships.find(
-		(m: any) => m.channel_id === channelId,
-	);
+	let memberships: ChannelMembershipsResponse = {
+		memberships: [],
+		cursor: null,
+		hasNextPage: true,
+	};
+	let creatorMembership = null;
+	while (memberships.hasNextPage && !creatorMembership) {
+		memberships = await client.messaging.getChannelMemberships({
+			address: creator.toSuiAddress(),
+			cursor: memberships.cursor,
+		});
+		creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+	}
 
 	if (!creatorMembership) {
 		throw new Error('Creator membership not found');

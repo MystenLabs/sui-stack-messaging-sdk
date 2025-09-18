@@ -1,0 +1,230 @@
+
+> @mysten/messaging@0.0.1 vitest /Users/yannis.chatzianagnostou/Dev/work/projects/sui-messaging/packages/messaging
+> vitest integration-read-v2.test.ts
+
+
+ DEV  v3.2.4 /Users/yannis.chatzianagnostou/Dev/work/projects/sui-messaging/packages/messaging
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2
+📊 Loaded test data with 4 channels
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Memberships > should fetch channel memberships with pagination
+{
+  "0": 2,
+  "1": 122,
+  "2": 231,
+  "3": 160,
+  "4": 195,
+  "5": 214,
+  "6": 110,
+  "7": 57,
+  "8": 32,
+  "9": 36,
+  "10": 118,
+  "11": 235,
+  "12": 196,
+  "13": 185,
+  "14": 217,
+  "15": 167,
+  "16": 54,
+  "17": 247,
+  "18": 37,
+  "19": 138,
+  "20": 125,
+  "21": 95,
+  "22": 127,
+  "23": 103,
+  "24": 168,
+  "25": 84,
+  "26": 253,
+  "27": 197,
+  "28": 188,
+  "29": 174,
+  "30": 170,
+  "31": 236,
+  "32": 241,
+  "33": 189,
+  "34": 70,
+  "35": 135,
+  "36": 118,
+  "37": 129,
+  "38": 116,
+  "39": 75,
+  "40": 29,
+  "41": 253,
+  "42": 131,
+  "43": 41,
+  "44": 152,
+  "45": 99,
+  "46": 41,
+  "47": 174,
+  "48": 167,
+  "49": 149,
+  "50": 35,
+  "51": 164,
+  "52": 43,
+  "53": 241,
+  "54": 116,
+  "55": 32,
+  "56": 156,
+  "57": 161,
+  "58": 218,
+  "59": 247,
+  "60": 246,
+  "61": 207,
+  "62": 200,
+  "63": 205
+}
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Objects > should fetch channel objects by address
+getChannelObjectsByAddress 0xc03fdfa61a171a4fe4b4d8c5bb9b917947a59a205e5b4297aa35c953ff3702a8
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Objects > should fetch channel objects by address
+{
+  "0": 76,
+  "1": 151,
+  "2": 5,
+  "3": 148,
+  "4": 95,
+  "5": 210,
+  "6": 112,
+  "7": 20,
+  "8": 71,
+  "9": 165,
+  "10": 88,
+  "11": 202,
+  "12": 10,
+  "13": 21,
+  "14": 92,
+  "15": 21,
+  "16": 228,
+  "17": 63,
+  "18": 98,
+  "19": 160,
+  "20": 241,
+  "21": 169,
+  "22": 197,
+  "23": 100,
+  "24": 107,
+  "25": 183,
+  "26": 211,
+  "27": 130,
+  "28": 200,
+  "29": 139,
+  "30": 180,
+  "31": 148,
+  "32": 45,
+  "33": 181,
+  "34": 56,
+  "35": 47,
+  "36": 185,
+  "37": 225,
+  "38": 87,
+  "39": 162,
+  "40": 205,
+  "41": 25,
+  "42": 89,
+  "43": 154,
+  "44": 103,
+  "45": 110,
+  "46": 68,
+  "47": 175,
+  "48": 81,
+  "49": 63,
+  "50": 20,
+  "51": 8,
+  "52": 248,
+  "53": 122,
+  "54": 50,
+  "55": 37,
+  "56": 246,
+  "57": 104,
+  "58": 81,
+  "59": 64,
+  "60": 12,
+  "61": 197,
+  "62": 128,
+  "63": 164
+}
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Objects > should fetch channel objects by address
+getChannelObjectsByChannelIds [
+  [32m'0x2db5382fb9e157a2cd19599a676e44af513f1408f87a3225f66851400cc580a4'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Objects > should fetch specific channel objects by IDs
+getChannelObjectsByChannelIds [
+  [32m'0xd0e5f35eee26ac9b219e7dc096ba422908a96291c87cb526f23d89f56f53221e'[39m,
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m,
+  [32m'0x2db5382fb9e157a2cd19599a676e44af513f1408f87a3225f66851400cc580a4'[39m,
+  [32m'0x85b8e683a35d1a5f6b42b411bc42987722ab7a625c5b5fd2a2b4c793a73f6edd'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Objects > should handle non-existent channel IDs gracefully
+getChannelObjectsByChannelIds [
+  [32m'0x0000000000000000000000000000000000000000000000000000000000000000'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Channel Members > should fetch all members of a channel
+getChannelObjectsByChannelIds [
+  [32m'0xd0e5f35eee26ac9b219e7dc096ba422908a96291c87cb526f23d89f56f53221e'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should fetch messages in backward direction (latest first)
+getChannelObjectsByChannelIds [
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should fetch messages in forward direction (oldest first)
+getChannelObjectsByChannelIds [
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle pagination with cursor
+getChannelObjectsByChannelIds [
+  [32m'0x2db5382fb9e157a2cd19599a676e44af513f1408f87a3225f66851400cc580a4'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle pagination with cursor
+getChannelObjectsByChannelIds [
+  [32m'0x2db5382fb9e157a2cd19599a676e44af513f1408f87a3225f66851400cc580a4'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle empty channels gracefully
+getChannelObjectsByChannelIds [
+  [32m'0xd0e5f35eee26ac9b219e7dc096ba422908a96291c87cb526f23d89f56f53221e'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle polling with getLatestMessages
+getChannelObjectsByChannelIds [
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle polling with getLatestMessages
+getChannelObjectsByChannelIds [
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m
+]
+
+stdout | test/integration-read-v2.test.ts > Integration tests - Read Path v2 > Message Fetching > should handle cursor out of bounds
+getChannelObjectsByChannelIds [
+  [32m'0x80c77eb530a59c1121dc56668ed6be988d10cf85c79522d5fdfcf769317da82b'[39m
+]
+
+Cancelling test run. Press CTRL+c again to exit forcefully.
+
+ ✓ test/integration-read-v2.test.ts (14 tests) 3794ms
+   ✓ Integration tests - Read Path v2 > Channel Memberships > should fetch channel memberships with pagination  383ms
+   ✓ Integration tests - Read Path v2 > Channel Memberships > should handle empty memberships gracefully  721ms
+   ✓ Integration tests - Read Path v2 > Message Fetching > should fetch messages in backward direction (latest first)  333ms
+   ✓ Integration tests - Read Path v2 > Message Fetching > should fetch messages in forward direction (oldest first)  316ms
+   ✓ Integration tests - Read Path v2 > Message Fetching > should handle pagination with cursor  593ms
+   ✓ Integration tests - Read Path v2 > Message Fetching > should handle polling with getLatestMessages  307ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (14)
+   Start at  15:49:19
+   Duration  4.30s (transform 74ms, setup 0ms, collect 370ms, tests 3.79s, environment 0ms, prepare 32ms)
+
+ CANCELLED  Test run cancelled. Watching for file changes...
+       press h to show help, press q to quit
+ ELIFECYCLE  Command failed with exit code 1.

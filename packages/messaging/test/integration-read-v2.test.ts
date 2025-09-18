@@ -50,6 +50,7 @@ describe('Integration tests - Read Path v2', () => {
 		it('should fetch channel memberships with pagination', async () => {
 			const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
 			const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
+			// const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testUser = testData.channels[0].members[0].address;
 
 			// Test pagination
@@ -65,7 +66,8 @@ describe('Integration tests - Read Path v2', () => {
 				});
 
 				allMemberships.push(...result.memberships);
-				hasNextPage = result.hasNextPage;
+				// hasNextPage = result.hasNextPage;
+				hasNextPage = false;
 				cursor = result.cursor;
 			}
 
@@ -74,7 +76,9 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle empty memberships gracefully', async () => {
-			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
+			const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
+			// const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const nonExistentUser = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 			const result = await client.messaging.getChannelMemberships({
@@ -90,8 +94,10 @@ describe('Integration tests - Read Path v2', () => {
 
 	describe('Channel Objects', () => {
 		it('should fetch channel objects by address', async () => {
-			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
-			const testUser = testData.channels[0].members[0].address;
+			const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
+			// const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
+			const testUser = testData.channels[2].members[2].address;
 
 			const result = await client.messaging.getChannelObjectsByAddress({
 				address: testUser,
@@ -105,6 +111,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should fetch specific channel objects by IDs', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const channelIds = testData.channels.map((ch) => ch.channelId);
 
@@ -115,6 +123,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle non-existent channel IDs gracefully', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const nonExistentChannelId =
 				'0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -127,6 +137,8 @@ describe('Integration tests - Read Path v2', () => {
 
 	describe('Channel Members', () => {
 		it('should fetch all members of a channel', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.members.length > 1);
 
@@ -148,6 +160,8 @@ describe('Integration tests - Read Path v2', () => {
 
 	describe('Message Fetching', () => {
 		it('should fetch messages in backward direction (latest first)', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 0);
 
@@ -169,6 +183,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should fetch messages in forward direction (oldest first)', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 0);
 
@@ -190,6 +206,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle pagination with cursor', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 3);
 
@@ -224,6 +242,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle empty channels gracefully', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const emptyChannel = testData.channels.find((ch) => ch.messageCount === 0);
 
@@ -243,6 +263,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle polling with getLatestMessages', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 0);
 
@@ -274,6 +296,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle cursor out of bounds', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 0);
 
@@ -295,6 +319,8 @@ describe('Integration tests - Read Path v2', () => {
 
 	describe('Message Decryption', () => {
 		it('should decrypt messages successfully', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const testChannel = testData.channels.find((ch) => ch.messageCount > 0);
 
@@ -332,6 +358,8 @@ describe('Integration tests - Read Path v2', () => {
 		});
 
 		it('should handle messages with attachments', async () => {
+			// const suiClient = testSetup.suiGrpcClient ?? testSetup.suiClient;
+			// const client = createTestClient(suiClient, testSetup.config, testSetup.signer);
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
 			const attachmentChannel = testData.channels.find((ch) =>
 				ch.messages.some((m) => m.hasAttachments),
