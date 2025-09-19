@@ -3,7 +3,6 @@
 - [Home - Overview and Installation](./README.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
-- Example App - TBD
 
 # Developer Setup
 
