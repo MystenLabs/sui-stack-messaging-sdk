@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.16.0
-        version: 1.16.0(hono@4.8.5)
+        version: 1.16.0(hono@4.9.8)
       '@mysten/sui':
         specifier: ^1.36.0
         version: 1.36.0(typescript@5.8.3)
@@ -21,8 +21,8 @@ importers:
         specifier: ^17.2.0
         version: 17.2.0
       hono:
-        specifier: ^4.8.5
-        version: 4.8.5
+        specifier: ^4.9.7
+        version: 4.9.8
     devDependencies:
       '@types/node':
         specifier: ^20.11.17
@@ -341,8 +341,8 @@ packages:
     resolution: {integrity: sha512-mS1lbMsxgQj6hge1XZ6p7GPhbrtFwUFYi3wRzXAC/FmYnyXMTvvI3td3rjmQ2u8ewXueaSvRPWaEcgVVOT9Jnw==}
     engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
-  hono@4.8.5:
-    resolution: {integrity: sha512-Up2cQbtNz1s111qpnnECdTGqSIUIhZJMLikdKkshebQSEBcoUKq6XJayLGqSZWidiH0zfHRCJqFu062Mz5UuRA==}
+  hono@4.9.8:
+    resolution: {integrity: sha512-JW8Bb4RFWD9iOKxg5PbUarBYGM99IcxFl2FPBo2gSJO11jjUDqlP1Bmfyqt8Z/dGhIQ63PMA9LdcLefXyIasyg==}
     engines: {node: '>=16.9.0'}
 
   ieee754@1.2.1:
@@ -556,9 +556,9 @@ snapshots:
     dependencies:
       graphql: 16.11.0
 
-  '@hono/node-server@1.16.0(hono@4.8.5)':
+  '@hono/node-server@1.16.0(hono@4.9.8)':
     dependencies:
-      hono: 4.8.5
+      hono: 4.9.8
 
   '@mysten/bcs@1.6.4':
     dependencies:
@@ -707,7 +707,7 @@ snapshots:
 
   graphql@16.11.0: {}
 
-  hono@4.8.5: {}
+  hono@4.9.8: {}
 
   ieee754@1.2.1: {}
 
