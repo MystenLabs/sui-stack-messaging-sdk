@@ -7,25 +7,27 @@
 
 # Developer Setup
 
-The MessagingClient uses Sui's client extension system, which allows you to extend a base Sui client with additional functionality. You start with either a `SuiClient` (JSON-RPC) or `SuiGrpcClient` and extend it with other clients that expose `asClientExtension` or `experimental_asClientExtension` methods.
+The `MessagingClient` uses Sui’s client extension system. This system lets you extend a base Sui client with additional functionality. Start with either a `SuiClient` (JSON-RPC) or a `SuiGrpcClient`, and then extend it with clients that expose the `asClientExtension` or `experimental_asClientExtension` methods.
 
 ## Client Extension Pattern
 
-The `$extend` method allows you to compose multiple client extensions into a single client instance. Each extension adds new methods and capabilities to the base client:
+Use the `$extend` method to compose multiple client extensions into a single client instance. Each extension adds new methods and capabilities to the base client.
 
 **Required Dependencies:**
 
-- **SealClient**: Required for end-to-end encryption functionality. The MessagingClient depends on SealClient for encrypting and decrypting messages.
+- **SealClient**: Provides end-to-end encryption. The `MessagingClient` relies on `SealClient` to encrypt and decrypt messages.
 
 **Optional Dependencies:**
 
-- **WalrusClient**: Optional for attachment storage.
+- **WalrusClient**: Provides decentralized attachment storage.
 
 **Storage Adapter:**
-By default, the MessagingClient uses `WalrusStorageAdapter` which stores encrypted attachment data on Walrus (decentralized storage). In this initial alpha version, the WalrusStorageAdapter only uses aggregators/publishers for storage operations.
-In the future, it will also support the `@mysten/walrus` sdk client, which for example will enable the upload relay.
 
-If you need different storage behavior, you can implement your own `StorageAdapter` by implementing the `StorageAdapter` interface and passing it to the MessagingClient configuration.
+By default, the `MessagingClient` uses `WalrusStorageAdapter`. This adapter stores encrypted attachment data on Walrus using aggregators and publishers. In future versions, the adapter will also support the `@mysten/walrus` SDK client, which will enable features like the upload relay.
+
+You can implement a custom `StorageAdapter` by creating a class that implements the `StorageAdapter` interface and passing it into the `MessagingClient` configuration.
+
+## Example Setup
 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
@@ -86,16 +88,15 @@ const messaging = client.messaging; // or grpcClient.messaging
 
 ## Configuration Options
 
-- `network`: "testnet" | "mainnet" - Uses predefined package configs
-- `packageConfig`: Custom package configuration (overrides network)
-  // Alternatively you can provide your own managed instance of a @mysten/seal/SessionKey
-- `sessionKeyConfig`: Required for encryption/decryption
+- `network`: `testnet` | `mainnet` - Uses predefined package configurations
+- `packageConfig`: Custom package configuration. Overrides the network option. You can also provide a managed instance of a `@mysten/seal/SessionKey`.
+- `sessionKeyConfig`: Required for encryption and decryption
   - `address`: User's Sui address
-  - `ttlMin`: Session key time-to-live in minutes
+  - `ttlMin`: Time-to-live for the session key, in minutes
   - `signer`: Optional Signer for session key operations
-- `storage`: Optional custom storage adapter (defaults to WalrusStorageAdapter)
-  - If not provided and WalrusClient is available, uses WalrusStorageAdapter
-  - If not provided and WalrusClient is not available, you must provide a custom storage adapter
-  - Custom storage adapters must implement the `StorageAdapter` interface
+- `storage`: Optional custom storage adapter (defaults to `WalrusStorageAdapter`)
+  - If not provided and `WalrusClient` is available, the SDK uses `WalrusStorageAdapter`
+  - If not provided and `WalrusClient` is not available, you must provide a custom storage adapter
+  - Custom storage adapter must implement the `StorageAdapter` interface
 
 [Back to table of contents](#table-of-contents)

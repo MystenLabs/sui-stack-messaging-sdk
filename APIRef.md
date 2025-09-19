@@ -9,28 +9,28 @@
 
 ## Channels
 
-- **`getChannelMemberships(request)`** - Get channel memberships for a user with pagination support. Returns a list of channels the user is a member of along with their member cap IDs.
+- `getChannelMemberships(request)` - Returns the list of channels a user belongs to, with pagination support. Each entry includes the user’s member cap IDs.
 
-- **`getChannelObjectsByAddress(request)`** - Get channel objects for a user by fetching their memberships first, then retrieving the full channel objects. This is a convenience method that combines membership lookup with channel object fetching.
+- `getChannelObjectsByAddress(request)` - Retrieves full channel objects for a user. This method first fetches the user’s memberships, then retrieves the corresponding channel objects.
 
-- **`getChannelObjectsByChannelIds(channelIds)`** - Get channel objects by their IDs. Useful when you already know the channel IDs and need the full channel metadata.
+- `getChannelObjectsByChannelIds(channelIds)` - Retrieves full channel metadata for a list of known channel IDs. Use this when you already have the IDs and want detailed channel information.
 
-- **`getChannelMembers(channelId)`** - Get all members of a specific channel, including their addresses and member cap IDs. This method queries the channel's permission structure to find all current members.
+- `getChannelMembers(channelId)` - Returns all members of a specific channel, including their addresses and member cap IDs. This method queries the channel’s permission structure.
 
-- **`createChannelFlow(opts)`** - Create a channel creation flow with step-by-step methods. This provides fine-grained control over the channel creation process, allowing you to build, execute, and manage the transaction in stages. CAVEAT: requires 2 separate transactions.
+- `createChannelFlow(opts)` - Creates a channel using a multi-step flow. This gives you fine-grained control over building, executing, and managing the channel creation process. `Note` that this flow required two separate transactions.
 
-- **`executeCreateChannelTransaction(params)`** - Execute a complete channel creation transaction in one call. This is a convenience method that handles the entire flow internally.
+- `executeCreateChannelTransaction(params)` - Creates a channel in a single call. This convenience method manages the entire flow internally.
 
 ## Messages
 
-- **`sendMessage(...)`** - Create a send message transaction builder function. Returns a function that can be used to build a transaction for sending encrypted messages with optional attachments.
+- `sendMessage(...)` - Builds a transaction for sending an encrypted message, with optional attachments. Returns a function that can be used to assemble the transaction.
 
-- **`executeSendMessageTransaction(params)`** - Execute a complete send message transaction. This method handles message encryption, attachment processing, and transaction execution.
+- `executeSendMessageTransaction(params)` - Sends a message in a single call. This method handles message encryption, attachment processing, and transaction execution.
 
-- **`getChannelMessages(request)`** - Get messages from a channel with pagination support. Supports both forward and backward pagination with configurable limits and cursors.
+- `getChannelMessages(request)` - Retrieves messages from a channel with pagination support. Supports forward and backward pagination using limits and cursors.
 
-- **`getLatestMessages(request)`** - Get new messages since the last polling state. This is optimized for real-time messaging applications that need to check for new messages efficiently.
+- `getLatestMessages(request)` - Returns messages created since the last polling state. This method is optimized for real-time apps that check frequently for new messages.
 
-- **`decryptMessage(message, channelId, memberCapId, encryptedKey)`** - Decrypt a message using the provided encryption key. Returns the decrypted text and lazy-loaded attachments that can be downloaded on-demand.
+- `decryptMessage(message, channelId, memberCapId, encryptedKey)` - Decrypts a message using the provided key. Returns the decrypted text and lazy-loaded attachments that you can download on demand.
 
 [Back to table of contents](#table-of-contents)
