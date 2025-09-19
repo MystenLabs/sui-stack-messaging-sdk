@@ -3,6 +3,7 @@
 - [Home - Overview and Installation](./README.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
+- [Example patterns](./Examples.md)
 
 # Developer Setup
 
