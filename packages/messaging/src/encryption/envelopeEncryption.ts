@@ -4,7 +4,7 @@
 import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 
-import {
+import type {
 	AttachmentMetadata,
 	DecryptAttachmentDataOpts,
 	DecryptAttachmentDataResult,
@@ -27,10 +27,10 @@ import {
 	SealApproveContract,
 	SessionKeyConfig,
 	SymmetricKey,
-} from './types';
-import { WebCryptoPrimitives } from './webCryptoPrimitives';
+} from './types.js';
+import { WebCryptoPrimitives } from './webCryptoPrimitives.js';
 import { Transaction } from '@mysten/sui/transactions';
-import { MessagingCompatibleClient } from '../types';
+import type { MessagingCompatibleClient } from '../types.js';
 
 /**
  * Core envelope encryption service that utilizes Seal
@@ -569,7 +569,7 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
-		let dekBytes: any;
+		let dekBytes: Uint8Array;
 		try {
 			dekBytes = await this.#suiClient.seal.decrypt({
 				data: encryptedKey.encryptedBytes,

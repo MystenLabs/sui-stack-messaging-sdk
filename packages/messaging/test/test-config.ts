@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { MessagingPackageConfig } from '../src/types';
 
 export type TestEnvironment = 'localnet' | 'testnet';

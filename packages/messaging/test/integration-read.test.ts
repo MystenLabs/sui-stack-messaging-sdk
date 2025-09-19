@@ -1,12 +1,5 @@
-// import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-// import { GenericContainer, StartedTestContainer } from 'testcontainers';
-// import path from 'path';
-// import { SuiGraphQLClient } from '@mysten/sui/graphql';
-// import { SuiGrpcClient } from '@mysten/sui-grpc';
-// import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-// import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-// import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 // describe('Integration tests - Read Path', () => {
 // 	const resourcesPath = path.resolve(__dirname, 'resources');

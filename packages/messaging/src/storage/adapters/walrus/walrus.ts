@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import type { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
 import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.js';
 import type { WalrusClient } from '@mysten/walrus';
@@ -6,7 +8,7 @@ import type { WalrusResponse } from './types.js';
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
 		// Client parameter kept for future implementation - currently unused
-		// @ts-ignore TS6138 - intentionally unused parameter for future implementation
+		// @ts-expect-error TS6138 - intentionally unused parameter for future implementation
 		private readonly _client: ClientWithExtensions<{ walrus: WalrusClient }>,
 		private readonly config: StorageConfig,
 	) {}
@@ -145,7 +147,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	 * @param response - Walrus API response
 	 * @returns Extracted blob ID
 	 */
-	// @ts-ignore
+	// @ts-expect-error Method is currently unused but kept for future implementation
 	#extractBlobId(response: WalrusResponse): string {
 		// direct blob uploads
 		if (response.newlyCreated?.blobObject?.blobId) {

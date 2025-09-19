@@ -27,13 +27,13 @@ export type MessagingClientExtensionOptions =
 	| {
 			packageConfig?: MessagingPackageConfig;
 			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			storage?: (client: MessagingCompatibleClient) => StorageAdapter;
 			sessionKeyConfig?: SessionKeyConfig;
 	  }
 	| {
 			packageConfig?: MessagingPackageConfig;
 			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
+			storage?: (client: MessagingCompatibleClient) => StorageAdapter;
 			sessionKey?: SessionKey;
 	  };
 

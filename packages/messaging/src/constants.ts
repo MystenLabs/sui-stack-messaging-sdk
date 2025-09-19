@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import type { MessagingPackageConfig } from './types.js';
 
 export const TESTNET_MESSAGING_PACKAGE_CONFIG = {

@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { readFileSync } from 'fs';
