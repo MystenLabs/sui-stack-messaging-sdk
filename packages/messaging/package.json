@@ -1,6 +1,6 @@
 {
 	"name": "@mysten/messaging",
-	"version": "0.0.1",
+	"version": "0.0.1-pre-alpha",
 	"description": "Messaging SDK (Alpha - Experimental)",
 	"license": "Apache-2.0",
 	"author": "Mysten Labs <build@mystenlabs.com>",
@@ -46,12 +46,12 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/mystenlabs/<tbd>.git"
+		"url": "git+https://github.com/MystenLabs/sui-stack-messaging-sdk.git"
 	},
 	"bugs": {
-		"url": "https://github.com/mystenlabs/<tbd>/issues"
+		"url": "https://github.com/MystenLabs/sui-stack-messaging-sdk/issues"
 	},
-	"homepage": "https://github.com/MystenLabs/<tbd>#readme",
+	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk/blob/main/README.md",
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",
 		"@mysten/seal": "^0.6.0",
