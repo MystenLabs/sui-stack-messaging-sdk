@@ -3,13 +3,8 @@ import type { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
 import type {
-	Experimental_BaseClient,
 	Experimental_SuiClientTypes,
 } from '@mysten/sui/experimental';
-import { SuiClient, getFullnodeUrl } from '@mysten/sui/client';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
-import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
-import { SealClient } from '@mysten/seal';
 
 import {
 	_new as newChannel,
@@ -44,13 +39,16 @@ import type {
 	DecryptedMessagesResponse,
 	DecryptedChannelObjectsByAddressResponse,
 	GetChannelObjectsByChannelIdsRequest,
-	MessagingClientCreateOptions,
 } from './types.js';
-import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
+import {
+	MAINNET_MESSAGING_PACKAGE_CONFIG,
+	TESTNET_MESSAGING_PACKAGE_CONFIG,
+	DEFAULT_SEAL_APPROVE_CONTRACT
+} from './constants.js';
 import { MessagingClientError } from './error.js';
 import type { StorageAdapter } from './storage/adapters/storage.js';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
-import type { EncryptedSymmetricKey } from './encryption/types.js';
+import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
 import type { RawTransactionArgument } from './contracts/utils';
@@ -71,6 +69,7 @@ export class SuiStackMessagingClient {
 	#packageConfig: MessagingPackageConfig;
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
+	#sealConfig: SealConfig;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
@@ -79,8 +78,14 @@ export class SuiStackMessagingClient {
 		this.#suiClient = options.suiClient;
 		this.#storage = options.storage;
 
-		if (options.network && !options.packageConfig) {
-			const network = options.network;
+		// Initialize Seal config with defaults
+		this.#sealConfig = {
+			threshold: options.sealConfig?.threshold ?? 2, // Default threshold of 2
+		};
+
+		// Auto-detect network from client or use package config
+		if (!options.packageConfig) {
+			const network = this.#suiClient.network;
 			switch (network) {
 				case 'testnet':
 					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
@@ -89,231 +94,27 @@ export class SuiStackMessagingClient {
 					this.#packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 					break;
 				default:
-					throw new MessagingClientError(`Unsupported network: ${network}`);
+					// Fallback to testnet for unrecognized networks
+					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+					break;
 			}
 		} else {
-			this.#packageConfig = options.packageConfig!;
+			this.#packageConfig = options.packageConfig;
 		}
+
+		// Resolve sealApproveContract with defaults (use detected network)
+		const detectedNetwork = this.#suiClient.network === 'mainnet' ? 'mainnet' : 'testnet';
+		const sealApproveContract = this.#packageConfig.sealApproveContract ??
+			DEFAULT_SEAL_APPROVE_CONTRACT[detectedNetwork];
 
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
 			suiClient: this.#suiClient,
-			sealApproveContract: this.#packageConfig.sealApproveContract,
+			sealApproveContract,
 			sessionKey: options.sessionKey,
 			sessionKeyConfig: options.sessionKeyConfig,
+			sealConfig: this.#sealConfig,
 		});
-	}
-
-	/**
-	 * Creates a fully configured MessagingClient with all necessary extensions.
-	 * This method provides a clean developer experience by handling all the client extension setup automatically.
-	 *
-	 * @param options - Configuration options for creating the messaging client
-	 * @returns A fully extended client with messaging capabilities
-	 *
-	 * @example
-	 * ```typescript
-	 * // Using JSON-RPC with explicit Walrus storage
-	 * const client = await SuiStackMessagingClient.create({
-	 *   transport: 'jsonrpc',
-	 *   network: 'testnet',
-	 *   seal: { serverConfigs: [] },
-	 *   walrusStorage: {
-	 *     publisher: 'https://publisher.walrus-testnet.walrus.space',
-	 *     aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-	 *     epochs: 1,
-	 *   },
-	 *   sessionKeyConfig: {
-	 *     address: signer.toSuiAddress(),
-	 *     ttlMin: 30,
-	 *     signer,
-	 *   },
-	 * });
-	 *
-	 * // Using gRPC with custom storage
-	 * const grpcClient = await SuiStackMessagingClient.create({
-	 *   transport: 'grpc',
-	 *   network: 'testnet',
-	 *   seal: { serverConfigs: [] },
-	 *   storage: (client) => new CustomStorageAdapter(client, config),
-	 *   sessionKeyConfig: {
-	 *     address: signer.toSuiAddress(),
-	 *     ttlMin: 30,
-	 *     signer,
-	 *   },
-	 * });
-	 * ```
-	 */
-	static create(options: MessagingClientCreateOptions) {
-		// Validate configuration
-		this.#validateCreateOptions(options);
-
-		// Get RPC URL
-		const rpcUrl = options.rpcUrl || getFullnodeUrl(options.network);
-
-		// Determine package configuration
-		let packageConfig = options.packageConfig;
-		if (!packageConfig) {
-			switch (options.network) {
-				case 'testnet':
-					packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
-					break;
-				case 'mainnet':
-					packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
-					break;
-				default:
-					throw new MessagingClientError(`Unsupported network: ${options.network}`);
-			}
-		}
-
-		// Create base client based on transport type
-		const baseClient = this.#createBaseClient(options, rpcUrl, packageConfig);
-
-		// Extend with SealClient
-		const withSeal = (baseClient as Experimental_BaseClient).$extend(
-			SealClient.asClientExtension(options.seal),
-		);
-
-		// WalrusClient extension is now optional - the WalrusStorageAdapter can work without it
-		// In the future, when we use WalrusClient SDK features, we can conditionally extend here
-		const extendedClient = withSeal;
-
-		// Create messaging client extension options
-		const messagingOptions = this.#createMessagingExtensionOptions(options, packageConfig);
-
-		// Extend with MessagingClient
-		return extendedClient.$extend(
-			SuiStackMessagingClient.experimental_asClientExtension(messagingOptions),
-		);
-	}
-
-	/**
-	 * Creates the base client (SuiClient or SuiGrpcClient) based on transport type
-	 */
-	static #createBaseClient(
-		options: MessagingClientCreateOptions,
-		rpcUrl: string,
-		packageConfig: MessagingPackageConfig,
-	) {
-		const mvr = packageConfig.packageId
-			? {
-					overrides: {
-						packages: {
-							'@local-pkg/sui-stack-messaging': packageConfig.packageId,
-						},
-					},
-				}
-			: undefined;
-
-		if (options.transport === 'jsonrpc') {
-			return new SuiClient({
-				url: rpcUrl,
-				mvr,
-			});
-		} else {
-			return new SuiGrpcClient({
-				network: options.network,
-				transport: new GrpcWebFetchTransport({
-					baseUrl: rpcUrl,
-				}),
-				mvr,
-			});
-		}
-	}
-
-	/**
-	 * Creates messaging client extension options from create options
-	 */
-	static #createMessagingExtensionOptions(
-		options: MessagingClientCreateOptions,
-		packageConfig: MessagingPackageConfig,
-	): MessagingClientExtensionOptions {
-		const baseOptions = {
-			packageConfig,
-			network: options.network,
-		};
-
-		// Handle storage configuration
-		const storageOptions =
-			'storage' in options
-				? { storage: options.storage }
-				: { walrusStorageConfig: options.walrusStorage };
-
-		// Handle session key configuration
-		const sessionOptions =
-			'sessionKey' in options
-				? { sessionKey: options.sessionKey }
-				: { sessionKeyConfig: options.sessionKeyConfig };
-
-		return {
-			...baseOptions,
-			...storageOptions,
-			...sessionOptions,
-		} as MessagingClientExtensionOptions;
-	}
-
-	/**
-	 * Validates the create options for common configuration errors
-	 */
-	static #validateCreateOptions(options: MessagingClientCreateOptions): void {
-		// Validate network
-		if (!['testnet', 'mainnet'].includes(options.network)) {
-			throw new MessagingClientError(
-				`Invalid network: ${options.network}. Must be 'testnet' or 'mainnet'.`,
-			);
-		}
-
-		// Validate transport
-		if (!['jsonrpc', 'grpc'].includes(options.transport)) {
-			throw new MessagingClientError(
-				`Invalid transport: ${options.transport}. Must be 'jsonrpc' or 'grpc'.`,
-			);
-		}
-
-		// Validate storage configuration
-		if ('storage' in options && 'walrusStorage' in options) {
-			throw new MessagingClientError(
-				'Cannot provide both "storage" and "walrusStorage" options. Choose one.',
-			);
-		}
-
-		if (!('storage' in options) && !('walrusStorage' in options)) {
-			throw new MessagingClientError(
-				'Must provide either "storage" or "walrusStorage" configuration.',
-			);
-		}
-
-		// Validate session key configuration
-		if ('sessionKey' in options && 'sessionKeyConfig' in options) {
-			throw new MessagingClientError(
-				'Cannot provide both "sessionKey" and "sessionKeyConfig" options. Choose one.',
-			);
-		}
-
-		if (!('sessionKey' in options) && !('sessionKeyConfig' in options)) {
-			throw new MessagingClientError(
-				'Must provide either "sessionKey" or "sessionKeyConfig" configuration.',
-			);
-		}
-
-		// Validate Walrus storage config if provided
-		if ('walrusStorage' in options) {
-			const { publisher, aggregator, epochs } = options.walrusStorage;
-			if (!publisher || !aggregator || !epochs) {
-				throw new MessagingClientError(
-					'walrusStorage configuration must include publisher, aggregator, and epochs.',
-				);
-			}
-
-			if (typeof epochs !== 'number' || epochs < 1) {
-				throw new MessagingClientError('walrusStorage epochs must be a positive number.');
-			}
-		}
-
-		// Validate seal configuration
-		if (!options.seal || !Array.isArray(options.seal.serverConfigs)) {
-			throw new MessagingClientError('Seal configuration must include serverConfigs array.');
-		}
 	}
 
 	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
@@ -333,9 +134,11 @@ export class SuiStackMessagingClient {
 					);
 				}
 
+				// Auto-detect network from the client or use default package config
 				let packageConfig = options.packageConfig;
-				if (options.network && !packageConfig) {
-					switch (options.network) {
+				if (!packageConfig) {
+					const network = client.network;
+					switch (network) {
 						case 'testnet':
 							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
 							break;
@@ -343,12 +146,10 @@ export class SuiStackMessagingClient {
 							packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 							break;
 						default:
-							throw new MessagingClientError(`Unsupported network: ${options.network}`);
+							// Fallback to testnet if network is not recognized
+							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+							break;
 					}
-				}
-
-				if (!packageConfig) {
-					throw new MessagingClientError('Either packageConfig or network must be provided');
 				}
 
 				// Handle storage configuration
@@ -367,6 +168,7 @@ export class SuiStackMessagingClient {
 					packageConfig,
 					sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
 					sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
+					sealConfig: options.sealConfig,
 				});
 			},
 		};

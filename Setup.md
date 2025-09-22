@@ -9,24 +9,14 @@
 
 This guide shows you how to set up the Sui Stack Messaging SDK in your application.
 
-## Overview: Two Ways to Get Started
-
-The Sui Stack Messaging SDK offers two approaches for integration:
-
-1. **🎯 Client Extension System (Recommended)** - Extend your existing Sui client with messaging capabilities
-2. **⚡ Static Create Method** - All-in-one setup that handles client extension internally
-
-## Method 1: Client Extension System (Recommended)
+## Client Extension System (Recommended)
 
 ### Why Use Client Extensions?
-
-The client extension pattern is the **recommended approach** because it:
 
 - **Integrates seamlessly** with your existing Sui client setup
 - **Composes naturally** with other client extensions (e.g. other sui ts-sdks like seal, walrus, etc)
 - **Provides maximum flexibility** for advanced configurations
 - **Enables progressive enhancement** - add messaging to existing applications
-- **Clearer separation** You have a clear understanding of the client dependencies with their separate individual configurations
 
 ### Prerequisites
 
@@ -49,15 +39,8 @@ Choose your preferred transport:
 ```typescript
 // Option A: JSON-RPC (most common)
 const baseClient = new SuiClient({
-  url: "https://fullnode.testnet.sui.io:443",
-});
-
-// Option B: gRPC (will eventually be the default)
-const baseClient = new SuiGrpcClient({
   network: "testnet",
-  transport: new GrpcWebFetchTransport({
-    baseUrl: "https://fullnode.testnet.sui.io:443",
-  }),
+  url: "https://fullnode.testnet.sui.io:443",
 });
 ```
 
@@ -66,17 +49,28 @@ const baseClient = new SuiGrpcClient({
 ```typescript
 const clientWithSeal = baseClient.$extend(
   SealClient.asClientExtension({
-    serverConfigs: [], // Seal server configurations
+    // These are testnet key servers, feel free to use the ones you prefer
+    serverConfigs: [
+      {
+        objectId:
+          "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+        weight: 1,
+      },
+      {
+        objectId:
+          "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
+        weight: 1,
+      },
+    ], // Seal server configurations
   })
 );
 ```
 
-**Step 3: Extend with MessagingClient**
+**Step 3: Extend with SuiStackMessagingClient**
 
 ```typescript
 const messagingClient = clientWithSeal.$extend(
   SuiStackMessagingClient.experimental_asClientExtension({
-    network: "testnet", // or "mainnet"
     sessionKeyConfig: {
       address: "0x...", // User's Sui address
       ttlMin: 30,
@@ -103,12 +97,22 @@ const messaging = messagingClient.messaging;
 const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
   .$extend(
     SealClient.asClientExtension({
-      serverConfigs: [],
+      serverConfigs: [
+        {
+          objectId:
+            "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+          weight: 1,
+        },
+        {
+          objectId:
+            "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
+          weight: 1,
+        },
+      ],
     })
   )
   .$extend(
     SuiStackMessagingClient.experimental_asClientExtension({
-      network: "testnet",
       sessionKeyConfig: {
         address: "0x...", // User's Sui address
         ttlMin: 30,
@@ -125,77 +129,13 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
 // Now you have: client.core, client.seal, client.messaging
 ```
 
-**gRPC with Custom Storage:**
-
-```typescript
-const grpcClient = new SuiGrpcClient({
-  network: "testnet",
-  transport: new GrpcWebFetchTransport({
-    baseUrl: "https://fullnode.testnet.sui.io:443",
-  }),
-})
-  .$extend(SealClient.asClientExtension({ serverConfigs: [] }))
-  .$extend(
-    SuiStackMessagingClient.experimental_asClientExtension({
-      network: "testnet",
-      sessionKeyConfig: {
-        address: "0x...",
-        ttlMin: 30,
-        // signer: optional
-      },
-      storage: (client) => new CustomStorageAdapter(client, customConfig),
-    })
-  );
-```
-
-## Method 2: Static Create Method (Alternative)
-
-For scenarios where you want the SDK to handle client extension setup automatically, you can use the static `create` method:
-
-```typescript
-import { SuiStackMessagingClient } from "@mysten/sui-messaging";
-
-// Automated client extension setup
-const client = SuiStackMessagingClient.create({
-  transport: "jsonrpc", // or "grpc"
-  network: "testnet",
-  seal: {
-    serverConfigs: [],
-  },
-  walrusStorage: {
-    publisher: "https://publisher.walrus-testnet.walrus.space",
-    aggregator: "https://aggregator.walrus-testnet.walrus.space",
-    epochs: 1,
-  },
-  sessionKeyConfig: {
-    address: "0x...", // User's Sui address
-    ttlMin: 30,
-    // signer: optional - provide if needed for your use case
-  },
-});
-
-const messaging = client.messaging;
-```
-
-**When to use client extensions instead:**
-
-- ✅ Integration with existing Sui client setup
-- ✅ Using multiple client extensions
-- ✅ Fine-grained control over client configuration
-- ✅ Production applications with complex client architectures
-
-**When to use the static create method:**
-
-- ✅ When you want the SDK to handle extension orchestration
-
 ## Configuration Reference
 
 ### Required Dependencies
 
-| Dependency     | Purpose                                            | Required |
-| -------------- | -------------------------------------------------- | -------- |
-| `SealClient`   | End-to-end encryption for messages and attachments | ✅ Yes   |
-| `WalrusClient` | Advanced Walrus SDK features (planned as optional) | ❌ No\*  |
+| Dependency   | Purpose                                            | Required |
+| ------------ | -------------------------------------------------- | -------- |
+| `SealClient` | End-to-end encryption for messages and attachments | ✅ Yes   |
 
 \*The `WalrusStorageAdapter` works without `WalrusClient` using `publishers` and `aggregators`.
 In the future, we plan to support the `WalrusClient` as an option, enabling features like the `upload relay`.
@@ -267,11 +207,12 @@ For custom deployments, provide your own `packageConfig`:
 ```typescript
 packageConfig: {
   packageId: "0x...",
+  // If you just deployed the provided move contract from this repo, you don't need to supply this sealApproveCotnract config
   sealApproveContract: {
     packageId: "0x...",
-    // ... other seal config
-  },
-  sealSessionKeyTTLmins: 30,
+    module: "<the module containing the seal approve function>",
+    functionName: "<the name of the entry seal_approve* function>"
+  }
 }
 ```
 

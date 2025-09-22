@@ -25,6 +25,7 @@ import {
 	EnvelopeEncryptionConfig,
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
+	SealConfig,
 	SessionKeyConfig,
 	SymmetricKey,
 } from './types';
@@ -41,12 +42,17 @@ export class EnvelopeEncryption {
 	#sessionKey?: SessionKey;
 	#sealApproveContract: SealApproveContract;
 	#sessionKeyConfig?: SessionKeyConfig;
+	#sealConfig: SealConfig;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
 		this.#sealApproveContract = config.sealApproveContract;
 		this.#sessionKey = config.sessionKey;
 		this.#sessionKeyConfig = config.sessionKeyConfig;
+		// Initialize with defaults if not provided
+		this.#sealConfig = {
+			threshold: config.sealConfig?.threshold ?? 2,
+		};
 		this.#encryptionPrimitives = config.encryptionPrimitives ?? WebCryptoPrimitives.getInstance();
 
 		if (!this.#sessionKey && !this.#sessionKeyConfig) {
@@ -98,7 +104,7 @@ export class EnvelopeEncryption {
 		const sealPolicyBytes = fromHex(channelId); // Using channelId as the policy;
 		const id = toHex(new Uint8Array([...sealPolicyBytes, ...nonce]));
 		const { encryptedObject: encryptedDekBytes } = await this.#suiClient.seal.encrypt({
-			threshold: 2, // TODO: Magic number --> extract this to an option/config/constant
+			threshold: this.#sealConfig.threshold!,
 			packageId: this.#sealApproveContract.packageId,
 			id,
 			data: dek,
