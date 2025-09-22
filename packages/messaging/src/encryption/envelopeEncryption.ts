@@ -4,6 +4,8 @@
 import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 
+import { TimeBasedLruCache } from '../cache.js';
+
 import type {
 	AttachmentMetadata,
 	DecryptAttachmentDataOpts,
@@ -41,6 +43,7 @@ export class EnvelopeEncryption {
 	#sessionKey?: SessionKey;
 	#sealApproveContract: SealApproveContract;
 	#sessionKeyConfig?: SessionKeyConfig;
+	#dekCache: TimeBasedLruCache;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
@@ -48,6 +51,7 @@ export class EnvelopeEncryption {
 		this.#sessionKey = config.sessionKey;
 		this.#sessionKeyConfig = config.sessionKeyConfig;
 		this.#encryptionPrimitives = config.encryptionPrimitives ?? WebCryptoPrimitives.getInstance();
+		this.#dekCache = new TimeBasedLruCache({ ttlMs: 5 * 60 * 1000, maxEntries: 100 }); // 5 minutes TTL, 100 max entries
 
 		if (!this.#sessionKey && !this.#sessionKeyConfig) {
 			throw new Error('Either sessionKey or sessionKeyConfig must be provided');
@@ -549,48 +553,53 @@ export class EnvelopeEncryption {
 			throw new Error('The memberCapId provided is not a valid Sui Object ID');
 		}
 
-		// === Decrypt the cached key ===
-		// Prepare seal_approve ptb
+		// Create cache key from channelId, memberCapId, and encrypted key version
+		const cacheKey: [string, string, string] = [
+			channelId,
+			memberCapId,
+			encryptedKey.version.toString(),
+		];
 
-		const channelIdBytes = EncryptedObject.parse(encryptedKey.encryptedBytes).id;
+		// Use cache with loader function
+		return await this.#dekCache.read(cacheKey, async (): Promise<SymmetricKey> => {
+			// === Decrypt the cached key ===
+			// Prepare seal_approve ptb
 
-		const tx = new Transaction();
-		tx.moveCall({
-			target: `${this.#sealApproveContract.packageId}::${this.#sealApproveContract.module}::${this.#sealApproveContract.functionName}`,
-			arguments: [
-				// Seal Identity Bytes: Channel object ID
-				// key form: [packageId][channelId][random nonce]
-				tx.pure.vector('u8', fromHex(channelIdBytes)),
-				// Channel Object
-				tx.object(channelId),
-				// Member Cap Object
-				tx.object(memberCapId),
-			],
-		});
-		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
-		// Decrypt using Seal
-		let dekBytes: Uint8Array;
-		try {
-			dekBytes = await this.#suiClient.seal.decrypt({
-				data: encryptedKey.encryptedBytes,
-				sessionKey: await this.getSessionKey(),
-				txBytes,
+			const channelIdBytes = EncryptedObject.parse(encryptedKey.encryptedBytes).id;
+
+			const tx = new Transaction();
+			tx.moveCall({
+				target: `${this.#sealApproveContract.packageId}::${this.#sealApproveContract.module}::${this.#sealApproveContract.functionName}`,
+				arguments: [
+					// Seal Identity Bytes: Channel object ID
+					// key form: [packageId][channelId][random nonce]
+					tx.pure.vector('u8', fromHex(channelIdBytes)),
+					// Channel Object
+					tx.object(channelId),
+					// Member Cap Object
+					tx.object(memberCapId),
+				],
 			});
-		} catch (error) {
-			console.error('Error decrypting channel DEK', error);
-			throw error;
-		}
-		// const dekBytes = await this.#suiClient.seal.decrypt({
-		// 	data: encryptedKey.encryptedBytes,
-		// 	sessionKey: await this.getSessionKey(),
-		// 	txBytes,
-		// });
+			const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
+			// Decrypt using Seal
+			let dekBytes: Uint8Array;
+			try {
+				dekBytes = await this.#suiClient.seal.decrypt({
+					data: encryptedKey.encryptedBytes,
+					sessionKey: await this.getSessionKey(),
+					txBytes,
+				});
+			} catch (error) {
+				console.error('Error decrypting channel DEK', error);
+				throw error;
+			}
 
-		return {
-			$kind: 'Unencrypted',
-			bytes: new Uint8Array(dekBytes || new Uint8Array()),
-			version: encryptedKey.version,
-		};
+			return {
+				$kind: 'Unencrypted',
+				bytes: new Uint8Array(dekBytes || new Uint8Array()),
+				version: encryptedKey.version,
+			};
+		});
 	}
 
 	// ===== Private methods =====
