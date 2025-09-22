@@ -26,7 +26,6 @@ import {
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
 	SealConfig,
-	SessionKeyConfig,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
@@ -42,15 +41,11 @@ export class EnvelopeEncryption {
 	#encryptionPrimitives: EncryptionPrimitives;
 	#sessionKeyManager: SessionKeyManager;
 	#sealApproveContract: SealApproveContract;
-	#sessionKey?: SessionKey;
-	#sessionKeyConfig?: SessionKeyConfig;
 	#sealConfig: SealConfig;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
 		this.#sealApproveContract = config.sealApproveContract;
-		this.#sessionKey = config.sessionKey;
-		this.#sessionKeyConfig = config.sessionKeyConfig;
 		// Initialize with defaults if not provided
 		this.#sealConfig = {
 			threshold: config.sealConfig?.threshold ?? 2,
