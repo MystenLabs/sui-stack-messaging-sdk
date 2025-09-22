@@ -1,11 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-import { setupTestEnvironment, createTestClient } from './test-helpers';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
+
+import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { Signer } from '@mysten/sui/cryptography';
+import { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
+
+import { setupTestEnvironment, createTestClient } from './test-helpers';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
+
+import { SuiStackMessagingClient } from '../src/client';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
+import { Membership } from '../src/types';
 
 // Test data structure
 interface TestChannelData {
@@ -185,8 +192,8 @@ interface TestChannel {
 }
 
 async function createTestChannel(
-	client: any,
-	creator: any,
+	client: ClientWithExtensions<{ messaging: SuiStackMessagingClient }>,
+	creator: Signer,
 	initialMembers: string[],
 ): Promise<TestChannel> {
 	// Create channel
@@ -196,16 +203,25 @@ async function createTestChannel(
 	});
 
 	// Get channel object to extract encryption key info
-	const channelObjects = await client.messaging.getChannelObjectsByChannelIds([channelId]);
+	const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+		channelIds: [channelId],
+		userAddress: creator.toSuiAddress(),
+	});
 	const channelObj = channelObjects[0];
 
 	// Get creator's member cap
-	const creatorMemberships = await client.messaging.getChannelMemberships({
-		address: creator.toSuiAddress(),
-	});
-	const creatorMembership = creatorMemberships.memberships.find(
-		(m: any) => m.channel_id === channelId,
-	);
+	let creatorMembership: Membership | null | undefined = null;
+	let cursor: string | null = null;
+	let hasNextPage: boolean = true;
+	while (hasNextPage && !creatorMembership) {
+		let memberships = await client.messaging.getChannelMemberships({
+			address: creator.toSuiAddress(),
+			cursor,
+		});
+		creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+		hasNextPage = memberships.hasNextPage;
+		cursor = memberships.cursor;
+	}
 
 	if (!creatorMembership) {
 		throw new Error('Creator membership not found');

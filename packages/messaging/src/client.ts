@@ -172,14 +172,26 @@ export class SuiStackMessagingClient {
 	 * @returns Member cap ID
 	 */
 	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
-		const memberships = await this.getChannelMemberships({ address: userAddress });
-		const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+		let cursor: string | null = null;
+		let hasNextPage = true;
 
-		if (!membership) {
-			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
+		while (hasNextPage) {
+			const memberships = await this.getChannelMemberships({
+				address: userAddress,
+				cursor,
+			});
+
+			const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+
+			if (membership) {
+				return membership.member_cap_id;
+			}
+
+			cursor = memberships.cursor;
+			hasNextPage = memberships.hasNextPage;
 		}
 
-		return membership.member_cap_id;
+		throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 	}
 
 	/**
