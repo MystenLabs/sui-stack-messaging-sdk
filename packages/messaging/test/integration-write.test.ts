@@ -220,11 +220,20 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			// Get the creator's MemberCap (taking pagination into account)
+			let creatorMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !creatorMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -236,7 +245,7 @@ describe('Integration tests - Write Path', () => {
 				throw new Error('Failed to fetch MemberCap object');
 			}
 			memberCap = MemberCap.parse(await memberCapObject.content);
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
@@ -256,7 +265,7 @@ describe('Integration tests - Write Path', () => {
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
@@ -287,6 +296,22 @@ describe('Integration tests - Write Path', () => {
 			expect(sentMessage.text).toBe(messageText);
 			expect(sentMessage.createdAtMs).toMatch(/[0-9]+/);
 			expect(sentMessage.attachments).toHaveLength(1);
+
+			// download and decrypt the attachment's data
+			const attachment = sentMessage.attachments![0];
+			console.log(
+				'attachment metadata',
+				attachment.fileName,
+				attachment.mimeType,
+				attachment.fileSize,
+			);
+			const attachmentData = await attachment.data;
+			expect(attachmentData).toBeDefined();
+			expect(attachmentData.length).toBeGreaterThan(0);
+			// Decrypted attachment data should equal the fileContent
+			expect(attachmentData).toEqual(fileContent);
+			const attachmentDataText = new TextDecoder().decode(attachmentData);
+			expect(attachmentDataText).toContain(`Attachment content:`);
 		}, 320000);
 
 		it('should send and decrypt a message without an attachment', async () => {

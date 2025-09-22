@@ -180,7 +180,7 @@ export class EnvelopeEncryption {
 		const decryptedBytes = await this.#encryptionPrimitives.decryptBytes(
 			dek.bytes,
 			nonce,
-			this.encryptionAAD(channelId, encryptedKey.version, sender),
+			this.encryptionAAD(channelId, dek.version, sender),
 			ciphertext,
 		);
 		return new TextDecoder().decode(decryptedBytes);
