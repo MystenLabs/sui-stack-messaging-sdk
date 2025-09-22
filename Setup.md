@@ -9,7 +9,10 @@
 
 This guide shows you how to set up the Sui Stack Messaging SDK in your application.
 
-## Client Extension System (Recommended)
+## Client Extension System
+
+The MessagingClient uses Sui's client extension system, which allows you to extend a
+base Sui client with additional functionality.
 
 ### Why Use Client Extensions?
 
