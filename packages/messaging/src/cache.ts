@@ -14,6 +14,12 @@ export class TimeBasedLruCache {
 	#maxEntries: number;
 
 	constructor({ ttlMs, maxEntries }: TimeBasedLruCacheOptions) {
+		if (ttlMs <= 0) {
+			throw new Error('ttlMs must be greater than 0');
+		}
+		if (maxEntries <= 0) {
+			throw new Error('maxEntries must be greater than 0');
+		}
 		this.#cache = new Map();
 		this.#ttlMs = ttlMs;
 		this.#maxEntries = maxEntries;
