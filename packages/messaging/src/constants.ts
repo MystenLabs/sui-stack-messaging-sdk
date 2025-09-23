@@ -1,4 +1,6 @@
-import { SealApproveContract } from './encryption/types.js';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import type { SealApproveContract } from './encryption/types.js';
 import type { MessagingPackageConfig } from './types.js';
 
 // Default Seal approve contract configurations - uses same package ID as messaging

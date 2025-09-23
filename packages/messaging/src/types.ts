@@ -37,17 +37,16 @@ interface BaseMessagingClientExtensionOptions {
 
 // Storage variants (mutually exclusive)
 type StorageOptions =
-	| { storage: (client: ClientWithExtensions<any>) => StorageAdapter }
+	| { storage: (client: MessagingCompatibleClient) => StorageAdapter }
 	| { walrusStorageConfig: StorageConfig };
 
 // Seal session key variants (mutually exclusive)
-type SealSessionKeyOptions =
-	| { sessionKey: SessionKey }
-	| { sessionKeyConfig: SessionKeyConfig };
+type SealSessionKeyOptions = { sessionKey: SessionKey } | { sessionKeyConfig: SessionKeyConfig };
 
 // Final type combining all variants with compile-time safety
-export type MessagingClientExtensionOptions =
-	BaseMessagingClientExtensionOptions & StorageOptions & SealSessionKeyOptions;
+export type MessagingClientExtensionOptions = BaseMessagingClientExtensionOptions &
+	StorageOptions &
+	SealSessionKeyOptions;
 
 export interface MessagingClientOptions {
 	suiClient: MessagingCompatibleClient;

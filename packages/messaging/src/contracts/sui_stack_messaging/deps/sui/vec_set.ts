@@ -1,7 +1,7 @@
-/**************************************************************
- * THIS FILE IS GENERATED AND SHOULD NOT BE MANUALLY MODIFIED *
- **************************************************************/
-import { type BcsType, bcs } from '@mysten/sui/bcs';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { bcs } from '@mysten/sui/bcs';
+import type { BcsType } from '@mysten/sui/bcs';
 import { MoveStruct } from '../../../utils/index.js';
 const $moduleName = '0x2::vec_set';
 /**
@@ -12,10 +12,11 @@ const $moduleName = '0x2::vec_set';
  *   programming against a set API. Sets that need sorted iteration rather than
  *   insertion order iteration should be handwritten.
  */
-export function VecSet<K extends BcsType<any>>(...typeParameters: [
-    K
-]) {
-    return new MoveStruct({ name: `${$moduleName}::VecSet<${typeParameters[0].name as K['name']}>`, fields: {
-            contents: bcs.vector(typeParameters[0])
-        } });
+export function VecSet<K extends BcsType<any>>(...typeParameters: [K]) {
+	return new MoveStruct({
+		name: `${$moduleName}::VecSet<${typeParameters[0].name as K['name']}>`,
+		fields: {
+			contents: bcs.vector(typeParameters[0]),
+		},
+	});
 }

@@ -1,32 +1,32 @@
 {
-  "request": {
-    "method": "POST",
-    "url": "/sui.rpc.v2beta2.LiveDataService/ListOwnedObjects"
-  },
-  "response": {
-    "status": 200,
-    "headers": {
-      "Content-Type": "application/grpc+proto",
-      "grpc-status": "0"
-    },
-    "bodyFileName": "list-owned-objects-response.bin",
-    "transformers": ["response-template"],
-    "transformerParameters": {
-      "readBodyAsBase64": true
-    }
-  },
-  "postServeActions": {
-    "webhooks": {
-      "webhooks": [
-        {
-          "method": "POST",
-          "url": "http://localhost:9000/log",
-          "headers": {
-            "Content-Type": "application/json"
-          },
-          "body": "{\"message\": \"gRPC ListOwnedObjects called\", \"request\": {{{request.body}}}, \"timestamp\": \"{{now}}\"}"
-        }
-      ]
-    }
-  }
+	"request": {
+		"method": "POST",
+		"url": "/sui.rpc.v2beta2.LiveDataService/ListOwnedObjects"
+	},
+	"response": {
+		"status": 200,
+		"headers": {
+			"Content-Type": "application/grpc+proto",
+			"grpc-status": "0"
+		},
+		"bodyFileName": "list-owned-objects-response.bin",
+		"transformers": ["response-template"],
+		"transformerParameters": {
+			"readBodyAsBase64": true
+		}
+	},
+	"postServeActions": {
+		"webhooks": {
+			"webhooks": [
+				{
+					"method": "POST",
+					"url": "http://localhost:9000/log",
+					"headers": {
+						"Content-Type": "application/json"
+					},
+					"body": "{\"message\": \"gRPC ListOwnedObjects called\", \"request\": {{{request.body}}}, \"timestamp\": \"{{now}}\"}"
+				}
+			]
+		}
+	}
 }

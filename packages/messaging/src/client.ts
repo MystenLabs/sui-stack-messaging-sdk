@@ -1,10 +1,11 @@
-import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { Transaction } from '@mysten/sui/transactions';
+import type { TransactionResult } from '@mysten/sui/transactions';
 import type { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
-import type {
-	Experimental_SuiClientTypes,
-} from '@mysten/sui/experimental';
+import type { Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import type { SessionKey } from '@mysten/seal';
 
 import {
@@ -44,7 +45,7 @@ import type {
 import {
 	MAINNET_MESSAGING_PACKAGE_CONFIG,
 	TESTNET_MESSAGING_PACKAGE_CONFIG,
-	DEFAULT_SEAL_APPROVE_CONTRACT
+	DEFAULT_SEAL_APPROVE_CONTRACT,
 } from './constants.js';
 import { MessagingClientError } from './error.js';
 import type { StorageAdapter } from './storage/adapters/storage.js';
@@ -52,7 +53,7 @@ import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
 import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
-import type { RawTransactionArgument } from './contracts/utils';
+import type { RawTransactionArgument } from './contracts/utils/index.js';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
@@ -105,8 +106,8 @@ export class SuiStackMessagingClient {
 
 		// Resolve sealApproveContract with defaults (use detected network)
 		const detectedNetwork = this.#suiClient.network === 'mainnet' ? 'mainnet' : 'testnet';
-		const sealApproveContract = this.#packageConfig.sealApproveContract ??
-			DEFAULT_SEAL_APPROVE_CONTRACT[detectedNetwork];
+		const sealApproveContract =
+			this.#packageConfig.sealApproveContract ?? DEFAULT_SEAL_APPROVE_CONTRACT[detectedNetwork];
 
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
@@ -1039,7 +1040,7 @@ export class SuiStackMessagingClient {
 			throw new MessagingClientError(`Failed to ${action} (${digest}): ${effects?.status.error}`);
 		}
 
-		if (!!waitForTransaction) {
+		if (waitForTransaction) {
 			await this.#suiClient.core.waitForTransaction({
 				digest,
 			});
@@ -1187,25 +1188,25 @@ export class SuiStackMessagingClient {
 		blobRef: string;
 		nonce: Uint8Array;
 	}): Promise<Uint8Array<ArrayBuffer>> {
-		return new Promise(async (resolve, reject) => {
-			try {
-				// Download the encrypted data
-				const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
+		const downloadAndDecrypt = async (): Promise<Uint8Array<ArrayBuffer>> => {
+			// Download the encrypted data
+			const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
 
-				// Decrypt the data
-				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
-					encryptedBytes: new Uint8Array(encryptedData),
-					nonce: new Uint8Array(nonce),
-					channelId,
-					memberCapId,
-					sender,
-					encryptedKey,
-				});
+			// Decrypt the data
+			const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
+				encryptedBytes: new Uint8Array(encryptedData),
+				nonce: new Uint8Array(nonce),
+				channelId,
+				memberCapId,
+				sender,
+				encryptedKey,
+			});
 
-				resolve(decryptedData.data);
-			} catch (error) {
-				reject(error);
-			}
+			return decryptedData.data;
+		};
+
+		return new Promise((resolve, reject) => {
+			downloadAndDecrypt().then(resolve).catch(reject);
 		});
 	}
 

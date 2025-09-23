@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EncryptedObject, SessionKey } from '@mysten/seal';
+import type { SessionKey } from '@mysten/seal';
+import { EncryptedObject } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 
-import {
+import type {
 	AttachmentMetadata,
 	DecryptAttachmentDataOpts,
 	DecryptAttachmentDataResult,
@@ -27,11 +28,11 @@ import {
 	SealApproveContract,
 	SealConfig,
 	SymmetricKey,
-} from './types';
-import { WebCryptoPrimitives } from './webCryptoPrimitives';
+} from './types.js';
+import { WebCryptoPrimitives } from './webCryptoPrimitives.js';
 import { Transaction } from '@mysten/sui/transactions';
-import { MessagingCompatibleClient } from '../types';
-import { SessionKeyManager } from './sessionKeyManager';
+import type { MessagingCompatibleClient } from '../types.js';
+import { SessionKeyManager } from './sessionKeyManager.js';
 
 /**
  * Core envelope encryption service that utilizes Seal
@@ -564,7 +565,7 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
-		let dekBytes: any;
+		let dekBytes: Uint8Array;
 		try {
 			dekBytes = await this.#suiClient.seal.decrypt({
 				data: encryptedKey.encryptedBytes,

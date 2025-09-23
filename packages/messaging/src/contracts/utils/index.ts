@@ -1,7 +1,10 @@
-
-import { bcs, BcsType, TypeTag, TypeTagSerializer, BcsStruct, BcsEnum, BcsTuple } from '@mysten/sui/bcs';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import type { BcsType, TypeTag } from '@mysten/sui/bcs';
+import { bcs, TypeTagSerializer, BcsStruct, BcsEnum, BcsTuple } from '@mysten/sui/bcs';
 import { normalizeSuiAddress } from '@mysten/sui/utils';
-import { TransactionArgument, isArgument } from '@mysten/sui/transactions';
+import type { TransactionArgument } from '@mysten/sui/transactions';
+import { isArgument } from '@mysten/sui/transactions';
 
 const MOVE_STDLIB_ADDRESS = normalizeSuiAddress('0x1');
 const SUI_FRAMEWORK_ADDRESS = normalizeSuiAddress('0x2');
@@ -57,10 +60,15 @@ export function getPureBcsSchema(typeTag: string | TypeTag): BcsType<any> | null
 	return null;
 }
 
-export function normalizeMoveArguments(args: unknown[] | object, argTypes: string[], parameterNames?: string[]) {
-
+export function normalizeMoveArguments(
+	args: unknown[] | object,
+	argTypes: string[],
+	parameterNames?: string[],
+) {
 	if (parameterNames && argTypes.length !== parameterNames.length) {
-		throw new Error(`Invalid number of parameterNames, expected ${argTypes.length}, got ${parameterNames.length}`);
+		throw new Error(
+			`Invalid number of parameterNames, expected ${argTypes.length}, got ${parameterNames.length}`,
+		);
 	}
 
 	const normalizedArgs: TransactionArgument[] = [];
@@ -87,10 +95,12 @@ export function normalizeMoveArguments(args: unknown[] | object, argTypes: strin
 			continue;
 		}
 
-		let arg
+		let arg;
 		if (Array.isArray(args)) {
 			if (index >= args.length) {
-				throw new Error(`Invalid number of arguments, expected at least ${index + 1}, got ${args.length}`);
+				throw new Error(
+					`Invalid number of arguments, expected at least ${index + 1}, got ${args.length}`,
+				);
 			}
 			arg = args[index];
 		} else {

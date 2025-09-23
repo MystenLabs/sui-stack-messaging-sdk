@@ -150,7 +150,7 @@ export interface DecryptAttachmentResult extends AttachmentMetadata {
 export interface DecryptAttachmentDataResult {
 	data: Uint8Array<ArrayBuffer>;
 }
-export interface DecryptAttachmentMetadataResult extends AttachmentMetadata {}
+export type DecryptAttachmentMetadataResult = AttachmentMetadata;
 
 export interface EncryptMessageOpts extends CommonEncryptOpts {
 	text: string;

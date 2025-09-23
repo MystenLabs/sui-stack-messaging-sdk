@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { readFileSync } from 'fs';
@@ -396,6 +398,6 @@ describe('Integration tests - Read Path v2', () => {
 			expect(attachment.fileName).toBe('test.txt');
 			expect(attachment.mimeType).toBe('text/plain');
 			expect(attachment.fileSize).toBeGreaterThan(0);
-		});
+		}, 10000);
 	});
 });

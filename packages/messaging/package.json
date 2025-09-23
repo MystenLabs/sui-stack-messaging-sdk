@@ -1,7 +1,7 @@
 {
-	"name": "@mysten/sui-stack-messaging-sdk",
+	"name": "@mysten/messaging",
 	"version": "0.0.1",
-	"description": "Messaging SDK",
+	"description": "Messaging SDK (Alpha - Experimental)",
 	"license": "Apache-2.0",
 	"author": "Mysten Labs <build@mystenlabs.com>",
 	"type": "commonjs",
@@ -21,9 +21,9 @@
 	],
 	"scripts": {
 		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-		"build": "node genversion.mjs && build-package",
+		"build": "build-package",
+		"build:build-scripts": "turbo run build --filter=@mysten/build-scripts",
 		"codegen": "sui-ts-codegen generate && pnpm lint:fix",
-		"codegen:version": "node genversion.mjs",
 		"vitest": "vitest",
 		"test": "pnpm test:typecheck && pnpm test:unit",
 		"test:typecheck": "tsc -p ./test",
@@ -31,6 +31,9 @@
 		"test:integration": "vitest run test/integration-*.test.ts",
 		"test:integration:localnet": "TEST_ENVIRONMENT=localnet vitest run test/integration-write.test.ts",
 		"test:integration:testnet": "TEST_ENVIRONMENT=testnet vitest run test/integration-*.test.ts",
+		"changeset-version": "pnpm changeset version",
+		"alpha:enter": "pnpm changeset pre enter alpha",
+		"alpha:exit": "pnpm changeset pre exit",
 		"prepublishOnly": "pnpm turbo build",
 		"prettier:check": "prettier -c --ignore-unknown .",
 		"prettier:fix": "prettier -w --ignore-unknown .",
@@ -41,14 +44,14 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/mystenlabs/<tbd>.git"
+		"url": "git+https://github.com/MystenLabs/sui-stack-messaging-sdk.git"
 	},
 	"bugs": {
-		"url": "https://github.com/mystenlabs/<tbd>/issues"
+		"url": "https://github.com/MystenLabs/sui-stack-messaging-sdk/issues"
 	},
-	"homepage": "https://github.com/MystenLabs/<tbd>#readme",
+	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
-		"@mysten/bcs": "^1.7.0",
+		"@mysten/bcs": "^1.8.0",
 		"@mysten/seal": "^0.6.0",
 		"@mysten/sui": "^1.38.0",
 		"@mysten/sui-grpc": "^0.1.0",
@@ -62,6 +65,61 @@
 		"@types/node": "^24.3.0",
 		"testcontainers": "^11.5.1",
 		"typescript": "^5.9.2",
-		"vitest": "^3.2.4"
-	}
+		"vitest": "^3.2.4",
+		"@changesets/cli": "^2.29.6",
+		"@ianvs/prettier-plugin-sort-imports": "^4.7.0",
+		"@manypkg/cli": "^0.25.1",
+		"@tanstack/eslint-plugin-query": "^5.81.2",
+		"@testcontainers/postgresql": "^11.4.0",
+		"@typescript-eslint/eslint-plugin": "^8.43.0",
+		"@typescript-eslint/parser": "^8.43.0",
+		"concurrently": "^9.2.0",
+		"eslint": "^8.45.0",
+		"eslint-config-prettier": "^8.8.0",
+		"eslint-config-react-app": "^7.0.1",
+		"eslint-import-resolver-typescript": "^3.6.1",
+		"eslint-plugin-header": "^3.1.1",
+		"eslint-plugin-import": "^2.32.0",
+		"eslint-plugin-prettier": "^5.5.3",
+		"eslint-plugin-require-extensions": "^0.1.3",
+		"eslint-plugin-tsdoc": "^0.2.17",
+		"eslint-plugin-unused-imports": "^3.0.0",
+		"graphql-config": "^5.1.5",
+		"prettier": "^3.6.2",
+		"prettier-plugin-tailwindcss": "^0.6.14",
+		"tsx": "^4.20.3",
+		"turbo": "^2.5.6",
+		"onchange": "^7.1.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"node-notifier": "10.0.0",
+			"async": "3.2.2",
+			"nth-check": "2.0.1",
+			"yaml@<2.2.2": ">=2.2.2",
+			"semver@<7.5.2": ">=7.5.2",
+			"postcss@<8.4.31": ">=8.4.31",
+			"dompurify@>=3.0.0 <3.1.3": ">=3.1.3",
+			"cross-spawn@5.1.0": "7.0.5",
+			"axios@0.26.1": "^0.30.0",
+			"@eslint/plugin-kit@<0.3.3": "0.3.3"
+		},
+		"onlyBuiltDependencies": [
+			"cpu-features",
+			"esbuild",
+			"protobufjs",
+			"ssh2",
+			"unrs-resolver"
+		]
+	},
+	"engines": {
+		"pnpm": ">=10.17.0"
+	},
+	"manypkg": {
+		"ignoredRules": [
+			"INTERNAL_MISMATCH",
+			"ROOT_HAS_DEV_DEPENDENCIES"
+		]
+	},
+	"packageManager": "pnpm@10.17.0"
 }

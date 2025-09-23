@@ -1,0 +1,31 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"tasks": {
+		"lint": {},
+		"test": {
+			"dependsOn": ["^build", "build"],
+			"env": ["TEST_ENVIRONMENT", "SUI_RPC_URL", "WALRUS_PUBLISHER_URL", "WALRUS_AGGREGATOR_URL"]
+		},
+		"test:e2e": {
+			"dependsOn": ["^build", "build"],
+			"env": ["TEST_ENVIRONMENT", "SUI_RPC_URL", "WALRUS_PUBLISHER_URL", "WALRUS_AGGREGATOR_URL"]
+		},
+		"dev": {
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
+		}
+	},
+	"globalEnv": ["NODE_ENV", "CI"]
+}
