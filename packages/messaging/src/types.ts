@@ -214,5 +214,3 @@ export interface DecryptedChannelObjectsByAddressResponse
 	extends Omit<ChannelObjectsByMembershipsResponse, 'channelObjects'> {
 	channelObjects: DecryptedChannelObject[];
 }
-
-
