@@ -26,12 +26,12 @@ import {
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
 	SealConfig,
-	SessionKeyConfig,
 	SymmetricKey,
 } from './types';
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
 import { Transaction } from '@mysten/sui/transactions';
 import { MessagingCompatibleClient } from '../types';
+import { SessionKeyManager } from './sessionKeyManager';
 
 /**
  * Core envelope encryption service that utilizes Seal
@@ -39,50 +39,39 @@ import { MessagingCompatibleClient } from '../types';
 export class EnvelopeEncryption {
 	#suiClient: MessagingCompatibleClient;
 	#encryptionPrimitives: EncryptionPrimitives;
-	#sessionKey?: SessionKey;
+	#sessionKeyManager: SessionKeyManager;
 	#sealApproveContract: SealApproveContract;
-	#sessionKeyConfig?: SessionKeyConfig;
 	#sealConfig: SealConfig;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
 		this.#sealApproveContract = config.sealApproveContract;
-		this.#sessionKey = config.sessionKey;
-		this.#sessionKeyConfig = config.sessionKeyConfig;
 		// Initialize with defaults if not provided
 		this.#sealConfig = {
 			threshold: config.sealConfig?.threshold ?? 2,
 		};
 		this.#encryptionPrimitives = config.encryptionPrimitives ?? WebCryptoPrimitives.getInstance();
 
-		if (!this.#sessionKey && !this.#sessionKeyConfig) {
-			throw new Error('Either sessionKey or sessionKeyConfig must be provided');
-		}
+		this.#sessionKeyManager = new SessionKeyManager(
+			config.sessionKey,
+			config.sessionKeyConfig,
+			this.#suiClient,
+			this.#sealApproveContract,
+		);
 	}
 
-	private async getSessionKey(): Promise<SessionKey> {
-		if (this.#sessionKey && !this.#sessionKey.isExpired()) {
-			console.log('using cached session key');
-			return this.#sessionKey;
-		}
-		console.log('creating new session key');
+	/**
+	 * Update the external SessionKey instance (useful for React context updates)
+	 */
+	updateSessionKey(newSessionKey: SessionKey): void {
+		this.#sessionKeyManager.updateExternalSessionKey(newSessionKey);
+	}
 
-		if (!this.#sessionKeyConfig) {
-			throw new Error(
-				'SessionKey is expired and sessionKeyConfig is not available to create a new one.',
-			);
-		}
-
-		this.#sessionKey = await SessionKey.create({
-			address: this.#sessionKeyConfig.address,
-			signer: this.#sessionKeyConfig.signer,
-			ttlMin: this.#sessionKeyConfig.ttlMin,
-			mvrName: this.#sessionKeyConfig.mvrName,
-			packageId: this.#sealApproveContract.packageId,
-			suiClient: this.#suiClient,
-		});
-
-		return this.#sessionKey;
+	/**
+	 * Force refresh the managed SessionKey (useful for testing or manual refresh)
+	 */
+	async refreshSessionKey(): Promise<SessionKey> {
+		return this.#sessionKeyManager.refreshManagedSessionKey();
 	}
 
 	// ===== Encryption methods =====
@@ -579,7 +568,7 @@ export class EnvelopeEncryption {
 		try {
 			dekBytes = await this.#suiClient.seal.decrypt({
 				data: encryptedKey.encryptedBytes,
-				sessionKey: await this.getSessionKey(),
+				sessionKey: await this.#sessionKeyManager.getSessionKey(),
 				txBytes,
 			});
 		} catch (error) {

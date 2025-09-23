@@ -9,8 +9,6 @@
 **/build/
 **/target
 **/types/*
-!**/src/types/moviepass.ts
-**/abis
 
 # Move
 **/Move.lock
@@ -34,6 +32,8 @@ testnet-setup.*.sh
 **/test-data.*.json
 **/*secret*
 **/*key*
+!**/encryption_key_history*
+!**/sessionKey*
 **/*phrase*
 **/*private*
 **/*.env*
