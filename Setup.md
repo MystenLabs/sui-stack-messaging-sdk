@@ -3,7 +3,7 @@
 - [Home - Overview and Installation](./README.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
-- Example App - TBD
+- [Example patterns](./Examples.md)
 
 # Developer Setup
 
@@ -27,8 +27,6 @@ Before extending your client, ensure you have:
 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
-import { SuiGrpcClient } from "@mysten/sui-grpc";
-import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
 import { SealClient } from "@mysten/seal";
 import { SuiStackMessagingClient } from "@mysten/sui-messaging";
 ```

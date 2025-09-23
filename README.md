@@ -47,11 +47,11 @@ Check out instructions for [Developer Setup](./Setup.md).
 
 ## Contact Us
 
-For questions about the SDK, use case discussions, or integration support, contact the team on [Sui Discord](https://discord.com/channels/tbd) or create a Github issue.
+For questions about the SDK, use case discussions, or integration support, contact the team on [Sui Discord](https://discord.com/channels/916379725201563759/1417696942074630194) or create a Github issue.
 
 ## Table of Contents
 
 - [Developer Setup](./Setup.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
-- Example App - TBD
+- [Example patterns](./Examples.md)
