@@ -145,9 +145,10 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
 | ------------ | -------------------------------------------------- | -------- |
 | `SealClient` | End-to-end encryption for messages and attachments | ✅ Yes   |
 
-> **Note:** The `WalrusStorageAdapter` works without `WalrusClient` by using direct publisher/aggregator URLs. In the future, we plan to support the `WalrusClient` as an option, enabling features like the upload relay.
+> [!NOTE] 
+> The `WalrusStorageAdapter` works without `WalrusClient` by using direct publisher/aggregator URLs. In the future, we plan to support the `WalrusClient` as an option, enabling features like the upload relay.
 
-### Session Key Configuration
+### Seal Session Key Configuration
 
 Choose **one** of these approaches:
 
