@@ -119,7 +119,6 @@
 //     suiClient: suiGrpcClient,
 //     packageConfig: {
 //       packageId: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172",
-//       memberCapType: "0x4e2d2aa45a092cdc9974d826619f08658b0408b898f9039b46113e0f6756b172::channel::MemberCap",
 //     }
 //   });
 //   let hasNextPage = true;

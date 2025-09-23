@@ -14,36 +14,48 @@ import type {
 	AttachmentMetadata,
 	EncryptedSymmetricKey,
 	SealApproveContract,
+	SealConfig,
 	SessionKeyConfig,
 } from './encryption/types.js';
 
 import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
 import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
-import type { StorageAdapter } from './storage/adapters/storage.js';
+import type { StorageAdapter, StorageConfig } from './storage/adapters/storage.js';
 import type { Channel } from './contracts/sui_stack_messaging/channel.js';
 import type { Message } from './contracts/sui_stack_messaging/message.js';
 
+// Base configuration shared by all variants
+interface BaseMessagingClientExtensionOptions {
+	packageConfig?: MessagingPackageConfig;
+	/**
+	 * Seal operation configuration (optional)
+	 * Note: This configures Seal operation parameters, not key servers
+	 * Key servers are configured separately via SealClient.asClientExtension()
+	 */
+	sealConfig?: SealConfig;
+}
+
+// Storage variants (mutually exclusive)
+type StorageOptions =
+	| { storage: (client: ClientWithExtensions<any>) => StorageAdapter }
+	| { walrusStorageConfig: StorageConfig };
+
+// Seal session key variants (mutually exclusive)
+type SealSessionKeyOptions =
+	| { sessionKey: SessionKey }
+	| { sessionKeyConfig: SessionKeyConfig };
+
+// Final type combining all variants with compile-time safety
 export type MessagingClientExtensionOptions =
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKeyConfig?: SessionKeyConfig;
-	  }
-	| {
-			packageConfig?: MessagingPackageConfig;
-			network?: 'mainnet' | 'testnet';
-			storage?: (client: ClientWithExtensions<any>) => StorageAdapter;
-			sessionKey?: SessionKey;
-	  };
+	BaseMessagingClientExtensionOptions & StorageOptions & SealSessionKeyOptions;
 
 export interface MessagingClientOptions {
 	suiClient: MessagingCompatibleClient;
 	storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	packageConfig?: MessagingPackageConfig;
-	network?: 'mainnet' | 'testnet';
 	sessionKeyConfig?: SessionKeyConfig;
 	sessionKey?: SessionKey;
+	sealConfig?: SealConfig;
 }
 
 // Create Channel Flow interfaces
@@ -78,9 +90,7 @@ export interface CreateChannelFlow {
 
 export interface MessagingPackageConfig {
 	packageId: string;
-	memberCapType: string;
-	sealApproveContract: SealApproveContract;
-	sealSessionKeyTTLmins: number;
+	sealApproveContract?: SealApproveContract;
 }
 
 export type MessagingCompatibleClient = ClientWithExtensions<{

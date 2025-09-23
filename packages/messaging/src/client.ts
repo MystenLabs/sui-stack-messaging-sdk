@@ -2,8 +2,10 @@ import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
 import type { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
-import type { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
-import { WalrusClient } from '@mysten/walrus';
+import type {
+	Experimental_SuiClientTypes,
+} from '@mysten/sui/experimental';
+import type { SessionKey } from '@mysten/seal';
 
 import {
 	_new as newChannel,
@@ -39,11 +41,15 @@ import type {
 	DecryptedChannelObjectsByAddressResponse,
 	GetChannelObjectsByChannelIdsRequest,
 } from './types.js';
-import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
+import {
+	MAINNET_MESSAGING_PACKAGE_CONFIG,
+	TESTNET_MESSAGING_PACKAGE_CONFIG,
+	DEFAULT_SEAL_APPROVE_CONTRACT
+} from './constants.js';
 import { MessagingClientError } from './error.js';
 import type { StorageAdapter } from './storage/adapters/storage.js';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
-import type { EncryptedSymmetricKey } from './encryption/types.js';
+import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
 import type { RawTransactionArgument } from './contracts/utils';
@@ -64,6 +70,7 @@ export class SuiStackMessagingClient {
 	#packageConfig: MessagingPackageConfig;
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
+	#sealConfig: SealConfig;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
@@ -72,8 +79,14 @@ export class SuiStackMessagingClient {
 		this.#suiClient = options.suiClient;
 		this.#storage = options.storage;
 
-		if (options.network && !options.packageConfig) {
-			const network = options.network;
+		// Initialize Seal config with defaults
+		this.#sealConfig = {
+			threshold: options.sealConfig?.threshold ?? 2, // Default threshold of 2
+		};
+
+		// Auto-detect network from client or use package config
+		if (!options.packageConfig) {
+			const network = this.#suiClient.network;
 			switch (network) {
 				case 'testnet':
 					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
@@ -82,18 +95,26 @@ export class SuiStackMessagingClient {
 					this.#packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 					break;
 				default:
-					throw new MessagingClientError(`Unsupported network: ${network}`);
+					// Fallback to testnet for unrecognized networks
+					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+					break;
 			}
 		} else {
-			this.#packageConfig = options.packageConfig!;
+			this.#packageConfig = options.packageConfig;
 		}
+
+		// Resolve sealApproveContract with defaults (use detected network)
+		const detectedNetwork = this.#suiClient.network === 'mainnet' ? 'mainnet' : 'testnet';
+		const sealApproveContract = this.#packageConfig.sealApproveContract ??
+			DEFAULT_SEAL_APPROVE_CONTRACT[detectedNetwork];
 
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
 			suiClient: this.#suiClient,
-			sealApproveContract: this.#packageConfig.sealApproveContract,
+			sealApproveContract,
 			sessionKey: options.sessionKey,
 			sessionKeyConfig: options.sessionKeyConfig,
+			sealConfig: this.#sealConfig,
 		});
 	}
 
@@ -107,16 +128,18 @@ export class SuiStackMessagingClient {
 					throw new MessagingClientError('SealClient extension is required for MessagingClient');
 				}
 
-				// Check if walrus is required but not available
-				if (!options.storage && !client.walrus) {
+				// Check if storage configuration is provided
+				if (!('storage' in options) && !('walrusStorageConfig' in options)) {
 					throw new MessagingClientError(
-						'WalrusClient extension is required for the default StorageAdapter implementation of MessagingClient. Please provide a custom storage adapter or extend the client with the WalrusClient extension.',
+						'Either a custom storage adapter via "storage" option or explicit Walrus storage configuration via "walrusStorageConfig" option must be provided. Fallback to default Walrus endpoints is not supported.',
 					);
 				}
 
+				// Auto-detect network from the client or use default package config
 				let packageConfig = options.packageConfig;
-				if (options.network && !packageConfig) {
-					switch (options.network) {
+				if (!packageConfig) {
+					const network = client.network;
+					switch (network) {
 						case 'testnet':
 							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
 							break;
@@ -124,30 +147,21 @@ export class SuiStackMessagingClient {
 							packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 							break;
 						default:
-							throw new MessagingClientError(`Unsupported network: ${options.network}`);
+							// Fallback to testnet if network is not recognized
+							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+							break;
 					}
 				}
 
-				if (!packageConfig) {
-					throw new MessagingClientError('Either packageConfig or network must be provided');
-				}
-
 				// Handle storage configuration
-				const storage = options.storage
-					? (c: MessagingCompatibleClient) => options.storage!(c)
-					: (c: MessagingCompatibleClient) => {
-							if (!c.walrus) {
-								throw new MessagingClientError(
-									'WalrusClient extension is required for default storage adapter',
-								);
-							}
-							// Type assertion is safe here because we've checked c.walrus exists
-							return new WalrusStorageAdapter(c as ClientWithExtensions<{ walrus: WalrusClient }>, {
-								publisher: 'https://publisher.walrus-testnet.walrus.space',
-								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-								epochs: 1,
-							});
-						};
+				const storage =
+					'storage' in options
+						? (c: MessagingCompatibleClient) => options.storage(c)
+						: (c: MessagingCompatibleClient) => {
+								// WalrusClient is optional - we can use WalrusStorageAdapter without it
+								// In the future, when WalrusClient SDK is used, we can check for its presence and use different logic
+								return new WalrusStorageAdapter(c, options.walrusStorageConfig);
+							};
 
 				return new SuiStackMessagingClient({
 					suiClient: client,
@@ -155,6 +169,7 @@ export class SuiStackMessagingClient {
 					packageConfig,
 					sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
 					sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
+					sealConfig: options.sealConfig,
 				});
 			},
 		};
@@ -169,14 +184,26 @@ export class SuiStackMessagingClient {
 	 * @returns Member cap ID
 	 */
 	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
-		const memberships = await this.getChannelMemberships({ address: userAddress });
-		const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+		let cursor: string | null = null;
+		let hasNextPage = true;
 
-		if (!membership) {
-			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
+		while (hasNextPage) {
+			const memberships = await this.getChannelMemberships({
+				address: userAddress,
+				cursor,
+			});
+
+			const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+
+			if (membership) {
+				return membership.member_cap_id;
+			}
+
+			cursor = memberships.cursor;
+			hasNextPage = memberships.hasNextPage;
 		}
 
-		return membership.member_cap_id;
+		throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 	}
 
 	/**
@@ -924,6 +951,22 @@ export class SuiStackMessagingClient {
 		}
 
 		return { digest, messageId };
+	}
+
+	/**
+	 * Update the external SessionKey instance (useful for React context updates)
+	 * Only works when the client was configured with an external SessionKey
+	 */
+	updateSessionKey(newSessionKey: SessionKey): void {
+		this.#envelopeEncryption.updateSessionKey(newSessionKey);
+	}
+
+	/**
+	 * Force refresh the managed SessionKey (useful for testing or manual refresh)
+	 * Only works when the client was configured with SessionKeyConfig
+	 */
+	async refreshSessionKey(): Promise<SessionKey> {
+		return this.#envelopeEncryption.refreshSessionKey();
 	}
 
 	/**
