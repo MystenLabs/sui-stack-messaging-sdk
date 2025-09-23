@@ -25,12 +25,28 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 const supportSigner = Ed25519Keypair.generate(); // Support handle/team account
 
 const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
-  .$extend(SealClient.asClientExtension({ serverConfigs: [] }))
+  .$extend(
+    SealClient.asClientExtension({
+      serverConfigs: [
+        {
+          objectId:
+            "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+          weight: 1,
+        },
+        {
+          objectId:
+            "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
+          weight: 1,
+        },
+      ],
+    })
+  )
   .$extend(
     SuiStackMessagingClient.experimental_asClientExtension({
       walrusStorageConfig: {
         aggregator: "https://aggregator.walrus-testnet.walrus.space",
         publisher: "https://publisher.walrus-testnet.walrus.space",
+        epochs: 1,
       },
       sessionKeyConfig: {
         address: supportSigner.toSuiAddress(),
@@ -64,14 +80,24 @@ console.log(`Support channel created for user: ${channelId}`);
 Both user and support participants need their `memberCapId` (for authorization) and the channel’s `encryptionKey` (to encrypt/decrypt messages).
 
 ```typescript
-// Get support handle’s MemberCap for this channel
-const memberships = await messaging.getChannelMemberships({
-  address: supportSigner.toSuiAddress(),
-});
-const supportMembership = memberships.memberships.find(
-  (m) => m.channel_id === channelId
-);
-const supportMemberCapId = supportMembership!.member_cap_id;
+// Get support handle's MemberCap for this channel (with pagination)
+let supportMembership = null;
+let cursor = null;
+let hasNextPage = true;
+
+while (hasNextPage && !supportMembership) {
+  const memberships = await messaging.getChannelMemberships({
+    address: supportSigner.toSuiAddress(),
+    cursor,
+  });
+  supportMembership = memberships.memberships.find(
+    (m) => m.channel_id === channelId
+  );
+  hasNextPage = memberships.hasNextPage;
+  cursor = memberships.cursor;
+}
+
+const supportMemberCapId = supportMembership.member_cap_id;
 
 // Get the channel object with encryption key info
 const channelObjects = await messaging.getChannelObjectsByChannelIds({
@@ -88,15 +114,49 @@ const channelEncryptionKey = {
 
 ### 4. User sends a support query
 
-From the user’s end of the app, the user can open the support channel and send a query message.
+From the user's end of the app, the user can open the support channel and send a query message.
+
+First, the user needs to retrieve their `memberCapId` and encryption key:
 
 ```typescript
+// Get user's MemberCap for this channel (with pagination)
+let userMembership = null;
+let userCursor = null;
+let userHasNextPage = true;
+
+while (userHasNextPage && !userMembership) {
+  const userMemberships = await messaging.getChannelMemberships({
+    address: userSigner.toSuiAddress(),
+    cursor: userCursor,
+  });
+  userMembership = userMemberships.memberships.find(
+    (m) => m.channel_id === channelId
+  );
+  userHasNextPage = userMemberships.hasNextPage;
+  userCursor = userMemberships.cursor;
+}
+
+const userMemberCapId = userMembership.member_cap_id;
+
+// Get user's channel object with encryption key
+const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
+  channelIds: [channelId],
+  userAddress: userSigner.toSuiAddress(),
+});
+const userChannelObj = userChannelObjects[0];
+const userChannelEncryptionKey = {
+  $kind: "Encrypted",
+  encryptedBytes: new Uint8Array(userChannelObj.encryption_key_history.latest),
+  version: userChannelObj.encryption_key_history.latest_version,
+};
+
+// Send the support query
 const { digest, messageId } = await messaging.executeSendMessageTransaction({
-  signer: userSigner, // The user’s signer
+  signer: userSigner,
   channelId,
-  memberCapId: userMemberCapId, // Retrieved the same way as above for the user
-  message: "I can’t claim my reward from yesterday’s tournament.",
-  encryptedKey: channelEncryptionKey, // Retrieved above
+  memberCapId: userMemberCapId,
+  message: "I can't claim my reward from yesterday's tournament.",
+  encryptedKey: userChannelEncryptionKey,
 });
 
 console.log(`User sent query ${messageId} in tx ${digest}`);
