@@ -4,6 +4,10 @@ import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
+import { ClientWithExtensions } from '@mysten/sui/experimental';
+import { SuiStackMessagingClient } from '../src/client';
+import { Signer } from '@mysten/sui/cryptography';
+import { Membership } from '../src/types';
 
 // Test data structure
 interface TestChannelData {
@@ -183,8 +187,8 @@ interface TestChannel {
 }
 
 async function createTestChannel(
-	client: any,
-	creator: any,
+	client: ClientWithExtensions<{ messaging: SuiStackMessagingClient }>,
+	creator: Signer,
 	initialMembers: string[],
 ): Promise<TestChannel> {
 	// Create channel
@@ -194,16 +198,25 @@ async function createTestChannel(
 	});
 
 	// Get channel object to extract encryption key info
-	const channelObjects = await client.messaging.getChannelObjectsByChannelIds([channelId]);
+	const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+		channelIds: [channelId],
+		userAddress: creator.toSuiAddress(),
+	});
 	const channelObj = channelObjects[0];
 
 	// Get creator's member cap
-	const creatorMemberships = await client.messaging.getChannelMemberships({
-		address: creator.toSuiAddress(),
-	});
-	const creatorMembership = creatorMemberships.memberships.find(
-		(m: any) => m.channel_id === channelId,
-	);
+	let creatorMembership: Membership | null | undefined = null;
+	let cursor: string | null = null;
+	let hasNextPage: boolean = true;
+	while (hasNextPage && !creatorMembership) {
+		let memberships = await client.messaging.getChannelMemberships({
+			address: creator.toSuiAddress(),
+			cursor,
+		});
+		creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+		hasNextPage = memberships.hasNextPage;
+		cursor = memberships.cursor;
+	}
 
 	if (!creatorMembership) {
 		throw new Error('Creator membership not found');

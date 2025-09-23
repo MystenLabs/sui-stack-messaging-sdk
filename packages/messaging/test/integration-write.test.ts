@@ -7,6 +7,7 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
+import { Membership } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -81,10 +82,19 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth.member_permissions).toBeDefined();
 
 			// Assert members - get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			let creatorMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+
+			while (hasNextPage && !creatorMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -207,11 +217,19 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			// Get the creator's MemberCap (taking pagination into account)
+			let creatorMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !creatorMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -223,7 +241,7 @@ describe('Integration tests - Write Path', () => {
 				throw new Error('Failed to fetch MemberCap object');
 			}
 			memberCap = MemberCap.parse(await memberCapObject.content);
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
@@ -243,7 +261,7 @@ describe('Integration tests - Write Path', () => {
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
