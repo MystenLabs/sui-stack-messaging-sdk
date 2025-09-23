@@ -340,7 +340,6 @@ class MockSealClient {
 	}
 }
 
-
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
@@ -369,19 +368,17 @@ export function createTestClient(
 	signer: Signer,
 ) {
 	return config.environment === 'localnet'
-		? suiRpcClient
-				.$extend(MockSealClient.asClientExtension())
-				.$extend(
-					SuiStackMessagingClient.experimental_asClientExtension({
-						packageConfig: config.packageConfig,
-						storage: (_client) => new MockStorageAdapter(),
-						sessionKeyConfig: {
-							address: signer.toSuiAddress(),
-							ttlMin: 30,
-							signer,
-						},
-					}),
-				)
+		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
+				SuiStackMessagingClient.experimental_asClientExtension({
+					packageConfig: config.packageConfig,
+					storage: (_client) => new MockStorageAdapter(),
+					sessionKeyConfig: {
+						address: signer.toSuiAddress(),
+						ttlMin: 30,
+						signer,
+					},
+				}),
+			)
 		: suiRpcClient
 				.$extend(
 					SealClient.asClientExtension({

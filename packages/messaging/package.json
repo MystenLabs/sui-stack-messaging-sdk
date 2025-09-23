@@ -21,7 +21,7 @@
 	],
 	"scripts": {
 		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-		"build": "node genversion.mjs && build-package",
+		"build": "build-package",
 		"build:build-scripts": "turbo run build --filter=@mysten/build-scripts",
 		"codegen": "sui-ts-codegen generate && pnpm lint:fix",
 		"vitest": "vitest",
@@ -31,14 +31,12 @@
 		"test:integration": "vitest run test/integration-*.test.ts",
 		"test:integration:localnet": "TEST_ENVIRONMENT=localnet vitest run test/integration-write.test.ts",
 		"test:integration:testnet": "TEST_ENVIRONMENT=testnet vitest run test/integration-*.test.ts",
-		"test:e2e": "turbo run test:e2e --concurrency=1",
-		"changeset-version": "pnpm changeset version && node genversion.mjs",
+		"changeset-version": "pnpm changeset version",
 		"alpha:enter": "pnpm changeset pre enter alpha",
 		"alpha:exit": "pnpm changeset pre exit",
 		"prepublishOnly": "pnpm turbo build",
 		"prettier:check": "prettier -c --ignore-unknown .",
 		"prettier:fix": "prettier -w --ignore-unknown .",
-		"prettier:fix:watch": "onchange '**' -i -f add -f change -j 5 -- prettier -w --ignore-unknown {{file}}",
 		"eslint:check": "eslint --max-warnings=0 .",
 		"eslint:fix": "pnpm run eslint:check --fix",
 		"lint": "pnpm run eslint:check && pnpm run prettier:check",
@@ -46,12 +44,12 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/mystenlabs/<tbd>.git"
+		"url": "git+https://github.com/MystenLabs/sui-stack-messaging-sdk.git"
 	},
 	"bugs": {
-		"url": "https://github.com/mystenlabs/<tbd>/issues"
+		"url": "https://github.com/MystenLabs/sui-stack-messaging-sdk/issues"
 	},
-	"homepage": "https://github.com/MystenLabs/<tbd>#readme",
+	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",
 		"@mysten/seal": "^0.6.0",

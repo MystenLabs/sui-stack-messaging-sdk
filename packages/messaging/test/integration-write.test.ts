@@ -350,11 +350,10 @@ describe('Integration tests - Write Path', () => {
 			// Step 2: Create a 1:1 support channel for a user
 			const topUserAddress = userSigner.toSuiAddress();
 
-			const { channelId, encryptedKeyBytes } =
-				await messaging.executeCreateChannelTransaction({
-					signer: supportSigner,
-					initialMembers: [topUserAddress],
-				});
+			const { channelId, encryptedKeyBytes } = await messaging.executeCreateChannelTransaction({
+				signer: supportSigner,
+				initialMembers: [topUserAddress],
+			});
 
 			console.log(`Support channel created for user: ${channelId}`);
 			expect(channelId).toBeDefined();
