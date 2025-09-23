@@ -14,6 +14,7 @@ This example shows how a DeFi protocol, a game, or another kind of app can provi
 ### 1. Setup the client in the support app
 
 The app initiates a messaging client, extended with Seal and the Messaging SDK.
+(It utilizes the provided Walrus publisher/aggregator for handling attachments.)
 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
@@ -47,7 +48,7 @@ const messaging = client.messaging;
 When a user becomes eligible for support, the app creates a dedicated channel between the user and the support team.
 
 ```typescript
-const topUserAddress = "0xUSER..."; // Replace with the user's Sui address or SuiNS handle
+const topUserAddress = "0xUSER..."; // Replace with the user's Sui address
 
 const { channelId, encryptedKeyBytes } =
   await messaging.executeCreateChannelTransaction({
