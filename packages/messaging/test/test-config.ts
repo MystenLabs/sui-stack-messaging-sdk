@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 import { MessagingPackageConfig } from '../src/types';
+import type { KeyServerConfig } from '@mysten/seal';
 
 export type TestEnvironment = 'localnet' | 'testnet';
 
@@ -14,7 +15,7 @@ export interface TestConfig {
 		network: 'localnet' | 'testnet';
 	};
 	sealConfig?: {
-		serverConfigs: Array<{ objectId: string; weight: number }>;
+		serverConfigs: KeyServerConfig[];
 	};
 	walrusConfig?: {
 		publisher: string;
@@ -29,7 +30,6 @@ export interface TestConfig {
  * Environment Variables:
  * - TEST_ENVIRONMENT: 'localnet' | 'testnet' (default: 'localnet')
  * - TESTNET_PACKAGE_ID: Required for testnet tests
- * - TESTNET_SEAL_APPROVE_PACKAGE_ID: Required for testnet tests
  * - SUI_RPC_URL: Optional, overrides default RPC URL
  */
 export function getTestConfig(): TestConfig {
@@ -56,13 +56,6 @@ function getLocalnetConfig(): TestConfig {
 		phrase: process.env.PHRASE || '',
 		packageConfig: {
 			packageId,
-			memberCapType: `${packageId}::channel::MemberCap`,
-			sealApproveContract: {
-				packageId,
-				module: 'seal_policies',
-				functionName: 'seal_approve',
-			},
-			sealSessionKeyTTLmins: 10,
 		},
 		suiClientConfig: {
 			url: process.env.SUI_RPC_URL || 'http://127.0.0.1:9000',
@@ -73,17 +66,10 @@ function getLocalnetConfig(): TestConfig {
 
 function getTestnetConfig(): TestConfig {
 	const packageId = process.env.TESTNET_PACKAGE_ID;
-	const sealApprovePackageId = process.env.TESTNET_SEAL_APPROVE_PACKAGE_ID;
 	const secretKey = process.env.TESTNET_SECRET_KEY;
 
 	if (!packageId) {
 		throw new Error('TESTNET_PACKAGE_ID environment variable is required for testnet tests');
-	}
-
-	if (!sealApprovePackageId) {
-		throw new Error(
-			'TESTNET_SEAL_APPROVE_PACKAGE_ID environment variable is required for testnet tests',
-		);
 	}
 
 	if (!secretKey) {
@@ -95,13 +81,6 @@ function getTestnetConfig(): TestConfig {
 		secretKey,
 		packageConfig: {
 			packageId,
-			memberCapType: `${packageId}::member_cap::MemberCap`,
-			sealApproveContract: {
-				packageId: sealApprovePackageId,
-				module: 'seal_policies',
-				functionName: 'seal_approve',
-			},
-			sealSessionKeyTTLmins: 30,
 		},
 		suiClientConfig: {
 			url: process.env.SUI_RPC_URL || 'https://fullnode.testnet.sui.io:443',
@@ -134,7 +113,7 @@ export function validateTestEnvironment(): void {
 	const config = getTestConfig();
 
 	if (config.environment === 'testnet') {
-		const requiredVars = ['TESTNET_PACKAGE_ID', 'TESTNET_SEAL_APPROVE_PACKAGE_ID'];
+		const requiredVars = ['TESTNET_PACKAGE_ID'];
 		const missing = requiredVars.filter((varName) => !process.env[varName]);
 
 		if (missing.length > 0) {

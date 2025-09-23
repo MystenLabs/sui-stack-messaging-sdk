@@ -9,6 +9,7 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
+import { Membership } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -23,6 +24,7 @@ describe('Integration tests - Write Path', () => {
 	// @ts-ignore todo: remove when support added
 	let suiGrpcClient: SuiGrpcClient;
 	let signer: Signer;
+	let userSigner: Signer;
 	// let packageId: string; // No longer needed since we use MessagingClient methods
 
 	// --- Test Suite Setup & Teardown ---
@@ -31,6 +33,7 @@ describe('Integration tests - Write Path', () => {
 		testSetup = await setupTestEnvironment();
 		suiJsonRpcClient = testSetup.suiClient;
 		signer = testSetup.signer;
+		userSigner = testSetup.userSigner;
 		// packageId = testSetup.packageId; // No longer needed
 
 		// Setup GraphQL and gRPC clients for localnet only
@@ -83,10 +86,19 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth.member_permissions).toBeDefined();
 
 			// Assert members - get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+			let creatorMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+
+			while (hasNextPage && !creatorMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -209,11 +221,19 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap
-			const memberships = await client.messaging.getChannelMemberships({
-				address: signer.toSuiAddress(),
-			});
-			const creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+			// Get the creator's MemberCap (taking pagination into account)
+			let creatorMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !creatorMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
 			expect(creatorMembership).toBeDefined();
 
 			// Get the actual MemberCap object
@@ -225,7 +245,7 @@ describe('Integration tests - Write Path', () => {
 				throw new Error('Failed to fetch MemberCap object');
 			}
 			memberCap = MemberCap.parse(await memberCapObject.content);
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
@@ -245,7 +265,7 @@ describe('Integration tests - Write Path', () => {
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
@@ -317,6 +337,150 @@ describe('Integration tests - Write Path', () => {
 					2,
 				),
 			);
+		}, 320000);
+	});
+
+	describe('Examples.md - In-app Product Support', () => {
+		it('should implement complete 1:1 support channel flow from Examples.md', async () => {
+			// Step 1: Setup the client (support team uses main signer)
+			const supportSigner = signer;
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, supportSigner);
+			const messaging = client.messaging;
+
+			// Step 2: Create a 1:1 support channel for a user
+			const topUserAddress = userSigner.toSuiAddress();
+
+			const { channelId, encryptedKeyBytes } =
+				await messaging.executeCreateChannelTransaction({
+					signer: supportSigner,
+					initialMembers: [topUserAddress],
+				});
+
+			console.log(`Support channel created for user: ${channelId}`);
+			expect(channelId).toBeDefined();
+			expect(encryptedKeyBytes).toBeDefined();
+
+			// Step 3: Fetch the memberCapId and encryptionKey (support handle)
+			let supportMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+
+			while (hasNextPage && !supportMembership) {
+				const memberships = await messaging.getChannelMemberships({
+					address: supportSigner.toSuiAddress(),
+					cursor,
+				});
+				supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+			expect(supportMembership).toBeDefined();
+			const supportMemberCapId = supportMembership!.member_cap_id;
+
+			// Get the channel object with encryption key info
+			const channelObjects = await messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: supportSigner.toSuiAddress(),
+			});
+			const channelObj = channelObjects[0];
+			const channelEncryptionKey: EncryptedSymmetricKey = {
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
+				version: channelObj.encryption_key_history.latest_version,
+			};
+
+			// Step 3b: Get user's memberCapId
+			let userMembership: Membership | null | undefined = null;
+			let userCursor: string | null = null;
+			let userHasNextPage: boolean = true;
+
+			while (userHasNextPage && !userMembership) {
+				const userMemberships = await messaging.getChannelMemberships({
+					address: topUserAddress,
+					cursor: userCursor,
+				});
+				userMembership = userMemberships.memberships.find((m) => m.channel_id === channelId);
+				userHasNextPage = userMemberships.hasNextPage;
+				userCursor = userMemberships.cursor;
+			}
+			expect(userMembership).toBeDefined();
+			const userMemberCapId = userMembership!.member_cap_id;
+
+			// Get user's channel object with encryption key
+			const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: topUserAddress,
+			});
+			const userChannelObj = userChannelObjects[0];
+			const userChannelEncryptionKey: EncryptedSymmetricKey = {
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(userChannelObj.encryption_key_history.latest),
+				version: userChannelObj.encryption_key_history.latest_version,
+			};
+
+			// Step 4: User sends a support query
+			const userClient = createTestClient(suiJsonRpcClient, testSetup.config, userSigner);
+			const userQuery = "I can't claim my reward from yesterday's tournament.";
+
+			const { digest: userDigest, messageId: userMessageId } =
+				await userClient.messaging.executeSendMessageTransaction({
+					signer: userSigner,
+					channelId,
+					memberCapId: userMemberCapId,
+					message: userQuery,
+					encryptedKey: userChannelEncryptionKey,
+				});
+
+			console.log(`User sent query ${userMessageId} in tx ${userDigest}`);
+			expect(userDigest).toBeDefined();
+			expect(userMessageId).toBeDefined();
+
+			// Step 5: Support team reads the user query
+			const messages = await messaging.getChannelMessages({
+				channelId,
+				userAddress: supportSigner.toSuiAddress(),
+				limit: 5,
+				direction: 'backward',
+			});
+
+			expect(messages.messages).toHaveLength(1);
+			const receivedQuery = messages.messages[0];
+			expect(receivedQuery.sender).toBe(topUserAddress);
+			expect(receivedQuery.text).toBe(userQuery);
+
+			console.log(`👤 ${receivedQuery.sender}: ${receivedQuery.text}`);
+
+			// Support sends a reply
+			const supportReply = 'Thanks for reaching out! Can you confirm the reward ID?';
+			const { digest: supportDigest, messageId: supportMessageId } =
+				await messaging.executeSendMessageTransaction({
+					signer: supportSigner,
+					channelId,
+					memberCapId: supportMemberCapId,
+					message: supportReply,
+					encryptedKey: channelEncryptionKey,
+				});
+
+			console.log(`Support sent reply ${supportMessageId} in tx ${supportDigest}`);
+			expect(supportDigest).toBeDefined();
+			expect(supportMessageId).toBeDefined();
+
+			// Verify user can read support's reply
+			const userMessages = await userClient.messaging.getChannelMessages({
+				channelId,
+				userAddress: topUserAddress,
+				limit: 5,
+				direction: 'backward',
+			});
+
+			expect(userMessages.messages).toHaveLength(2);
+			const supportResponse = userMessages.messages.find(
+				(m) => m.sender === supportSigner.toSuiAddress(),
+			);
+			expect(supportResponse).toBeDefined();
+			expect(supportResponse!.text).toBe(supportReply);
+
+			console.log(`👨‍💼 ${supportResponse!.sender}: ${supportResponse!.text}`);
 		}, 320000);
 	});
 });

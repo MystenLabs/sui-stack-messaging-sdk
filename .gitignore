@@ -9,8 +9,6 @@
 **/build/
 **/target
 **/types/*
-!**/src/types/moviepass.ts
-**/abis
 
 # Move
 **/Move.lock
@@ -35,6 +33,7 @@ testnet-setup.*.sh
 **/*secret*
 **/*key*
 !**/encryption_key_history*
+!**/sessionKey*
 **/*phrase*
 **/*private*
 **/*.env*
@@ -44,4 +43,3 @@ testnet-setup.*.sh
 load-tests/k6/details*.json
 
 .DS_store
-CLAUDE.md
