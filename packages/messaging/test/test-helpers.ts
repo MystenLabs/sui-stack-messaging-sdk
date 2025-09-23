@@ -4,6 +4,7 @@ import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { Transaction } from '@mysten/sui/transactions';
 
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
@@ -40,6 +41,7 @@ export interface TestEnvironmentSetup {
 	suiClient: SuiClient;
 	suiGrpcClient?: SuiGrpcClient;
 	signer: Signer;
+	userSigner: Signer;
 	packageId: string;
 	cleanup?: () => Promise<void>;
 }
@@ -171,6 +173,11 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	// Fund the account
 	await suiLocalNode.exec(['sui', 'client', 'faucet']);
 
+	// Create and fund a user signer
+	const userKeypair = Ed25519Keypair.generate();
+	const userAddress = userKeypair.toSuiAddress();
+	await suiLocalNode.exec(['sui', 'client', 'faucet', '--address', userAddress]);
+
 	// Publish the package
 	const publishResult = await suiLocalNode.exec([
 		'sui',
@@ -214,15 +221,10 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	};
 
 	// Update the config with the actual deployed package ID
-	const updatedConfig = {
+	const updatedConfig: TestConfig = {
 		...config,
 		packageConfig: {
-			...config.packageConfig,
 			packageId,
-			sealApproveContract: {
-				...config.packageConfig.sealApproveContract,
-				packageId,
-			},
 		},
 	};
 
@@ -230,6 +232,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		config: updatedConfig,
 		suiClient,
 		signer,
+		userSigner: userKeypair,
 		packageId,
 		cleanup,
 	};
@@ -266,11 +269,28 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 	}
 	const signer = Ed25519Keypair.fromSecretKey(config.secretKey);
 
+	// Create and fund a user signer
+	const userKeypair = Ed25519Keypair.generate();
+	const userAddress = userKeypair.toSuiAddress();
+
+	// Fund user using the main signer
+	const tx = new Transaction();
+	const FUND_AMOUNT = 100_000_000; // 0.1 SUI in MIST
+	tx.transferObjects([tx.splitCoins(tx.gas, [FUND_AMOUNT])], userAddress);
+	const { digest } = await suiClient.signAndExecuteTransaction({
+		transaction: tx,
+		signer: signer,
+	});
+
+	// Wait for transaction to be processed to avoid gas coin version conflicts
+	await suiClient.waitForTransaction({ digest });
+
 	return {
 		config,
 		suiClient,
 		suiGrpcClient,
 		signer,
+		userSigner: userKeypair,
 		packageId: config.packageConfig.packageId,
 		// No cleanup needed for testnet since we're not using Docker containers
 	};
