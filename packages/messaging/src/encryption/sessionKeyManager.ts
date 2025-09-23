@@ -16,9 +16,9 @@ export class SessionKeyManager {
 
 	constructor(
 		private sessionKey: SessionKey | undefined,
-		private sessionKeyConfig: SessionKeyConfig | undefined,
-		private suiClient: MessagingCompatibleClient,
-		private sealApproveContract: SealApproveContract,
+		private readonly sessionKeyConfig: SessionKeyConfig | undefined,
+		private readonly suiClient: MessagingCompatibleClient,
+		private readonly sealApproveContract: SealApproveContract,
 	) {
 		if (!sessionKey && !sessionKeyConfig) {
 			throw new Error('Either sessionKey or sessionKeyConfig must be provided');

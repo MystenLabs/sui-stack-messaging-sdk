@@ -31,7 +31,7 @@ import {
 import { WebCryptoPrimitives } from './webCryptoPrimitives';
 import { Transaction } from '@mysten/sui/transactions';
 import { MessagingCompatibleClient } from '../types';
-import { SessionKeyManager } from './sessionKeyManager.js';
+import { SessionKeyManager } from './sessionKeyManager';
 
 /**
  * Core envelope encryption service that utilizes Seal
