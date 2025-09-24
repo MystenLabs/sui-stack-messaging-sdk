@@ -77,7 +77,7 @@ Check out instructions for [Developer Setup](./Setup.md).
 
 ## Smart contract deployment
 
-The SDK requires a Move smart contract to manage channels, messages, and membership. Sample contract source code is available at [`move/sui_stack_messaging/`](./move/sui_stack_messaging/). Clone it, modify & adapt it to the needs of your app, and publish to Sui.
+The SDK requires a Move smart contract to manage channels, messages, and membership. You may use the contract available on `Testnet` - `0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d`, or deploy your own. If latter, refer to the sample contract source code at [`move/sui_stack_messaging/`](./move/sui_stack_messaging/) - clone it, modify & adapt it to the needs of your app, and publish to Sui.
 
 **Deploy the contract:**
 
@@ -87,6 +87,6 @@ sui move build
 sui client publish --gas-budget 100000000
 ```
 
-Once you publish the package, refer to [Smart contract configuration in the SDK](./Setup.md#smart-contract-configuration).
+Also refer to [Smart contract configuration in the SDK](./Setup.md#smart-contract-configuration).
 
 [Back to table of contents](#table-of-contents)
