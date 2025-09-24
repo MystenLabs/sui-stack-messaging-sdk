@@ -104,10 +104,11 @@ export class SuiStackMessagingClient {
 			this.#packageConfig = options.packageConfig;
 		}
 
-		// Resolve sealApproveContract with defaults (use detected network)
-		const detectedNetwork = this.#suiClient.network === 'mainnet' ? 'mainnet' : 'testnet';
-		const sealApproveContract =
-			this.#packageConfig.sealApproveContract ?? DEFAULT_SEAL_APPROVE_CONTRACT[detectedNetwork];
+		// Resolve sealApproveContract with defaults (use same packageId as messaging package)
+		const sealApproveContract = this.#packageConfig.sealApproveContract ?? {
+			packageId: this.#packageConfig.packageId,
+			...DEFAULT_SEAL_APPROVE_CONTRACT,
+		};
 
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
