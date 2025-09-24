@@ -119,18 +119,36 @@ const client = new SuiClient({
       },
     },
   },
-}).$extend(
-  SealClient.asClientExtension({
-    serverConfigs: [
-      {
-        objectId:
-          "0xa...",
-        weight: 1,
+})
+  .$extend(
+    SealClient.asClientExtension({
+      serverConfigs: [
+        {
+          objectId:
+            "0xa...",
+          weight: 1,
+        },
+        {
+          objectId:
+            "0xb...",
+          weight: 1,
+        },
+      ],
+    })
+  )
+  .$extend(
+    SuiStackMessagingClient.experimental_asClientExtension({
+      sessionKeyConfig: {
+        address: "0x...",
+        ttlMin: 30,
       },
-      {
-        objectId:
-          "0xb...",
-        weight: 1,
+      walrusStorageConfig: {
+        publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
+        aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
+        epochs: 1,
+      },
+      sealConfig: {
+        threshold: 2,
       },
       packageConfig: { ... }, // if using smart contract specific to your app
     })
