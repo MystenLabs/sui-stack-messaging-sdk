@@ -7,11 +7,13 @@
 
 # SDK API Reference
 
-## Channel Management
+## Channel management
 
-### `getChannelMemberships(request: ChannelMembershipsRequest): Promise<ChannelMembershipsResponse>`
+### Get channel memberships
 
-Returns the list of channels a user belongs to, with pagination support.
+**Method:** `getChannelMemberships(request: ChannelMembershipsRequest): Promise<ChannelMembershipsResponse>`
+
+**Purpose:** Returns the list of channels a user belongs to, with pagination support.
 
 **Parameters:**
 
@@ -35,9 +37,11 @@ Returns the list of channels a user belongs to, with pagination support.
 
 ---
 
-### `getChannelObjectsByAddress(request: ChannelMembershipsRequest): Promise<DecryptedChannelObjectsByAddressResponse>`
+### Get channel objects by address
 
-Retrieves decrypted channel objects for a user's memberships.
+**Method:** `getChannelObjectsByAddress(request: ChannelMembershipsRequest): Promise<DecryptedChannelObjectsByAddressResponse>`
+
+**Purpose:** Retrieves decrypted channel objects for a user's memberships.
 
 **Parameters:**
 
@@ -55,13 +59,16 @@ Retrieves decrypted channel objects for a user's memberships.
 }
 ```
 
-**Note:** This method first fetches memberships, then retrieves and decrypts the corresponding channel objects including the last message.
+> [!NOTE] 
+> This method first fetches memberships, then retrieves and decrypts the corresponding channel objects including the last message.
 
 ---
 
-### `getChannelObjectsByChannelIds(request: GetChannelObjectsByChannelIdsRequest): Promise<DecryptedChannelObject[]>`
+### Get channel objects by channel ids
 
-Retrieves decrypted channel objects by channel IDs.
+**Method:** `getChannelObjectsByChannelIds(request: GetChannelObjectsByChannelIdsRequest): Promise<DecryptedChannelObject[]>`
+
+**Purpose:** Retrieves decrypted channel objects by channel IDs.
 
 **Parameters:**
 
@@ -81,9 +88,11 @@ DecryptedChannelObject[]
 
 ---
 
-### `getChannelMembers(channelId: string): Promise<ChannelMembersResponse>`
+### Get channel members
 
-Returns all members of a specific channel.
+**Method:** `getChannelMembers(channelId: string): Promise<ChannelMembersResponse>`
+
+**Purpose:** Returns all members of a specific channel.
 
 **Parameters:**
 
@@ -103,9 +112,11 @@ Returns all members of a specific channel.
 
 ---
 
-### `createChannelFlow(opts: CreateChannelFlowOpts): CreateChannelFlow`
+### Create channel flow (multi-step flow)
 
-Creates a channel using a multi-step flow for fine-grained control.
+**Method:** `createChannelFlow(opts: CreateChannelFlowOpts): CreateChannelFlow`
+
+**Purpose:** Creates a channel using a multi-step flow for fine-grained control.
 
 **Parameters:**
 
@@ -118,10 +129,10 @@ Creates a channel using a multi-step flow for fine-grained control.
 
 **Returns:** A flow object with the following methods:
 
-1. **`build(): Transaction`** - Build the channel creation transaction
-2. **`getGeneratedCaps(opts: { digest: string }): Promise<{ creatorCap, creatorMemberCap, additionalMemberCaps }>`** - Extract capabilities from transaction
-3. **`generateAndAttachEncryptionKey(): Promise<Transaction>`** - Generate and attach encryption key transaction
-4. **`getGeneratedEncryptionKey(): { channelId: string; encryptedKeyBytes: Uint8Array }`** - Get the generated encryption key
+1. `build(): Transaction` - Build the channel creation transaction
+2. `getGeneratedCaps(opts: { digest: string }): Promise<{ creatorCap, creatorMemberCap, additionalMemberCaps }>` - Extract capabilities from transaction
+3. `generateAndAttachEncryptionKey(): Promise<Transaction>` - Generate and attach encryption key transaction
+4. `getGeneratedEncryptionKey(): { channelId: string; encryptedKeyBytes: Uint8Array }` - Get the generated encryption key
 
 **Example:**
 
@@ -148,13 +159,16 @@ await signer.signAndExecuteTransaction({ transaction: keyTx });
 const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 ```
 
-**Note:** This flow requires two separate transactions. We plan on improving this in the near future.
+> [!NOTE] 
+> This flow requires two separate transactions. We plan on improving this in the near future.
 
 ---
 
-### `executeCreateChannelTransaction(params): Promise<{ digest, channelId, creatorCapId, encryptedKeyBytes }>`
+### Execute create channel transaction
 
-Creates a channel in a single call, managing the entire flow internally.
+**Method:** `executeCreateChannelTransaction(params): Promise<{ digest, channelId, creatorCapId, encryptedKeyBytes }>`
+
+**Purpose:** Creates a channel in a single call, managing the entire flow internally.
 
 **Parameters:**
 
@@ -178,11 +192,13 @@ Creates a channel in a single call, managing the entire flow internally.
 
 ---
 
-## Message Management
+## Message management
 
-### `getChannelMessages(request: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse>`
+### Get channel messages
 
-Retrieves decrypted messages from a channel with pagination support.
+**Method:** `getChannelMessages(request: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse>`
+
+**Purpose:** Retrieves decrypted messages from a channel with pagination support.
 
 **Parameters:**
 
@@ -215,9 +231,11 @@ Retrieves decrypted messages from a channel with pagination support.
 
 ---
 
-### `getLatestMessages(request: GetLatestMessagesRequest): Promise<DecryptedMessagesResponse>`
+### Get latest messages
 
-Returns new decrypted messages since the last polling state.
+**Method:** `getLatestMessages(request: GetLatestMessagesRequest): Promise<DecryptedMessagesResponse>`
+
+**Purpose:** Returns new decrypted messages since the last polling state.
 
 **Parameters:**
 
@@ -247,9 +265,11 @@ Returns new decrypted messages since the last polling state.
 
 ---
 
-### `sendMessage(channelId, memberCapId, sender, message, encryptedKey, attachments?): Promise<(tx: Transaction) => Promise<void>>`
+### Send message
 
-Builds a transaction for sending an encrypted message with optional attachments.
+**Method:** `sendMessage(channelId, memberCapId, sender, message, encryptedKey, attachments?): Promise<(tx: Transaction) => Promise<void>>`
+
+**Purpose:** Builds a transaction for sending an encrypted message with optional attachments.
 
 **Parameters:**
 
@@ -283,9 +303,11 @@ await signer.signAndExecuteTransaction({ transaction: tx });
 
 ---
 
-### `executeSendMessageTransaction(params): Promise<{ digest: string; messageId: string }>`
+### Execute send message transaction
 
-Sends a message in a single call.
+**Method:** `executeSendMessageTransaction(params): Promise<{ digest: string; messageId: string }>`
+
+**Purpose:** Sends a message in a single call.
 
 **Parameters:**
 
@@ -311,35 +333,41 @@ Sends a message in a single call.
 
 ---
 
-## Session Key Management
+## Session key management
 
-### `updateSessionKey(newSessionKey: SessionKey): void`
+### Update session key
 
-Updates the external SessionKey instance.
+**Method:** `updateSessionKey(newSessionKey: SessionKey): void`
+
+**Purpose:** Updates the external `SessionKey` instance.
 
 **Parameters:**
 
 - `newSessionKey` - The new SessionKey to use
 
-**Note:** Only works when the client was configured with an external SessionKey.
+> [!NOTE] 
+> This method only works when the client is configured with an external `SessionKey`.
 
 ---
 
-### `refreshSessionKey(): Promise<SessionKey>`
+### Refresh session key
 
-Force refreshes the managed SessionKey.
+**Method:** `refreshSessionKey(): Promise<SessionKey>`
+
+**Purpose:** Force a refresh of the managed `SessionKey`.
 
 **Parameters:** None
 
-**Returns:** The refreshed SessionKey
+**Returns:** The refreshed `SessionKey`
 
-**Note:** Only works when the client was configured with SessionKeyConfig.
+> [!NOTE] 
+> This method only works when the client is configured with `SessionKeyConfig`.
 
 ---
 
-## Type Definitions
+## Type definitions
 
-### `DecryptedMessage`
+### DecryptedMessage
 
 ```typescript
 {
@@ -350,7 +378,7 @@ Force refreshes the managed SessionKey.
 }
 ```
 
-### `LazyDecryptAttachmentResult`
+### LazyDecryptAttachmentResult
 
 ```typescript
 {
@@ -364,9 +392,10 @@ Force refreshes the managed SessionKey.
 }
 ```
 
-**Note:** The attachment's data, is returned as a prepared Promise, which you can lazily await, to download and decrypt the data. That way, you can e.g., immediately show the message's text, and the attachment's metadata, without having to wait for the data to be downloaded and decrypted.
+> [!NOTE]
+> The attachment’s data is returned as a `Promise` that you can await when needed. This allows you to display the message text and attachment metadata immediately, without waiting for the attachment data to download and decrypt.
 
-### `DecryptedChannelObject`
+### DecryptedChannelObject
 
 ```typescript
 {
@@ -380,7 +409,7 @@ Force refreshes the managed SessionKey.
 }
 ```
 
-### `EncryptedSymmetricKey`
+### EncryptedSymmetricKey
 
 ```typescript
 {
