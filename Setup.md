@@ -91,7 +91,7 @@ const messagingClient = clientWithSeal.$extend(
       threshold: 2, // Number of key servers required (default: 2)
     },
 
-    // Smart contract specific to your app (see below for full config)
+    // Optional: if using a smart contract specific to your app (see below for full config)
     packageConfig: { ... }
   })
 );
@@ -134,7 +134,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
       sealConfig: {
         threshold: 2,
       },
-      packageConfig: { ... }, // smart contract specific to your app
+      packageConfig: { ... }, // if using smart contract specific to your app
     })
   );
 
@@ -148,7 +148,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
 | Dependency   | Purpose                                            | Required |
 | ------------ | -------------------------------------------------- | -------- |
 | `SealClient` | End-to-end encryption and decryption for messages and attachments | ✅ Yes |
-| Sui smart contract | Your app specific smart contract to manage channels, messages, and membership | ✅ Yes |
+| Sui smart contract | Your app specific smart contract to manage channels, messages, and membership | No (it's optional) |
 
 > [!NOTE] 
 > The `WalrusStorageAdapter` works without `WalrusClient` by using direct publisher and aggregator URLs. In future, we plan to support the `WalrusClient` as an option, enabling features like the upload relay.
@@ -298,9 +298,9 @@ SuiStackMessagingClient.experimental_asClientExtension({
 
 ### Smart contract configuration
 
-You must provide a smart contract specific to your app. Refer to the sample package `0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d` on `Testnet`. Check out the [relevant installation instructions](./Installation.md#smart-contract-deployment).
+You may provide a smart contract specific to your app. Else the package deployed on `Testnet` will be used - `0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d`. Check out the [relevant installation instructions](./Installation.md#smart-contract-deployment).
 
-Provide your own `packageConfig`:
+If providing your own package, specify your own `packageConfig`:
 
 ```typescript
 packageConfig: {
