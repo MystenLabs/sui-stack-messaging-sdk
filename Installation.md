@@ -1,9 +1,9 @@
 # Installation
 
 > [!NOTE]
-> The SDK is not yet published to npm. Follow the manual installation steps below.
+> The SDK is not yet published to npm. Until that's available, follow the manual installation steps below.
 
-## Option 1: Install from Tarball (Recommended)
+## Option 1: Install using tarball (Recommended)
 
 1. **Clone and build the SDK:**
 
@@ -15,16 +15,16 @@ pnpm build
 pnpm pack
 ```
 
-This generates a tarball file: `mysten-messaging-0.0.1.tgz`
+This generates a tarball file: `mysten-messaging-<version>.tgz`
 
 2. **Install in your project:**
 
 ```bash
 # From the SDK directory (sui-stack-messaging-sdk/packages/messaging)
 # Copy the tarball to your project and install with full path
-cp mysten-messaging-0.0.1.tgz /path/to/your/project/
+cp mysten-messaging-<version>.tgz /path/to/your/project/
 cd /path/to/your/project
-pnpm add $(pwd)/mysten-messaging-0.0.1.tgz
+pnpm add $(pwd)/mysten-messaging-<version>.tgz
 ```
 
 3. **Import and use:**
@@ -35,7 +35,7 @@ import { SuiStackMessagingClient } from "@mysten/messaging";
 
 ## Option 2: Copy Package Directly
 
-For developers who want to modify the SDK or integrate it directly into their monorepo:
+Use this option if you would like to modify the SDK or integrate it directly into your monorepo:
 
 ```bash
 # Clone the repository
@@ -69,7 +69,7 @@ Check out instructions for [Developer Setup](./Setup.md).
 
 ## Smart Contract Deployment
 
-The SDK requires a Move smart contract to be deployed on Sui to manage channels, messages, and membership. The source code is located in [`move/sui_stack_messaging/`](./move/sui_stack_messaging/).
+The SDK requires a Move smart contract to manage channels, messages, and membership. The contract source code is available at [`move/sui_stack_messaging/`](./move/sui_stack_messaging/). Clone it, modify & adapt it to the needs of your app, and publish to Sui.
 
 **Deploy the contract:**
 
