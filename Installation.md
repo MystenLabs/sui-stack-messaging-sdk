@@ -1,3 +1,11 @@
+## Table of Contents
+
+- [Home](./README.md)
+- [Developer Setup](./Setup.md)
+- [SDK API Reference](./APIRef.md)
+- [Integration Testing](./Testing.md)
+- [Example patterns](./Examples.md)
+
 # Installation
 
 > [!NOTE]
@@ -80,3 +88,5 @@ sui client publish --gas-budget 100000000
 ```
 
 Once you publish the package, refer to [Smart contract configuration in the SDK](./Setup.md#smart-contract-configuration).
+
+[Back to table of contents](#table-of-contents)

@@ -1,6 +1,7 @@
 ## Table of Contents
 
-- [Home - Overview and Installation](./README.md)
+- [Home](./README.md)
+- [Installation Guide](./Installation.md)
 - [Developer Setup](./Setup.md)
 - [Integration Testing](./Testing.md)
 - [Example patterns](./Examples.md)
