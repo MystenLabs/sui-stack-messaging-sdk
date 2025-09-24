@@ -9,12 +9,11 @@
 
 ## In-app product support
 
-This example shows how a DeFi protocol, a game, or another kind of app can provide direct, encrypted support to their top users. It assumes that each user gets a private 1:1 channel to interact with a support team. The support can be provided by a human operator or by an AI chatbot integrated programmatically.
+This example shows how the builder or operator of a DeFi protocol, a game, or another kind of app can provide direct, encrypted support to their top users. It assumes that each user gets a private 1:1 channel to interact with a support team. The support can be provided by a human operator or by an AI chatbot integrated programmatically.
 
 ### 1. Setup the client in the support app
 
-The app initiates a messaging client, extended with Seal and the Messaging SDK.
-(It utilizes the provided Walrus publisher/aggregator for handling attachments.)
+The app initiates a messaging client, extended with Seal and the Messaging SDK. It utilizes the provided Walrus publisher and aggregator for handling attachments.
 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
@@ -119,36 +118,8 @@ From the user's end of the app, the user can open the support channel and send a
 First, the user needs to retrieve their `memberCapId` and encryption key:
 
 ```typescript
-// Get user's MemberCap for this channel (with pagination)
-let userMembership = null;
-let userCursor = null;
-let userHasNextPage = true;
-
-while (userHasNextPage && !userMembership) {
-  const userMemberships = await messaging.getChannelMemberships({
-    address: userSigner.toSuiAddress(),
-    cursor: userCursor,
-  });
-  userMembership = userMemberships.memberships.find(
-    (m) => m.channel_id === channelId
-  );
-  userHasNextPage = userMemberships.hasNextPage;
-  userCursor = userMemberships.cursor;
-}
-
-const userMemberCapId = userMembership.member_cap_id;
-
-// Get user's channel object with encryption key
-const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
-  channelIds: [channelId],
-  userAddress: userSigner.toSuiAddress(),
-});
-const userChannelObj = userChannelObjects[0];
-const userChannelEncryptionKey = {
-  $kind: "Encrypted",
-  encryptedBytes: new Uint8Array(userChannelObj.encryption_key_history.latest),
-  version: userChannelObj.encryption_key_history.latest_version,
-};
+// Get the user's MemberCap for this channel (with pagination) - as showcased above
+// Get the encryption key info for the channel - as showcased above
 
 // Send the support query
 const { digest, messageId } = await messaging.executeSendMessageTransaction({
@@ -175,7 +146,7 @@ const messages = await messaging.getChannelMessages({
   direction: "backward",
 });
 
-messages.messages.forEach((m) => console.log(`👤 ${m.sender}: ${m.text}`));
+messages.messages.forEach((m) => console.log(`${m.sender}: ${m.text}`));
 
 // Send a reply
 await messaging.executeSendMessageTransaction({
@@ -220,7 +191,7 @@ The AI agent can then engage in the same two-way conversation loop as a human su
 
 This example shows how an identity app (e.g., proof-of-humanity or reputation scoring) can publish updates about a user’s status. Multiple consuming apps, such as DeFi protocols, games, or social platforms, subscribe to those updates via secure messaging channels.
 
-This pattern emulates a Pub/Sub workflow, but with on-chain & decentralized storage, verifiable identities, and Seal encryption.
+This pattern emulates a Pub/Sub workflow, but by using on-chain & decentralized storage, verifiable identities, and Seal encryption.
 
 ### 1. Setup the client (Identity App Publisher)
 
@@ -275,7 +246,7 @@ console.log(`Created reputation updates channel: ${channelId}`);
 ```
 
 > [!NOTE]
-> The SDK does not yet support adding/removing members after creation. Be sure to include all intended subscribers in initialMembers.
+> The SDK does not yet support adding/removing members after creation. Be sure to include all intended subscribers in `initialMembers`.
 
 ### 3. Publish an identity/reputation update
 
@@ -292,10 +263,10 @@ await messaging.executeSendMessageTransaction({
     newScore: 82,
     timestamp: Date.now(),
   }),
-  encryptedKey: channelEncryptionKey,
+  encryptedKey: channelEncryptionKey, // Channel encryption key
 });
 
-console.log("📡 Published reputation update to channel");
+console.log("Published reputation update to channel");
 ```
 
 ### 4. Consuming apps subscribe to updates
