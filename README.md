@@ -38,12 +38,7 @@ The SDK enables developers to integrate secure, wallet-linked messaging directly
 
 ## Installation
 
-```bash
-TBD
-
-```
-
-Check out instructions for [Developer Setup](./Setup.md).
+Refer to the [Installation Guide](./Installation.md).
 
 ## Contact Us
 
@@ -51,6 +46,7 @@ For questions about the SDK, use case discussions, or integration support, conta
 
 ## Table of Contents
 
+- [Installation Guide](./Installation.md)
 - [Developer Setup](./Setup.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
