@@ -51,12 +51,12 @@ const clientWithSeal = baseClient.$extend(
     serverConfigs: [
       {
         objectId:
-          "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+          "0xa...",
         weight: 1,
       },
       {
         objectId:
-          "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
+          "0xb...",
         weight: 1,
       },
     ],
@@ -80,8 +80,8 @@ const messagingClient = clientWithSeal.$extend(
 
     // Storage configuration (choose one of the available approaches - see below)
     walrusStorageConfig: {
-      publisher: "https://publisher.walrus-testnet.walrus.space",
-      aggregator: "https://aggregator.walrus-testnet.walrus.space",
+      publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
+      aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
       epochs: 1, // Storage duration in Walrus epochs
     },
 
@@ -90,8 +90,8 @@ const messagingClient = clientWithSeal.$extend(
       threshold: 2, // Number of key servers required (default: 2)
     },
 
-    // Optional: Custom package configuration for custom deployments
-    // packageConfig: { ... }
+    // Smart contract specific to your app (see below for full config)
+    packageConfig: { ... }
   })
 );
 
@@ -108,12 +108,12 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
       serverConfigs: [
         {
           objectId:
-            "0x73d05d62c18d9374e3ea529e8e0ed6161da1a141a94d3f76ae3fe4e99356db75",
+            "0xa...",
           weight: 1,
         },
         {
           objectId:
-            "0xf5d14a81a982144ae441cd7d64b09027f116a468bd36e7eca494f750591623c8",
+            "0xb...",
           weight: 1,
         },
       ],
@@ -126,13 +126,14 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
         ttlMin: 30,
       },
       walrusStorageConfig: {
-        publisher: "https://publisher.walrus-testnet.walrus.space",
-        aggregator: "https://aggregator.walrus-testnet.walrus.space",
+        publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
+        aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
         epochs: 1,
       },
       sealConfig: {
         threshold: 2,
       },
+      packageConfig: { ... }, // smart contract specific to your app
     })
   );
 
@@ -146,6 +147,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
 | Dependency   | Purpose                                            | Required |
 | ------------ | -------------------------------------------------- | -------- |
 | `SealClient` | End-to-end encryption and decryption for messages and attachments | ✅ Yes |
+| Sui smart contract | Your app specific smart contract to manage channels, messages, and membership | ✅ Yes |
 
 > [!NOTE] 
 > The `WalrusStorageAdapter` works without `WalrusClient` by using direct publisher and aggregator URLs. In future, we plan to support the `WalrusClient` as an option, enabling features like the upload relay.
@@ -293,25 +295,17 @@ SuiStackMessagingClient.experimental_asClientExtension({
 });
 ```
 
-### Network configuration
+### Smart contract configuration
 
-The SDK auto-detects the network from your `SuiClient` and uses pre-configured package IDs:
+You must provide a smart contract specific to your app. Refer to the sample package `0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d` on `Testnet`. Check out the [relevant installation instructions](./Installation.md#smart-contract-deployment).
 
-| Network   | Detection              | Package Config  |
-| --------- | ---------------------- | --------------- |
-| `testnet` | Auto-detected          | Pre-configured  |
-| `mainnet` | Auto-detected          | Pre-configured  |
-|  Custom   | Requires configuration | Manual override |
-
-#### Custom network deployment
-
-For custom deployments, provide your own `packageConfig`:
+Provide your own `packageConfig`:
 
 ```typescript
 packageConfig: {
-  packageId: string;                    // Your deployed package ID (required)
-  sealApproveContract?: {               // Optional: custom seal access policy contract
-    packageId: string;                  // Contract package ID
+  packageId: string;                    // Your smart contract package ID (required)
+  sealApproveContract?: {               // Required if your Seal access policy package is different from the main package
+    packageId: string;                  // Seal access policy package ID
     module: string;                     // Module name (default: "seal_policies")
     functionName: string;               // Function name (default: "seal_approve")
   }
@@ -331,63 +325,6 @@ SuiStackMessagingClient.experimental_asClientExtension({
     },
   },
   // ... other config
-});
-```
-
-> [!Note] 
-> If you deploy the Move contract from this repository without any modifications, you don't need to provide `sealApproveContract` - the defaults should work.
-
-## Summary of the configuration options
-
-### Minimal configuration
-
-```typescript
-SuiStackMessagingClient.experimental_asClientExtension({
-  // Session key (choose one)
-  sessionKeyConfig: { address: "0x...", ttlMin: 30 },
-
-  // Storage (choose one)
-  walrusStorageConfig: {
-    publisher: "https://publisher.walrus-testnet.walrus.space",
-    aggregator: "https://aggregator.walrus-testnet.walrus.space",
-    epochs: 1,
-  },
-});
-```
-
-### Advanced configuration
-
-```typescript
-SuiStackMessagingClient.experimental_asClientExtension({
-  // Session key (choose one)
-  sessionKeyConfig: {
-    address: "0x...",
-    ttlMin: 30,
-    signer: mySigner, // optional
-    mvrName: "my-mvr", // optional
-  },
-
-  // Storage (choose one)
-  walrusStorageConfig: {
-    publisher: "https://publisher.walrus-testnet.walrus.space",
-    aggregator: "https://aggregator.walrus-testnet.walrus.space",
-    epochs: 1,
-  },
-
-  // Seal operation config (optional)
-  sealConfig: {
-    threshold: 2,
-  },
-
-  // Custom package (optional)
-  packageConfig: {
-    packageId: "0x...",
-    sealApproveContract: {
-      packageId: "0x...",
-      module: "seal_policies",
-      functionName: "seal_approve",
-    },
-  },
 });
 ```
 

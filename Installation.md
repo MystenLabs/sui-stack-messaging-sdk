@@ -1,7 +1,7 @@
 # Installation
 
 > [!NOTE]
-> The SDK is not yet published to npm. Until that's available, follow the manual installation steps below.
+> The SDK is not yet published to `npm`. Until that's available, follow the installation steps below.
 
 ## Option 1: Install using tarball (Recommended)
 
@@ -33,7 +33,7 @@ pnpm add $(pwd)/mysten-messaging-<version>.tgz
 import { SuiStackMessagingClient } from "@mysten/messaging";
 ```
 
-## Option 2: Copy Package Directly
+## Option 2: Copy package contents directly
 
 Use this option if you would like to modify the SDK or integrate it directly into your monorepo:
 
@@ -67,9 +67,9 @@ Then configure your project's `package.json` to reference the local package:
 
 Check out instructions for [Developer Setup](./Setup.md).
 
-## Smart Contract Deployment
+## Smart contract deployment
 
-The SDK requires a Move smart contract to manage channels, messages, and membership. The contract source code is available at [`move/sui_stack_messaging/`](./move/sui_stack_messaging/). Clone it, modify & adapt it to the needs of your app, and publish to Sui.
+The SDK requires a Move smart contract to manage channels, messages, and membership. Sample contract source code is available at [`move/sui_stack_messaging/`](./move/sui_stack_messaging/). Clone it, modify & adapt it to the needs of your app, and publish to Sui.
 
 **Deploy the contract:**
 
@@ -79,17 +79,4 @@ sui move build
 sui client publish --gas-budget 100000000
 ```
 
-**Configure the SDK with your deployed package ID:**
-
-```typescript
-import { SuiStackMessagingClient } from "@mysten/messaging";
-
-const client = suiClient.$extend(
-  SuiStackMessagingClient.experimental_asClientExtension({
-    packageConfig: {
-      packageId: "0x<your-deployed-package-id>",
-    },
-    // ... other config
-  })
-);
-```
+Once you publish the package, refer to [Smart contract configuration in the SDK](./Setup.md#smart-contract-configuration).
