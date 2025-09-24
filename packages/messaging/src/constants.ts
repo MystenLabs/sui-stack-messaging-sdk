@@ -13,9 +13,9 @@ export const DEFAULT_SEAL_APPROVE_CONTRACT = {
 };
 
 export const TESTNET_MESSAGING_PACKAGE_CONFIG = {
-	packageId: process.env.TESTNET_PACKAGE_ID || FALLBACK_PACKAGE_ID,
+	packageId: FALLBACK_PACKAGE_ID,
 } satisfies MessagingPackageConfig;
 
 export const MAINNET_MESSAGING_PACKAGE_CONFIG = {
-	packageId: process.env.MAINNET_PACKAGE_ID || FALLBACK_PACKAGE_ID,
+	packageId: FALLBACK_PACKAGE_ID,
 } satisfies MessagingPackageConfig;
