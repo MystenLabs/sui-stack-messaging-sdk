@@ -3,7 +3,7 @@
 set -e
 
 # dir of smart contract
-MOVE_PACKAGE_DIR="../move/sui_messaging"
+MOVE_PACKAGE_DIR="../move/sui_stack_messaging"
 PUBLISH_GAS_BUDGET=1000000000
 
 # check this is being ran from the right path
