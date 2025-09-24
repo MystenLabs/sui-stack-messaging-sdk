@@ -33,11 +33,18 @@ import { SuiStackMessagingClient } from "@mysten/sui-messaging";
 
 ### Step-by-Step extension
 
-**Step 1: Create your base client**
+**Step 1: Create your base client with MVR integration**
 
 ```typescript
 const baseClient = new SuiClient({
   url: "https://fullnode.testnet.sui.io:443",
+  mvr: {
+    overrides: {
+      packages: {
+        '@local-pkg/sui-stack-messaging': "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d", // Or provide your own package ID
+      },
+    },
+  },
 });
 ```
 
@@ -103,36 +110,27 @@ const messaging = messagingClient.messaging;
 ### Complete extension example
 
 ```typescript
-const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
-  .$extend(
-    SealClient.asClientExtension({
-      serverConfigs: [
-        {
-          objectId:
-            "0xa...",
-          weight: 1,
-        },
-        {
-          objectId:
-            "0xb...",
-          weight: 1,
-        },
-      ],
-    })
-  )
-  .$extend(
-    SuiStackMessagingClient.experimental_asClientExtension({
-      sessionKeyConfig: {
-        address: "0x...",
-        ttlMin: 30,
+const client = new SuiClient({
+  url: "https://fullnode.testnet.sui.io:443",
+  mvr: {
+    overrides: {
+      packages: {
+        '@local-pkg/sui-stack-messaging': "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d", // Or provide your own package ID
       },
-      walrusStorageConfig: {
-        publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
-        aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
-        epochs: 1,
+    },
+  },
+}).$extend(
+  SealClient.asClientExtension({
+    serverConfigs: [
+      {
+        objectId:
+          "0xa...",
+        weight: 1,
       },
-      sealConfig: {
-        threshold: 2,
+      {
+        objectId:
+          "0xb...",
+        weight: 1,
       },
       packageConfig: { ... }, // if using smart contract specific to your app
     })
