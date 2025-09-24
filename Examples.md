@@ -1,6 +1,7 @@
 ## Table of Contents
 
-- [Home - Overview and Installation](./README.md)
+- [Home](./README.md)
+- [Installation Guide](./Installation.md)
 - [Developer Setup](./Setup.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
@@ -300,3 +301,5 @@ The same logic applies for the gaming or social apps, where each app consumes me
 - Verifiable identity: Updates are tied to the publisher’s Sui account. No spoofing.
 - Privacy-preserving: Seal encrypts all updates; only channel members can read them.
 - Composable: Works like a Web3-native event bus, similar to Kafka or Pub/Sub, but with on-chain guarantees.
+
+[Back to table of contents](#table-of-contents)
