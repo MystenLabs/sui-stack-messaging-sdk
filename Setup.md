@@ -91,7 +91,7 @@ const messagingClient = clientWithSeal.$extend(
       threshold: 2, // Number of key servers required (default: 2)
     },
 
-    // Optional: is using a smart contract specific to your app (see below for full config)
+    // Optional: if using a smart contract specific to your app (see below for full config)
     packageConfig: { ... }
   })
 );
