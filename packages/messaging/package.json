@@ -1,6 +1,6 @@
 {
 	"name": "@mysten/messaging",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Messaging SDK (Alpha - Experimental)",
 	"license": "Apache-2.0",
 	"author": "Mysten Labs <build@mystenlabs.com>",
@@ -17,6 +17,7 @@
 	"sideEffects": false,
 	"files": [
 		"CHANGELOG.md",
+		"README.md",
 		"dist"
 	],
 	"scripts": {
