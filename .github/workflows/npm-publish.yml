@@ -1,0 +1,150 @@
+name: NPM Publish with Trusted Publishers
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.version-check.outputs.should_publish }}
+      current_version: ${{ steps.version-check.outputs.current_version }}
+      package_changed: ${{ steps.changes.outputs.package_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for package changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            package_changed:
+              - 'packages/messaging/**'
+              - '!packages/messaging/test/**'
+              - '!packages/messaging/__tests__/**'
+              - '!packages/messaging/**/*.test.*'
+              - '!packages/messaging/**/*.spec.*'
+              - '!packages/messaging/README.md'
+              - '!packages/messaging/**/*.md'
+              - '!packages/messaging/.gitignore'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '>=10.17.0'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          cd packages/messaging
+          pnpm install
+
+      - name: Check version against npm registry
+        id: version-check
+        run: |
+          cd packages/messaging
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+          # Check if this version exists on npm
+          if npm view "$PACKAGE_NAME@$CURRENT_VERSION" version 2>/dev/null; then
+            echo "Version $CURRENT_VERSION already exists on npm"
+            SHOULD_PUBLISH=false
+          else
+            echo "Version $CURRENT_VERSION does not exist on npm"
+            SHOULD_PUBLISH=true
+          fi
+
+          echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
+          echo "Should publish: $SHOULD_PUBLISH"
+
+  npm-publish:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true' && needs.check-version.outputs.package_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for trusted publishers OIDC
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '>=10.17.0'
+
+      - name: Setup Node.js with npm registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          cd packages
+          pnpm install
+
+      - name: Build package
+        run: |
+          cd packages
+          pnpm build
+
+      - name: Run linting
+        run: |
+          cd packages/messaging
+          pnpm lint
+
+      - name: Ensure npm version 11.5.1+
+        run: |
+          # Install npm 11.5.1+ which is required for trusted publishers
+          npm install -g npm@latest
+          npm --version
+
+      - name: Publish to npm with trusted publishers
+        run: |
+          cd packages/messaging
+          # No --provenance flag needed - it's automatic with trusted publishers
+          npm publish --access public
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "v${{ needs.check-version.outputs.current_version }}"
+          release_name: "Release v${{ needs.check-version.outputs.current_version }}"
+          body: |
+            Release of @mysten/messaging v${{ needs.check-version.outputs.current_version }}
+
+            Published to npm with trusted publishers and automatic provenance attestation.
+          draft: false
+          prerelease: false
+
+  skip-publish:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'false' || needs.check-version.outputs.package_changed == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip publish notification
+        run: |
+          if [ "${{ needs.check-version.outputs.should_publish }}" = "false" ]; then
+            echo "::notice::Skipping publish - version ${{ needs.check-version.outputs.current_version }} already exists on npm"
+          elif [ "${{ needs.check-version.outputs.package_changed }}" = "false" ]; then
+            echo "::notice::Skipping publish - no changes detected in packages/messaging/ (excluding docs)"
+          fi
