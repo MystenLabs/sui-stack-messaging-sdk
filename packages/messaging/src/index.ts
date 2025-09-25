@@ -27,7 +27,7 @@ export type {
 } from './encryption/types.js';
 
 // Storage types
-export type { StorageAdapter, StorageConfig } from './storage/adapters/storage.js';
+export type { StorageAdapter, StorageConfig, StorageOptions } from './storage/adapters/storage.js';
 
 // Walrus types
 export { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
