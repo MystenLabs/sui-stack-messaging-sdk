@@ -123,12 +123,10 @@ jobs:
           npm publish --access public
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ needs.check-version.outputs.current_version }}"
-          release_name: "Release v${{ needs.check-version.outputs.current_version }}"
+          name: "Release v${{ needs.check-version.outputs.current_version }}"
           body: |
             Release of @mysten/messaging v${{ needs.check-version.outputs.current_version }}
 
