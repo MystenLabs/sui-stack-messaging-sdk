@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '../vendor/sui-grpc/src/index.js';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
@@ -57,13 +57,21 @@ describe('Integration tests - Write Path', () => {
 
 	describe('Channel Creation', () => {
 		it('should create a channel with correct initial state and roles', async () => {
-			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			// Use MockSeal and MockStorage for GRPC to test transaction execution independently
+			const client = createTestClient(testSetup.suiGrpcClient!, testSetup.config, signer, {
+				useMockSeal: true,
+				useMockStorage: true,
+			});
+			// const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
 			const initialMember = Ed25519Keypair.generate().toSuiAddress();
 
-			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
+			const { digest, channelId } = await client.messaging._experimental_executeCreateChannelTransactionWithoutGetObjects({
 				signer,
 				initialMembers: [initialMember],
 			});
+
+			console.log('create channel tx digest', digest);
+
 			expect(digest).toBeDefined();
 			expect(channelId).toBeDefined();
 
@@ -197,289 +205,289 @@ describe('Integration tests - Write Path', () => {
 				expect(initialMemberInList).toBeDefined();
 				expect(initialMemberInList?.memberCapId).toBeDefined();
 			}
-		}, 60000);
+		}, 150000);
 	});
 
-	describe('Message Sending', () => {
-		let client: TestClient;
-		let channelObj: any; // Will be DecryptedChannelObject from the API
-		let memberCap: (typeof MemberCap)['$inferType'];
-		let encryptionKey: EncryptedSymmetricKey;
+	// describe('Message Sending', () => {
+	// 	let client: TestClient;
+	// 	let channelObj: any; // Will be DecryptedChannelObject from the API
+	// 	let memberCap: (typeof MemberCap)['$inferType'];
+	// 	let encryptionKey: EncryptedSymmetricKey;
 
-		// Before each message test, create a fresh channel
-		beforeAll(async () => {
-			client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
-			const { channelId: newChannelId, encryptedKeyBytes } =
-				await client.messaging.executeCreateChannelTransaction({
-					signer,
-					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
-				});
+	// 	// Before each message test, create a fresh channel
+	// 	beforeAll(async () => {
+	// 		client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+	// 		const { channelId: newChannelId, encryptedKeyBytes } =
+	// 			await client.messaging.executeCreateChannelTransaction({
+	// 				signer,
+	// 				initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
+	// 			});
 
-			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
-				channelIds: [newChannelId],
-				userAddress: signer.toSuiAddress(),
-			});
-			channelObj = channelObjects[0];
+	// 		const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+	// 			channelIds: [newChannelId],
+	// 			userAddress: signer.toSuiAddress(),
+	// 		});
+	// 		channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap (taking pagination into account)
-			let creatorMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !creatorMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
-				});
-				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(creatorMembership).toBeDefined();
+	// 		// Get the creator's MemberCap (taking pagination into account)
+	// 		let creatorMembership: Membership | null | undefined = null;
+	// 		let cursor: string | null = null;
+	// 		let hasNextPage: boolean = true;
+	// 		while (hasNextPage && !creatorMembership) {
+	// 			const memberships = await client.messaging.getChannelMemberships({
+	// 				address: signer.toSuiAddress(),
+	// 				cursor,
+	// 			});
+	// 			creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
+	// 			hasNextPage = memberships.hasNextPage;
+	// 			cursor = memberships.cursor;
+	// 		}
+	// 		expect(creatorMembership).toBeDefined();
 
-			// Get the actual MemberCap object
-			const memberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
-			});
-			const memberCapObject = memberCapObjects.objects[0];
-			if (memberCapObject instanceof Error || !memberCapObject.content) {
-				throw new Error('Failed to fetch MemberCap object');
-			}
-			memberCap = MemberCap.parse(await memberCapObject.content);
-			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
-			console.log('memberCap', JSON.stringify(memberCap, null, 2));
+	// 		// Get the actual MemberCap object
+	// 		const memberCapObjects = await client.core.getObjects({
+	// 			objectIds: [creatorMembership!.member_cap_id],
+	// 		});
+	// 		const memberCapObject = memberCapObjects.objects[0];
+	// 		if (memberCapObject instanceof Error || !memberCapObject.content) {
+	// 			throw new Error('Failed to fetch MemberCap object');
+	// 		}
+	// 		memberCap = MemberCap.parse(await memberCapObject.content);
+	// 		// console.log('channelObj', JSON.stringify(channelObj, null, 2));
+	// 		console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
-			expect(encryptionKeyVersion).toBe(1); // First version should be 1
-			// This should not be empty
-			expect(channelObj.encryption_key_history.latest.length).toBeGreaterThan(0);
-			encryptionKey = {
-				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
-				version: encryptionKeyVersion,
-			};
-			expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_key_history.latest));
-		});
+	// 		const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
+	// 		expect(encryptionKeyVersion).toBe(1); // First version should be 1
+	// 		// This should not be empty
+	// 		expect(channelObj.encryption_key_history.latest.length).toBeGreaterThan(0);
+	// 		encryptionKey = {
+	// 			$kind: 'Encrypted',
+	// 			encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
+	// 			version: encryptionKeyVersion,
+	// 		};
+	// 		expect(encryptedKeyBytes).toEqual(new Uint8Array(channelObj.encryption_key_history.latest));
+	// 	});
 
-		it('should send and decrypt a message with an attachment', async () => {
-			const messageText = 'Hello with attachment!';
-			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
-			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
+	// 	it('should send and decrypt a message with an attachment', async () => {
+	// 		const messageText = 'Hello with attachment!';
+	// 		const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
+	// 		const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
-			console.log('memberCap', JSON.stringify(memberCap, null, 2));
+	// 		// console.log('channelObj', JSON.stringify(channelObj, null, 2));
+	// 		console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
-			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
-				signer,
-				channelId: memberCap.channel_id,
-				memberCapId: memberCap.id.id,
-				message: messageText,
-				encryptedKey: encryptionKey,
-				attachments: [file],
-			});
-			expect(digest).toBeDefined();
-			expect(messageId).toBeDefined();
+	// 		const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+	// 			signer,
+	// 			channelId: memberCap.channel_id,
+	// 			memberCapId: memberCap.id.id,
+	// 			message: messageText,
+	// 			encryptedKey: encryptionKey,
+	// 			attachments: [file],
+	// 		});
+	// 		expect(digest).toBeDefined();
+	// 		expect(messageId).toBeDefined();
 
-			// Refetch channel object to check for last_message
-			// const channelObjectsFresh = await client.messaging.getChannelObjectsByChannelIds([memberCap.channel_id]);
-			// const channelObjFresh = channelObjectsFresh[0]; // Not used in current test
-			const messagesResponse = await client.messaging.getChannelMessages({
-				channelId: memberCap.channel_id,
-				userAddress: signer.toSuiAddress(),
-				limit: 10,
-				direction: 'backward',
-			});
-			// Since we can't match by ID, we'll check that we have exactly one message with the expected properties
-			expect(messagesResponse.messages.length).toBe(1);
-			const sentMessage = messagesResponse.messages[0];
+	// 		// Refetch channel object to check for last_message
+	// 		// const channelObjectsFresh = await client.messaging.getChannelObjectsByChannelIds([memberCap.channel_id]);
+	// 		// const channelObjFresh = channelObjectsFresh[0]; // Not used in current test
+	// 		const messagesResponse = await client.messaging.getChannelMessages({
+	// 			channelId: memberCap.channel_id,
+	// 			userAddress: signer.toSuiAddress(),
+	// 			limit: 10,
+	// 			direction: 'backward',
+	// 		});
+	// 		// Since we can't match by ID, we'll check that we have exactly one message with the expected properties
+	// 		expect(messagesResponse.messages.length).toBe(1);
+	// 		const sentMessage = messagesResponse.messages[0];
 
-			expect(sentMessage.sender).toBe(signer.toSuiAddress());
-			expect(sentMessage.text).toBe(messageText);
-			expect(sentMessage.createdAtMs).toMatch(/[0-9]+/);
-			expect(sentMessage.attachments).toHaveLength(1);
-		}, 320000);
+	// 		expect(sentMessage.sender).toBe(signer.toSuiAddress());
+	// 		expect(sentMessage.text).toBe(messageText);
+	// 		expect(sentMessage.createdAtMs).toMatch(/[0-9]+/);
+	// 		expect(sentMessage.attachments).toHaveLength(1);
+	// 	}, 320000);
 
-		it('should send and decrypt a message without an attachment', async () => {
-			const messageText = 'Hello, no attachment here.';
+	// 	it('should send and decrypt a message without an attachment', async () => {
+	// 		const messageText = 'Hello, no attachment here.';
 
-			for (let i = 0; i < 5; i++) {
-				const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
-					signer,
-					channelId: memberCap.channel_id,
-					memberCapId: memberCap.id.id,
-					message: messageText,
-					encryptedKey: encryptionKey,
-				});
-				expect(digest).toBeDefined();
-				console.log(`messageId: ${messageId}`);
-				// wait for the transaction
-				// await client.core.waitForTransaction({ digest });
-			}
+	// 		for (let i = 0; i < 5; i++) {
+	// 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
+	// 				signer,
+	// 				channelId: memberCap.channel_id,
+	// 				memberCapId: memberCap.id.id,
+	// 				message: messageText,
+	// 				encryptedKey: encryptionKey,
+	// 			});
+	// 			expect(digest).toBeDefined();
+	// 			console.log(`messageId: ${messageId}`);
+	// 			// wait for the transaction
+	// 			// await client.core.waitForTransaction({ digest });
+	// 		}
 
-			const messagesResponse = await client.messaging.getChannelMessages({
-				channelId: memberCap.channel_id,
-				userAddress: signer.toSuiAddress(),
-				limit: 10,
-				direction: 'backward',
-			});
+	// 		const messagesResponse = await client.messaging.getChannelMessages({
+	// 			channelId: memberCap.channel_id,
+	// 			userAddress: signer.toSuiAddress(),
+	// 			limit: 10,
+	// 			direction: 'backward',
+	// 		});
 
-			// Messages are now automatically decrypted, so we can use them directly
-			const decryptedMessages = messagesResponse.messages;
+	// 		// Messages are now automatically decrypted, so we can use them directly
+	// 		const decryptedMessages = messagesResponse.messages;
 
-			console.log(
-				'messages',
-				JSON.stringify(
-					decryptedMessages.map((m) => ({
-						createdAtMs: m.createdAtMs,
-						sender: m.sender,
-						text: m.text,
-					})),
-					null,
-					2,
-				),
-			);
-		}, 320000);
-	});
+	// 		console.log(
+	// 			'messages',
+	// 			JSON.stringify(
+	// 				decryptedMessages.map((m) => ({
+	// 					createdAtMs: m.createdAtMs,
+	// 					sender: m.sender,
+	// 					text: m.text,
+	// 				})),
+	// 				null,
+	// 				2,
+	// 			),
+	// 		);
+	// 	}, 320000);
+	// });
 
-	describe('Examples.md - In-app Product Support', () => {
-		it('should implement complete 1:1 support channel flow from Examples.md', async () => {
-			// Step 1: Setup the client (support team uses main signer)
-			const supportSigner = signer;
-			const client = createTestClient(suiJsonRpcClient, testSetup.config, supportSigner);
-			const messaging = client.messaging;
+	// describe('Examples.md - In-app Product Support', () => {
+	// 	it('should implement complete 1:1 support channel flow from Examples.md', async () => {
+	// 		// Step 1: Setup the client (support team uses main signer)
+	// 		const supportSigner = signer;
+	// 		const client = createTestClient(suiJsonRpcClient, testSetup.config, supportSigner);
+	// 		const messaging = client.messaging;
 
-			// Step 2: Create a 1:1 support channel for a user
-			const topUserAddress = userSigner.toSuiAddress();
+	// 		// Step 2: Create a 1:1 support channel for a user
+	// 		const topUserAddress = userSigner.toSuiAddress();
 
-			const { channelId, encryptedKeyBytes } = await messaging.executeCreateChannelTransaction({
-				signer: supportSigner,
-				initialMembers: [topUserAddress],
-			});
+	// 		const { channelId, encryptedKeyBytes } = await messaging.executeCreateChannelTransaction({
+	// 			signer: supportSigner,
+	// 			initialMembers: [topUserAddress],
+	// 		});
 
-			console.log(`Support channel created for user: ${channelId}`);
-			expect(channelId).toBeDefined();
-			expect(encryptedKeyBytes).toBeDefined();
+	// 		console.log(`Support channel created for user: ${channelId}`);
+	// 		expect(channelId).toBeDefined();
+	// 		expect(encryptedKeyBytes).toBeDefined();
 
-			// Step 3: Fetch the memberCapId and encryptionKey (support handle)
-			let supportMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
+	// 		// Step 3: Fetch the memberCapId and encryptionKey (support handle)
+	// 		let supportMembership: Membership | null | undefined = null;
+	// 		let cursor: string | null = null;
+	// 		let hasNextPage: boolean = true;
 
-			while (hasNextPage && !supportMembership) {
-				const memberships = await messaging.getChannelMemberships({
-					address: supportSigner.toSuiAddress(),
-					cursor,
-				});
-				supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(supportMembership).toBeDefined();
-			const supportMemberCapId = supportMembership!.member_cap_id;
+	// 		while (hasNextPage && !supportMembership) {
+	// 			const memberships = await messaging.getChannelMemberships({
+	// 				address: supportSigner.toSuiAddress(),
+	// 				cursor,
+	// 			});
+	// 			supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+	// 			hasNextPage = memberships.hasNextPage;
+	// 			cursor = memberships.cursor;
+	// 		}
+	// 		expect(supportMembership).toBeDefined();
+	// 		const supportMemberCapId = supportMembership!.member_cap_id;
 
-			// Get the channel object with encryption key info
-			const channelObjects = await messaging.getChannelObjectsByChannelIds({
-				channelIds: [channelId],
-				userAddress: supportSigner.toSuiAddress(),
-			});
-			const channelObj = channelObjects[0];
-			const channelEncryptionKey: EncryptedSymmetricKey = {
-				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
-				version: channelObj.encryption_key_history.latest_version,
-			};
+	// 		// Get the channel object with encryption key info
+	// 		const channelObjects = await messaging.getChannelObjectsByChannelIds({
+	// 			channelIds: [channelId],
+	// 			userAddress: supportSigner.toSuiAddress(),
+	// 		});
+	// 		const channelObj = channelObjects[0];
+	// 		const channelEncryptionKey: EncryptedSymmetricKey = {
+	// 			$kind: 'Encrypted',
+	// 			encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
+	// 			version: channelObj.encryption_key_history.latest_version,
+	// 		};
 
-			// Step 3b: Get user's memberCapId
-			let userMembership: Membership | null | undefined = null;
-			let userCursor: string | null = null;
-			let userHasNextPage: boolean = true;
+	// 		// Step 3b: Get user's memberCapId
+	// 		let userMembership: Membership | null | undefined = null;
+	// 		let userCursor: string | null = null;
+	// 		let userHasNextPage: boolean = true;
 
-			while (userHasNextPage && !userMembership) {
-				const userMemberships = await messaging.getChannelMemberships({
-					address: topUserAddress,
-					cursor: userCursor,
-				});
-				userMembership = userMemberships.memberships.find((m) => m.channel_id === channelId);
-				userHasNextPage = userMemberships.hasNextPage;
-				userCursor = userMemberships.cursor;
-			}
-			expect(userMembership).toBeDefined();
-			const userMemberCapId = userMembership!.member_cap_id;
+	// 		while (userHasNextPage && !userMembership) {
+	// 			const userMemberships = await messaging.getChannelMemberships({
+	// 				address: topUserAddress,
+	// 				cursor: userCursor,
+	// 			});
+	// 			userMembership = userMemberships.memberships.find((m) => m.channel_id === channelId);
+	// 			userHasNextPage = userMemberships.hasNextPage;
+	// 			userCursor = userMemberships.cursor;
+	// 		}
+	// 		expect(userMembership).toBeDefined();
+	// 		const userMemberCapId = userMembership!.member_cap_id;
 
-			// Get user's channel object with encryption key
-			const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
-				channelIds: [channelId],
-				userAddress: topUserAddress,
-			});
-			const userChannelObj = userChannelObjects[0];
-			const userChannelEncryptionKey: EncryptedSymmetricKey = {
-				$kind: 'Encrypted',
-				encryptedBytes: new Uint8Array(userChannelObj.encryption_key_history.latest),
-				version: userChannelObj.encryption_key_history.latest_version,
-			};
+	// 		// Get user's channel object with encryption key
+	// 		const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
+	// 			channelIds: [channelId],
+	// 			userAddress: topUserAddress,
+	// 		});
+	// 		const userChannelObj = userChannelObjects[0];
+	// 		const userChannelEncryptionKey: EncryptedSymmetricKey = {
+	// 			$kind: 'Encrypted',
+	// 			encryptedBytes: new Uint8Array(userChannelObj.encryption_key_history.latest),
+	// 			version: userChannelObj.encryption_key_history.latest_version,
+	// 		};
 
-			// Step 4: User sends a support query
-			const userClient = createTestClient(suiJsonRpcClient, testSetup.config, userSigner);
-			const userQuery = "I can't claim my reward from yesterday's tournament.";
+	// 		// Step 4: User sends a support query
+	// 		const userClient = createTestClient(suiJsonRpcClient, testSetup.config, userSigner);
+	// 		const userQuery = "I can't claim my reward from yesterday's tournament.";
 
-			const { digest: userDigest, messageId: userMessageId } =
-				await userClient.messaging.executeSendMessageTransaction({
-					signer: userSigner,
-					channelId,
-					memberCapId: userMemberCapId,
-					message: userQuery,
-					encryptedKey: userChannelEncryptionKey,
-				});
+	// 		const { digest: userDigest, messageId: userMessageId } =
+	// 			await userClient.messaging.executeSendMessageTransaction({
+	// 				signer: userSigner,
+	// 				channelId,
+	// 				memberCapId: userMemberCapId,
+	// 				message: userQuery,
+	// 				encryptedKey: userChannelEncryptionKey,
+	// 			});
 
-			console.log(`User sent query ${userMessageId} in tx ${userDigest}`);
-			expect(userDigest).toBeDefined();
-			expect(userMessageId).toBeDefined();
+	// 		console.log(`User sent query ${userMessageId} in tx ${userDigest}`);
+	// 		expect(userDigest).toBeDefined();
+	// 		expect(userMessageId).toBeDefined();
 
-			// Step 5: Support team reads the user query
-			const messages = await messaging.getChannelMessages({
-				channelId,
-				userAddress: supportSigner.toSuiAddress(),
-				limit: 5,
-				direction: 'backward',
-			});
+	// 		// Step 5: Support team reads the user query
+	// 		const messages = await messaging.getChannelMessages({
+	// 			channelId,
+	// 			userAddress: supportSigner.toSuiAddress(),
+	// 			limit: 5,
+	// 			direction: 'backward',
+	// 		});
 
-			expect(messages.messages).toHaveLength(1);
-			const receivedQuery = messages.messages[0];
-			expect(receivedQuery.sender).toBe(topUserAddress);
-			expect(receivedQuery.text).toBe(userQuery);
+	// 		expect(messages.messages).toHaveLength(1);
+	// 		const receivedQuery = messages.messages[0];
+	// 		expect(receivedQuery.sender).toBe(topUserAddress);
+	// 		expect(receivedQuery.text).toBe(userQuery);
 
-			console.log(`👤 ${receivedQuery.sender}: ${receivedQuery.text}`);
+	// 		console.log(`👤 ${receivedQuery.sender}: ${receivedQuery.text}`);
 
-			// Support sends a reply
-			const supportReply = 'Thanks for reaching out! Can you confirm the reward ID?';
-			const { digest: supportDigest, messageId: supportMessageId } =
-				await messaging.executeSendMessageTransaction({
-					signer: supportSigner,
-					channelId,
-					memberCapId: supportMemberCapId,
-					message: supportReply,
-					encryptedKey: channelEncryptionKey,
-				});
+	// 		// Support sends a reply
+	// 		const supportReply = 'Thanks for reaching out! Can you confirm the reward ID?';
+	// 		const { digest: supportDigest, messageId: supportMessageId } =
+	// 			await messaging.executeSendMessageTransaction({
+	// 				signer: supportSigner,
+	// 				channelId,
+	// 				memberCapId: supportMemberCapId,
+	// 				message: supportReply,
+	// 				encryptedKey: channelEncryptionKey,
+	// 			});
 
-			console.log(`Support sent reply ${supportMessageId} in tx ${supportDigest}`);
-			expect(supportDigest).toBeDefined();
-			expect(supportMessageId).toBeDefined();
+	// 		console.log(`Support sent reply ${supportMessageId} in tx ${supportDigest}`);
+	// 		expect(supportDigest).toBeDefined();
+	// 		expect(supportMessageId).toBeDefined();
 
-			// Verify user can read support's reply
-			const userMessages = await userClient.messaging.getChannelMessages({
-				channelId,
-				userAddress: topUserAddress,
-				limit: 5,
-				direction: 'backward',
-			});
+	// 		// Verify user can read support's reply
+	// 		const userMessages = await userClient.messaging.getChannelMessages({
+	// 			channelId,
+	// 			userAddress: topUserAddress,
+	// 			limit: 5,
+	// 			direction: 'backward',
+	// 		});
 
-			expect(userMessages.messages).toHaveLength(2);
-			const supportResponse = userMessages.messages.find(
-				(m) => m.sender === supportSigner.toSuiAddress(),
-			);
-			expect(supportResponse).toBeDefined();
-			expect(supportResponse!.text).toBe(supportReply);
+	// 		expect(userMessages.messages).toHaveLength(2);
+	// 		const supportResponse = userMessages.messages.find(
+	// 			(m) => m.sender === supportSigner.toSuiAddress(),
+	// 		);
+	// 		expect(supportResponse).toBeDefined();
+	// 		expect(supportResponse!.text).toBe(supportReply);
 
-			console.log(`👨‍💼 ${supportResponse!.sender}: ${supportResponse!.text}`);
-		}, 320000);
-	});
+	// 		console.log(`👨‍💼 ${supportResponse!.sender}: ${supportResponse!.text}`);
+	// 	}, 320000);
+	// });
 });

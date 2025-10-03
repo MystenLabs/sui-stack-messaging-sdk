@@ -19,7 +19,7 @@ import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_ca
 import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '../vendor/sui-grpc/src/index.js';
 import { Experimental_BaseClient } from '@mysten/sui/dist/cjs/experimental';
 
 // --- Constants ---
@@ -360,14 +360,24 @@ class MockStorageAdapter implements StorageAdapter {
  * @param suiRpcClient - The base SuiClient.
  * @param config - The test configuration.
  * @param signer - The signer to use for transactions.
+ * @param options - Optional configuration for test client.
+ * @param options.useMockSeal - Force use of MockSealClient instead of real SealClient.
+ * @param options.useMockStorage - Force use of MockStorageAdapter instead of real storage.
  * @returns An instance of the extended SuiStackMessagingClient.
  */
 export function createTestClient(
 	suiRpcClient: Experimental_BaseClient,
 	config: TestConfig,
 	signer: Signer,
+	options?: {
+		useMockSeal?: boolean;
+		useMockStorage?: boolean;
+	},
 ) {
-	return config.environment === 'localnet'
+	const useMockSeal = options?.useMockSeal ?? config.environment === 'localnet';
+	const useMockStorage = options?.useMockStorage ?? config.environment === 'localnet';
+
+	return useMockSeal
 		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
 				SuiStackMessagingClient.experimental_asClientExtension({
 					packageConfig: config.packageConfig,
@@ -389,6 +399,9 @@ export function createTestClient(
 					SuiStackMessagingClient.experimental_asClientExtension({
 						packageConfig: config.packageConfig,
 						storage: (client) => {
+							if (useMockStorage) {
+								return new MockStorageAdapter();
+							}
 							if (!config.walrusConfig) {
 								throw new Error('Walrus configuration is required for testnet tests');
 							}

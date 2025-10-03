@@ -53,25 +53,25 @@
 	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
 		"@mysten/bcs": "^1.8.0",
-		"@mysten/seal": "^0.6.0",
-		"@mysten/sui": "^1.38.0",
-		"@mysten/sui-grpc": "^0.1.0",
-		"@mysten/walrus": "^0.7.0",
-		"@protobuf-ts/grpcweb-transport": "^2.11.1"
+		"@mysten/seal": "^0.8.2",
+		"@mysten/sui": "^1.39.0",
+		"@mysten/sui-grpc": "file:./vendor/sui-grpc",
+		"@mysten/utils": "^0.2.0",
+		"@mysten/walrus": "^0.7.1",
+		"@protobuf-ts/grpcweb-transport": "^2.11.1",
+		"@protobuf-ts/runtime": "^2.11.1",
+		"@protobuf-ts/runtime-rpc": "^2.11.1"
 	},
 	"devDependencies": {
-		"@mysten/build-scripts": "workspace:*",
-		"@mysten/codegen": "^0.4.4",
-		"@protobuf-ts/plugin": "^2.11.1",
-		"@types/node": "^24.3.0",
-		"testcontainers": "^11.5.1",
-		"typescript": "^5.9.2",
-		"vitest": "^3.2.4",
 		"@changesets/cli": "^2.29.6",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.0",
 		"@manypkg/cli": "^0.25.1",
+		"@mysten/build-scripts": "workspace:*",
+		"@mysten/codegen": "^0.4.4",
+		"@protobuf-ts/plugin": "^2.11.1",
 		"@tanstack/eslint-plugin-query": "^5.81.2",
 		"@testcontainers/postgresql": "^11.4.0",
+		"@types/node": "^24.3.0",
 		"@typescript-eslint/eslint-plugin": "^8.43.0",
 		"@typescript-eslint/parser": "^8.43.0",
 		"concurrently": "^9.2.0",
@@ -86,11 +86,14 @@
 		"eslint-plugin-tsdoc": "^0.2.17",
 		"eslint-plugin-unused-imports": "^3.0.0",
 		"graphql-config": "^5.1.5",
+		"onchange": "^7.1.0",
 		"prettier": "^3.6.2",
 		"prettier-plugin-tailwindcss": "^0.6.14",
+		"testcontainers": "^11.5.1",
 		"tsx": "^4.20.3",
 		"turbo": "^2.5.6",
-		"onchange": "^7.1.0"
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4"
 	},
 	"engines": {
 		"pnpm": ">=10.17.0"

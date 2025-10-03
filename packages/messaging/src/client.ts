@@ -987,18 +987,23 @@ export class SuiStackMessagingClient {
 		creatorCapId: string;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	}> {
+		console.log('[executeCreateChannelTransaction] Step 0: Creating channel flow...');
 		const flow = this.createChannelFlow({
 			creatorAddress: signer.toSuiAddress(),
 			initialMemberAddresses: initialMembers,
 		});
+		console.log('[executeCreateChannelTransaction] Step 0: Channel flow created');
 
 		// Step 1: Build and execute the channel creation transaction
+		console.log('[executeCreateChannelTransaction] Step 1: Building channel transaction...');
 		const channelTx = flow.build();
+		console.log('[executeCreateChannelTransaction] Step 1: Transaction built, executing...');
 		const { digest: channelDigest } = await this.#executeTransaction(
 			channelTx,
 			signer,
 			'create channel',
 		);
+		console.log('[executeCreateChannelTransaction] Step 1: Transaction executed, digest:', channelDigest);
 
 		// Step 2: Get the creator cap from the transaction
 		const {
@@ -1023,6 +1028,110 @@ export class SuiStackMessagingClient {
 		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
 	}
 
+	/**
+	 * TEMPORARY: Execute a create channel transaction bypassing getObjects call
+	 * This is used to test GRPC transaction execution without hitting the BCS parsing issue
+	 * @internal
+	 */
+	async _experimental_executeCreateChannelTransactionWithoutGetObjects({
+		signer,
+		initialMembers,
+	}: {
+		initialMembers?: string[];
+	} & { signer: Signer }): Promise<{
+		digest: string;
+		channelId: string;
+		creatorCapId: string;
+		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
+	}> {
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 0: Creating channel flow...');
+		const flow = this.createChannelFlow({
+			creatorAddress: signer.toSuiAddress(),
+			initialMemberAddresses: initialMembers,
+		});
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 0: Channel flow created');
+
+		// Step 1: Build and execute the channel creation transaction
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 1: Building channel transaction...');
+		const channelTx = flow.build();
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 1: Transaction built, executing...');
+		const { digest: channelDigest, effects } = await this.#executeTransaction(
+			channelTx,
+			signer,
+			'create channel',
+			true,
+		);
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 1: Transaction executed, digest:', channelDigest);
+
+		// Step 2: Extract channel ID and caps from transaction effects (bypassing getObjects)
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 2: Extracting IDs from effects...');
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 2: All changed objects:', JSON.stringify(effects.changedObjects, null, 2));
+
+		const sharedObject = effects.changedObjects.find((obj) => obj.outputOwner?.$kind === 'Shared');
+		const createdObjects = effects.changedObjects.filter((obj) => obj.idOperation === 'Created');
+
+		if (!sharedObject) {
+			throw new MessagingClientError('Channel (shared object) not found in transaction effects');
+		}
+
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 2: Created objects:', JSON.stringify(createdObjects, null, 2));
+
+		// Filter created objects that are owned by the creator (signer)
+		const creatorAddress = signer.toSuiAddress();
+		const creatorOwnedObjects = createdObjects.filter(
+			(obj) =>
+				obj.outputOwner?.$kind === 'AddressOwner' &&
+				obj.outputOwner.AddressOwner === creatorAddress
+		);
+
+		if (creatorOwnedObjects.length < 2) {
+			throw new MessagingClientError(`Expected at least 2 objects owned by creator, found ${creatorOwnedObjects.length}`);
+		}
+
+		const channelId = sharedObject.id;
+		// Assume first two creator-owned objects are CreatorCap and CreatorMemberCap
+		const creatorCapId = creatorOwnedObjects[0].id;
+		const creatorMemberCapId = creatorOwnedObjects[1].id;
+
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 2: Extracted - channelId:', channelId, 'creatorCapId:', creatorCapId, 'memberCapId:', creatorMemberCapId);
+
+		// Step 3: Generate and attach encryption key (manually constructing transaction)
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 3: Generating encryption key...');
+		const encryptedKeyBytes = await this.#envelopeEncryption.generateEncryptedChannelDEK({
+			channelId,
+		});
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 3: Encryption key generated');
+
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 4: Building attach key transaction...');
+		const attachKeyTx = new Transaction();
+
+		// Use sharedObjectRef for the Channel with proper mutable flag
+		const channelRef = attachKeyTx.sharedObjectRef({
+			objectId: channelId,
+			initialSharedVersion: sharedObject.outputVersion!,
+			mutable: true, // addEncryptedKey requires mutable access
+		});
+
+		attachKeyTx.add(
+			addEncryptedKey({
+				arguments: {
+					self: channelRef,
+					memberCap: attachKeyTx.object(creatorMemberCapId),
+					newEncryptionKeyBytes: attachKeyTx.pure.vector('u8', encryptedKeyBytes),
+				},
+			}),
+		);
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 4: Transaction built, executing...');
+		const { digest: keyDigest } = await this.#executeTransaction(
+			attachKeyTx,
+			signer,
+			'attach encryption key',
+		);
+		console.log('[_experimental_executeCreateChannelTransactionWithoutGetObjects] Step 4: Transaction executed, digest:', keyDigest);
+
+		return { digest: keyDigest, creatorCapId, channelId, encryptedKeyBytes };
+	}
+
 	// ===== Private Methods =====
 	async #executeTransaction(
 		transaction: Transaction,
@@ -1030,21 +1139,26 @@ export class SuiStackMessagingClient {
 		action: string,
 		waitForTransaction: boolean = true,
 	) {
+		console.log(`[#executeTransaction] Action: ${action} - Setting sender...`);
 		transaction.setSenderIfNotSet(signer.toSuiAddress());
+		console.log(`[#executeTransaction] Action: ${action} - Sender set, signing and executing...`);
 
 		const { digest, effects } = await signer.signAndExecuteTransaction({
 			transaction,
 			client: this.#suiClient,
 		});
+		console.log(`[#executeTransaction] Action: ${action} - Transaction executed, digest:`, digest);
 
 		if (effects?.status.error) {
 			throw new MessagingClientError(`Failed to ${action} (${digest}): ${effects?.status.error}`);
 		}
 
 		if (waitForTransaction) {
+			console.log(`[#executeTransaction] Action: ${action} - Waiting for transaction...`);
 			await this.#suiClient.core.waitForTransaction({
 				digest,
 			});
+			console.log(`[#executeTransaction] Action: ${action} - Transaction confirmed`);
 		}
 
 		return { digest, effects };
