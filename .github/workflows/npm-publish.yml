@@ -29,7 +29,6 @@ jobs:
               - '!packages/messaging/__tests__/**'
               - '!packages/messaging/**/*.test.*'
               - '!packages/messaging/**/*.spec.*'
-              - '!packages/messaging/README.md'
               - '!packages/messaging/**/*.md'
               - '!packages/messaging/.gitignore'
 
@@ -39,9 +38,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: |
@@ -87,9 +86,9 @@ jobs:
       - name: Setup Node.js with npm registry
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
 
       - name: Install dependencies
         run: |
