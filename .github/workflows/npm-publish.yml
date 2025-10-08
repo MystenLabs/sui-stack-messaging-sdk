@@ -104,7 +104,7 @@ jobs:
 
       - name: Build package
         run: |
-          cd packages
+          cd packages/messaging
           pnpm build
 
       - name: Run linting
