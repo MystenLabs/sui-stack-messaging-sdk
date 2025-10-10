@@ -350,10 +350,22 @@ export class SuiStackMessagingClient {
 		request: ChannelMembershipsRequest,
 	): Promise<DecryptedChannelObjectsByAddressResponse> {
 		const membershipsPaginated = await this.getChannelMemberships(request);
+
+		// Deduplicate memberships by channel_id to handle cases where a user has multiple MemberCaps for the same channel
+		// This can occur if duplicate addresses were added during channel creation
+		const seenChannelIds = new Set<string>();
+		const deduplicatedMemberships = membershipsPaginated.memberships.filter((m) => {
+			if (seenChannelIds.has(m.channel_id)) {
+				return false;
+			}
+			seenChannelIds.add(m.channel_id);
+			return true;
+		});
+
 		const channelObjects = await this.getChannelObjectsByChannelIds({
-			channelIds: membershipsPaginated.memberships.map((m) => m.channel_id),
+			channelIds: deduplicatedMemberships.map((m) => m.channel_id),
 			userAddress: request.address,
-			memberCapIds: membershipsPaginated.memberships.map((m) => m.member_cap_id),
+			memberCapIds: deduplicatedMemberships.map((m) => m.member_cap_id),
 		});
 
 		return {
@@ -661,14 +673,25 @@ export class SuiStackMessagingClient {
 			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
 
 			// Add initial members if provided
+			// Deduplicate addresses and filter out creator (who already gets a MemberCap automatically)
+			const uniqueAddresses =
+				initialMemberAddresses && initialMemberAddresses.length > 0
+					? [...new Set(initialMemberAddresses)].filter((addr) => addr !== creatorAddress)
+					: [];
+			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
+				console.warn(
+					'Duplicate addresses or creator address detected in initialMemberAddresses. Creator automatically receives a MemberCap. Using unique non-creator addresses only.',
+				);
+			}
+
 			let memberCaps: RawTransactionArgument<string> | null = null;
-			if (initialMemberAddresses && initialMemberAddresses.length > 0) {
+			if (uniqueAddresses.length > 0) {
 				memberCaps = tx.add(
 					addMembers({
 						arguments: {
 							self: channel,
 							memberCap: creatorMemberCap,
-							n: initialMemberAddresses.length,
+							n: uniqueAddresses.length,
 						},
 					}),
 				);
@@ -686,7 +709,7 @@ export class SuiStackMessagingClient {
 				tx.add(
 					transferMemberCaps({
 						arguments: {
-							memberAddresses: tx.pure.vector('address', initialMemberAddresses!),
+							memberAddresses: tx.pure.vector('address', uniqueAddresses),
 							memberCaps,
 							creatorCap,
 						},

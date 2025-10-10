@@ -198,6 +198,100 @@ describe('Integration tests - Write Path', () => {
 				expect(initialMemberInList?.memberCapId).toBeDefined();
 			}
 		}, 60000);
+
+		it('should handle duplicate member addresses correctly', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const duplicateMemberAddress = Ed25519Keypair.generate().toSuiAddress();
+
+			// Create a channel with duplicate member addresses
+			// The SDK should deduplicate these automatically
+			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [duplicateMemberAddress, duplicateMemberAddress, duplicateMemberAddress],
+			});
+			expect(digest).toBeDefined();
+			expect(channelId).toBeDefined();
+
+			// Verify channel was created successfully
+			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: signer.toSuiAddress(),
+			});
+			const channel = channelObjects[0];
+			expect(channel.id.id).toBe(channelId);
+
+			// Get all members - should only have 2 unique members (creator + 1 unique duplicated member)
+			const channelMembers = await client.messaging.getChannelMembers(channelId);
+			expect(channelMembers.members).toBeDefined();
+			expect(channelMembers.members.length).toBe(2); // creator + 1 deduplicated member
+
+			// Verify the duplicated member only appears once
+			const duplicatedMembers = channelMembers.members.filter(
+				(member) => member.memberAddress === duplicateMemberAddress,
+			);
+			expect(duplicatedMembers.length).toBe(1);
+
+			// Critical test: Verify that getChannelObjectsByAddress works for the duplicated member
+			// This would have failed before the fix with "Duplicate object ids in batch call" error
+			const duplicateMemberChannels = await client.messaging.getChannelObjectsByAddress({
+				address: duplicateMemberAddress,
+			});
+
+			// Should successfully return the channel without errors
+			expect(duplicateMemberChannels.channelObjects).toBeDefined();
+			expect(duplicateMemberChannels.channelObjects.length).toBe(1);
+			expect(duplicateMemberChannels.channelObjects[0].id.id).toBe(channelId);
+
+			// Also verify creator can still fetch channels successfully
+			const creatorChannels = await client.messaging.getChannelObjectsByAddress({
+				address: signer.toSuiAddress(),
+			});
+			expect(creatorChannels.channelObjects).toBeDefined();
+			const createdChannel = creatorChannels.channelObjects.find((c) => c.id.id === channelId);
+			expect(createdChannel).toBeDefined();
+		}, 60000);
+
+		it('should filter out creator address from initialMembers', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const regularMember = Ed25519Keypair.generate().toSuiAddress();
+
+			// Create a channel where creator accidentally includes their own address
+			// The SDK should filter out the creator address automatically
+			const { digest, channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [regularMember, signer.toSuiAddress()],
+			});
+			expect(digest).toBeDefined();
+			expect(channelId).toBeDefined();
+
+			// Get all members - should only have 2 members (creator + regular member)
+			// Creator should NOT get a duplicate MemberCap
+			const channelMembers = await client.messaging.getChannelMembers(channelId);
+			expect(channelMembers.members).toBeDefined();
+			expect(channelMembers.members.length).toBe(2);
+
+			// Verify creator only appears once
+			const creatorMemberships = channelMembers.members.filter(
+				(member) => member.memberAddress === signer.toSuiAddress(),
+			);
+			expect(creatorMemberships.length).toBe(1);
+
+			// Verify regular member is present
+			const regularMemberMemberships = channelMembers.members.filter(
+				(member) => member.memberAddress === regularMember,
+			);
+			expect(regularMemberMemberships.length).toBe(1);
+
+			// Verify creator can fetch channels without duplicates
+			const creatorChannels = await client.messaging.getChannelObjectsByAddress({
+				address: signer.toSuiAddress(),
+			});
+			expect(creatorChannels.channelObjects).toBeDefined();
+			const channelsForThisChannel = creatorChannels.channelObjects.filter(
+				(c) => c.id.id === channelId,
+			);
+			expect(channelsForThisChannel.length).toBe(1);
+		}, 60000);
 	});
 
 	describe('Message Sending', () => {
