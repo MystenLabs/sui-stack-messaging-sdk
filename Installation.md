@@ -8,10 +8,23 @@
 
 # Installation
 
-> [!NOTE]
-> The SDK is not yet published to `npm`. Until that's available, follow the installation steps below.
+## Option 1: Install from npm (Recommended)
 
-## Option 1: Install using tarball (Recommended)
+```bash
+pnpm add @mysten/messaging
+# or
+npm install @mysten/messaging
+# or
+yarn add @mysten/messaging
+```
+
+Then import and use:
+
+```typescript
+import { SuiStackMessagingClient } from "@mysten/messaging";
+```
+
+## Option 2: Build and install locally
 
 1. **Clone and build the SDK:**
 
@@ -35,13 +48,7 @@ cd /path/to/your/project
 pnpm add $(pwd)/mysten-messaging-<version>.tgz
 ```
 
-3. **Import and use:**
-
-```typescript
-import { SuiStackMessagingClient } from "@mysten/messaging";
-```
-
-## Option 2: Copy package contents directly
+## Option 3: Copy package contents directly
 
 Use this option if you would like to modify the SDK or integrate it directly into your monorepo:
 
