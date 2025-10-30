@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';

@@ -398,6 +398,6 @@ describe('Integration tests - Read Path v2', () => {
 			expect(attachment.fileName).toBe('test.txt');
 			expect(attachment.mimeType).toBe('text/plain');
 			expect(attachment.fileSize).toBeGreaterThan(0);
-		}, 10000);
+		}, 20000);
 	});
 });

@@ -19,7 +19,7 @@ import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_ca
 import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Experimental_BaseClient } from '@mysten/sui/dist/cjs/experimental';
 
 // --- Constants ---
@@ -381,6 +381,9 @@ export function createTestClient(
 			)
 		: suiRpcClient
 				.$extend(
+					// NOTE: Using deprecated asClientExtension() because the new seal() function
+					// is not exported from @mysten/seal package index (v0.9.1).
+					// TODO: Switch to seal() once available
 					SealClient.asClientExtension({
 						serverConfigs: config.sealConfig?.serverConfigs || [],
 					}),

@@ -1,6 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-import type { ClientWithExtensions } from '@mysten/sui/dist/cjs/experimental';
+import type { ClientWithExtensions } from '@mysten/sui/experimental';
 import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.js';
 import type { WalrusClient } from '@mysten/walrus';
 import type { WalrusResponse } from './types.js';

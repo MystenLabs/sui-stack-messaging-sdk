@@ -565,12 +565,16 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
+		// NOTE: checkLEEncoding is needed for backward compatibility with ciphertexts
+		// created with Seal SDK <0.8.0 (which used little-endian encoding).
+		// See: https://github.com/MystenLabs/ts-sdks/blob/main/packages/seal/CHANGELOG.md#080
 		let dekBytes: Uint8Array;
 		try {
 			dekBytes = await this.#suiClient.seal.decrypt({
 				data: encryptedKey.encryptedBytes,
 				sessionKey: await this.#sessionKeyManager.getSessionKey(),
 				txBytes,
+				checkLEEncoding: true, // Support legacy LE-encoded ciphertexts
 			});
 		} catch (error) {
 			console.error('Error decrypting channel DEK', error);
