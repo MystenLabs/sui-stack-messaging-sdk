@@ -120,6 +120,7 @@ export class SuiStackMessagingClient {
 		});
 	}
 
+	// TODO: Move to standalone function (pattern used in other Mysten TypeScript SDKs)
 	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
 		return {
 			name: 'messaging' as const,
