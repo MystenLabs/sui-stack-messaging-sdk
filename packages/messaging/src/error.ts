@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 export class MessagingClientError extends Error {}
 
 export class UserError extends MessagingClientError {}
@@ -11,7 +13,6 @@ export class MessagingAPIError extends MessagingClientError {
 		super(message);
 	}
 
-	// @ts-ignore todo: remove 'ts-ignore' when start using this function
 	static #generate(error: string, message: string, requestId: string, status?: number) {
 		switch (error) {
 			case 'NotImplementedFeature':
@@ -31,7 +32,7 @@ export class MessagingAPIError extends MessagingClientError {
 			const error = JSON.parse(text)['error'];
 			const message = JSON.parse(text)['message'];
 			errorInstance = MessagingAPIError.#generate(error, message, requestId);
-		} catch (e) {
+		} catch {
 			// If we can't parse the response as JSON or if it doesn't have the expected format,
 			// fall back to using the status text
 			errorInstance = new GeneralError(response.statusText, requestId, response.status);

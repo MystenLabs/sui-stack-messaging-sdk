@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { EncryptedObject, SessionKey } from '@mysten/seal';
 import { fromHex, isValidSuiAddress, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
+import type { SessionKey } from '@mysten/seal';
+import { EncryptedObject } from '@mysten/seal';
 
-import {
+import type {
 	AttachmentMetadata,
 	CommonEncryptOpts,
 	DecryptAttachmentDataOpts,
@@ -26,12 +27,13 @@ import {
 	EnvelopeEncryptionConfig,
 	GenerateEncryptedChannelDEKopts,
 	SealApproveContract,
-	SessionKeyConfig,
+	SealConfig,
 	SymmetricKey,
-} from './types';
-import { WebCryptoPrimitives } from './webCryptoPrimitives';
+} from './types.js';
+import { WebCryptoPrimitives } from './webCryptoPrimitives.js';
 import { Transaction } from '@mysten/sui/transactions';
-import { MessagingCompatibleClient } from '../types';
+import type { MessagingCompatibleClient } from '../types.js';
+import { SessionKeyManager } from './sessionKeyManager.js';
 
 /**
  * Core envelope encryption service that utilizes Seal
@@ -39,43 +41,39 @@ import { MessagingCompatibleClient } from '../types';
 export class EnvelopeEncryption {
 	#suiClient: MessagingCompatibleClient;
 	#encryptionPrimitives: EncryptionPrimitives;
-	#sessionKey?: SessionKey;
+	#sessionKeyManager: SessionKeyManager;
 	#sealApproveContract: SealApproveContract;
-	#sessionKeyConfig?: SessionKeyConfig;
+	#sealConfig: SealConfig;
 
 	constructor(config: EnvelopeEncryptionConfig) {
 		this.#suiClient = config.suiClient;
 		this.#sealApproveContract = config.sealApproveContract;
-		this.#sessionKey = config.sessionKey;
-		this.#sessionKeyConfig = config.sessionKeyConfig;
+		// Initialize with defaults if not provided
+		this.#sealConfig = {
+			threshold: config.sealConfig?.threshold ?? 2,
+		};
 		this.#encryptionPrimitives = config.encryptionPrimitives ?? WebCryptoPrimitives.getInstance();
 
-		if (!this.#sessionKey && !this.#sessionKeyConfig) {
-			throw new Error('Either sessionKey or sessionKeyConfig must be provided');
-		}
+		this.#sessionKeyManager = new SessionKeyManager(
+			config.sessionKey,
+			config.sessionKeyConfig,
+			this.#suiClient,
+			this.#sealApproveContract,
+		);
 	}
 
-	private async getSessionKey(): Promise<SessionKey> {
-		if (this.#sessionKey && !this.#sessionKey.isExpired()) {
-			return this.#sessionKey;
-		}
+	/**
+	 * Update the external SessionKey instance (useful for React context updates)
+	 */
+	updateSessionKey(newSessionKey: SessionKey): void {
+		this.#sessionKeyManager.updateExternalSessionKey(newSessionKey);
+	}
 
-		if (!this.#sessionKeyConfig) {
-			throw new Error(
-				'SessionKey is expired and sessionKeyConfig is not available to create a new one.',
-			);
-		}
-
-		this.#sessionKey = await SessionKey.create({
-			address: this.#sessionKeyConfig.address,
-			signer: this.#sessionKeyConfig.signer,
-			ttlMin: this.#sessionKeyConfig.ttlMin,
-			mvrName: this.#sessionKeyConfig.mvrName,
-			packageId: this.#sealApproveContract.packageId,
-			suiClient: this.#suiClient,
-		});
-
-		return this.#sessionKey;
+	/**
+	 * Force refresh the managed SessionKey (useful for testing or manual refresh)
+	 */
+	async refreshSessionKey(): Promise<SessionKey> {
+		return this.#sessionKeyManager.refreshManagedSessionKey();
 	}
 
 	// ===== Encryption methods =====
@@ -94,7 +92,7 @@ export class EnvelopeEncryption {
 		const sealPolicyBytes = fromHex(creatorAddress); // Using channelId as the policy;
 		const id = toHex(new Uint8Array([...sealPolicyBytes, ...nonce]));
 		const { encryptedObject: encryptedDekBytes } = await this.#suiClient.seal.encrypt({
-			threshold: 2, // TODO: Magic number --> extract this to an option/config/constant
+			threshold: this.#sealConfig.threshold!,
 			packageId: this.#sealApproveContract.packageId,
 			id,
 			data: dek,
@@ -379,12 +377,16 @@ export class EnvelopeEncryption {
 		});
 		const txBytes = await tx.build({ client: this.#suiClient, onlyTransactionKind: true });
 		// Decrypt using Seal
-		let dekBytes: any;
+		// NOTE: checkLEEncoding is needed for backward compatibility with ciphertexts
+		// created with Seal SDK <0.8.0 (which used little-endian encoding).
+		// See: https://github.com/MystenLabs/ts-sdks/blob/main/packages/seal/CHANGELOG.md#080
+		let dekBytes: Uint8Array;
 		try {
 			dekBytes = await this.#suiClient.seal.decrypt({
 				data: encryptedKey.encryptedBytes,
-				sessionKey: await this.getSessionKey(),
+				sessionKey: await this.#sessionKeyManager.getSessionKey(),
 				txBytes,
+				checkLEEncoding: true, // Support legacy LE-encoded ciphertexts
 			});
 		} catch (error) {
 			console.error(

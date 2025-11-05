@@ -23,7 +23,7 @@ public(package) fun new(
     mut config: Option<Config>,
     ctx: &mut TxContext,
 ): Auth {
-    let permissions = vec_set::singleton(type_name::get<EditPermissions>());
+    let permissions = vec_set::singleton(type_name::with_defining_ids<EditPermissions>());
     let mut member_permissions = vec_map::empty<ID, VecSet<TypeName>>();
     member_permissions.insert(creator_member_cap_id, permissions);
     let config_val = if (config.is_none()) {
@@ -38,7 +38,10 @@ public(package) fun new(
 }
 
 public(package) fun has_permission<WPermission: drop>(self: &Auth, member_cap_id: ID): bool {
-    self.member_permissions.get(&member_cap_id).contains(&type_name::get<WPermission>())
+    self
+        .member_permissions
+        .get(&member_cap_id)
+        .contains(&type_name::with_defining_ids<WPermission>())
 }
 
 public(package) fun grant_permission<WPermission: drop>(
@@ -50,13 +53,16 @@ public(package) fun grant_permission<WPermission: drop>(
     assert!(self.has_permission<EditPermissions>(granter_member_cap_id), ENotPermitted);
     // check if id already an entry
     if (self.member_permissions.contains(&member_cap_id)) {
-        self.member_permissions.get_mut(&member_cap_id).insert(type_name::get<WPermission>());
+        self
+            .member_permissions
+            .get_mut(&member_cap_id)
+            .insert(type_name::with_defining_ids<WPermission>());
     } else {
         let config = self.config.load_value<Config>();
-        let at_max_members = self.member_permissions.size() == config.max_channel_members();
+        let at_max_members = self.member_permissions.length() == config.max_channel_members();
         assert!(!at_max_members, EChannelAtMaxMembers);
 
-        let permissions = vec_set::singleton(type_name::get<WPermission>());
+        let permissions = vec_set::singleton(type_name::with_defining_ids<WPermission>());
         self.member_permissions.insert(member_cap_id, permissions);
     }
 }
@@ -70,7 +76,7 @@ public(package) fun revoke_permission<WPermission: drop>(
     assert!(self.has_permission<EditPermissions>(revoker_member_cap_id), ENotPermitted);
 
     let member_entry = self.member_permissions.get_mut(&member_cap_id);
-    member_entry.remove(&type_name::get<WPermission>());
+    member_entry.remove(&type_name::with_defining_ids<WPermission>());
 
     // If entry has no permissions after this revokation, remove member_cap_id entirely
     if (member_entry.is_empty()) {

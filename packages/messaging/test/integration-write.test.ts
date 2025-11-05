@@ -1,6 +1,8 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SuiGraphQLClient } from '@mysten/sui/graphql';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
@@ -22,6 +24,7 @@ describe('Integration tests - Write Path', () => {
 	// @ts-ignore todo: remove when support added
 	let suiGrpcClient: SuiGrpcClient;
 	let signer: Signer;
+	let userSigner: Signer;
 	// let packageId: string; // No longer needed since we use MessagingClient methods
 
 	// --- Test Suite Setup & Teardown ---
@@ -30,6 +33,7 @@ describe('Integration tests - Write Path', () => {
 		testSetup = await setupTestEnvironment();
 		suiJsonRpcClient = testSetup.suiClient;
 		signer = testSetup.signer;
+		userSigner = testSetup.userSigner;
 		// packageId = testSetup.packageId; // No longer needed
 
 		// Setup GraphQL and gRPC clients for localnet only
@@ -154,6 +158,106 @@ describe('Integration tests - Write Path', () => {
 				expect(initialMemberInList?.memberCapId).toBeDefined();
 			}
 		}, 60000);
+
+		it('should handle duplicate member addresses correctly', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const duplicateMemberAddress = Ed25519Keypair.generate().toSuiAddress();
+
+			// Create a channel with duplicate member addresses
+			// The SDK should deduplicate these automatically
+			const { digest, channelObject } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMemberAddresses: [
+					duplicateMemberAddress,
+					duplicateMemberAddress,
+					duplicateMemberAddress,
+				],
+			});
+			expect(digest).toBeDefined();
+			const channelId = channelObject.id.id;
+			expect(channelId).toBeDefined();
+
+			// Verify channel was created successfully
+			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: signer.toSuiAddress(),
+			});
+			const channel = channelObjects[0];
+			expect(channel.id.id).toBe(channelId);
+
+			// Get all members - should only have 2 unique members (creator + 1 unique duplicated member)
+			const channelMembers = await client.messaging.getChannelMembers(channelId);
+			expect(channelMembers.members).toBeDefined();
+			expect(channelMembers.members.length).toBe(2); // creator + 1 deduplicated member
+
+			// Verify the duplicated member only appears once
+			const duplicatedMembers = channelMembers.members.filter(
+				(member) => member.memberAddress === duplicateMemberAddress,
+			);
+			expect(duplicatedMembers.length).toBe(1);
+
+			// Critical test: Verify that getChannelObjectsByAddress works for the duplicated member
+			// This would have failed before the fix with "Duplicate object ids in batch call" error
+			const duplicateMemberChannels = await client.messaging.getChannelObjectsByAddress({
+				address: duplicateMemberAddress,
+			});
+
+			// Should successfully return the channel without errors
+			expect(duplicateMemberChannels.channelObjects).toBeDefined();
+			expect(duplicateMemberChannels.channelObjects.length).toBe(1);
+			expect(duplicateMemberChannels.channelObjects[0].id.id).toBe(channelId);
+
+			// Also verify creator can still fetch channels successfully
+			const creatorChannels = await client.messaging.getChannelObjectsByAddress({
+				address: signer.toSuiAddress(),
+			});
+			expect(creatorChannels.channelObjects).toBeDefined();
+			const createdChannel = creatorChannels.channelObjects.find((c) => c.id.id === channelId);
+			expect(createdChannel).toBeDefined();
+		}, 60000);
+
+		it('should filter out creator address from initialMembers', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const regularMember = Ed25519Keypair.generate().toSuiAddress();
+
+			// Create a channel where creator accidentally includes their own address
+			// The SDK should filter out the creator address automatically
+			const { digest, channelObject } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMemberAddresses: [regularMember, signer.toSuiAddress()],
+			});
+			expect(digest).toBeDefined();
+			const channelId = channelObject.id.id;
+			expect(channelId).toBeDefined();
+
+			// Get all members - should only have 2 members (creator + regular member)
+			// Creator should NOT get a duplicate MemberCap
+			const channelMembers = await client.messaging.getChannelMembers(channelId);
+			expect(channelMembers.members).toBeDefined();
+			expect(channelMembers.members.length).toBe(2);
+
+			// Verify creator only appears once
+			const creatorMemberships = channelMembers.members.filter(
+				(member) => member.memberAddress === signer.toSuiAddress(),
+			);
+			expect(creatorMemberships.length).toBe(1);
+
+			// Verify regular member is present
+			const regularMemberMemberships = channelMembers.members.filter(
+				(member) => member.memberAddress === regularMember,
+			);
+			expect(regularMemberMemberships.length).toBe(1);
+
+			// Verify creator can fetch channels without duplicates
+			const creatorChannels = await client.messaging.getChannelObjectsByAddress({
+				address: signer.toSuiAddress(),
+			});
+			expect(creatorChannels.channelObjects).toBeDefined();
+			const channelsForThisChannel = creatorChannels.channelObjects.filter(
+				(c) => c.id.id === channelId,
+			);
+			expect(channelsForThisChannel.length).toBe(1);
+		}, 60000);
 	});
 
 	describe('Message Sending', () => {
@@ -195,7 +299,7 @@ describe('Integration tests - Write Path', () => {
 			const fileContent = new TextEncoder().encode(`Attachment content: ${Date.now()}`);
 			const file = new File([fileContent], 'test.txt', { type: 'text/plain' });
 
-			console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const { digest, messageId } = await client.messaging.executeSendMessageTransaction({
@@ -267,6 +371,153 @@ describe('Integration tests - Write Path', () => {
 					2,
 				),
 			);
+		}, 320000);
+	});
+
+	describe('Examples.md - In-app Product Support', () => {
+		it('should implement complete 1:1 support channel flow from Examples.md', async () => {
+			// Step 1: Setup the client (support team uses main signer)
+			const supportSigner = signer;
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, supportSigner);
+			const messaging = client.messaging;
+
+			// Step 2: Create a 1:1 support channel for a user
+			const topUserAddress = userSigner.toSuiAddress();
+
+			const { channelObject, encryptedKeyBytes } = await messaging.executeCreateChannelTransaction({
+				signer: supportSigner,
+				initialMemberAddresses: [topUserAddress],
+			});
+			const channelId = channelObject.id.id;
+
+			console.log(`Support channel created for user: ${channelId}`);
+			expect(channelId).toBeDefined();
+			expect(encryptedKeyBytes).toBeDefined();
+
+			// Step 3: Fetch the memberCapId and encryptionKey (support handle)
+			let supportMembership: { member_cap_id: string; channel_id: string } | null | undefined =
+				null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+
+			while (hasNextPage && !supportMembership) {
+				const memberships = await messaging.getChannelMemberships({
+					address: supportSigner.toSuiAddress(),
+					cursor,
+				});
+				supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+			expect(supportMembership).toBeDefined();
+			const supportMemberCapId = supportMembership!.member_cap_id;
+
+			// Get the channel object with encryption key info
+			const channelObjects = await messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: supportSigner.toSuiAddress(),
+			});
+			const channelObj = channelObjects[0];
+			const channelEncryptionKey: EncryptedSymmetricKey = {
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest.encrypted_bytes),
+				version: channelObj.encryption_key_history.latest_version,
+			};
+
+			// Step 3b: Get user's memberCapId
+			let userMembership: { member_cap_id: string; channel_id: string } | null | undefined = null;
+			let userCursor: string | null = null;
+			let userHasNextPage: boolean = true;
+
+			while (userHasNextPage && !userMembership) {
+				const userMemberships = await messaging.getChannelMemberships({
+					address: topUserAddress,
+					cursor: userCursor,
+				});
+				userMembership = userMemberships.memberships.find((m) => m.channel_id === channelId);
+				userHasNextPage = userMemberships.hasNextPage;
+				userCursor = userMemberships.cursor;
+			}
+			expect(userMembership).toBeDefined();
+			const userMemberCapId = userMembership!.member_cap_id;
+
+			// Get user's channel object with encryption key
+			const userChannelObjects = await messaging.getChannelObjectsByChannelIds({
+				channelIds: [channelId],
+				userAddress: topUserAddress,
+			});
+			const userChannelObj = userChannelObjects[0];
+			const userChannelEncryptionKey: EncryptedSymmetricKey = {
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(
+					userChannelObj.encryption_key_history.latest.encrypted_bytes,
+				),
+				version: userChannelObj.encryption_key_history.latest_version,
+			};
+
+			// Step 4: User sends a support query
+			const userClient = createTestClient(suiJsonRpcClient, testSetup.config, userSigner);
+			const userQuery = "I can't claim my reward from yesterday's tournament.";
+
+			const { digest: userDigest, messageId: userMessageId } =
+				await userClient.messaging.executeSendMessageTransaction({
+					signer: userSigner,
+					channelId,
+					memberCapId: userMemberCapId,
+					message: userQuery,
+					encryptedKey: userChannelEncryptionKey,
+				});
+
+			console.log(`User sent query ${userMessageId} in tx ${userDigest}`);
+			expect(userDigest).toBeDefined();
+			expect(userMessageId).toBeDefined();
+
+			// Step 5: Support team reads the user query
+			const messages = await messaging.getChannelMessages({
+				channelId,
+				userAddress: supportSigner.toSuiAddress(),
+				limit: 5,
+				direction: 'backward',
+			});
+
+			expect(messages.messages).toHaveLength(1);
+			const receivedQuery = messages.messages[0];
+			expect(receivedQuery.sender).toBe(topUserAddress);
+			expect(receivedQuery.text).toBe(userQuery);
+
+			console.log(`👤 ${receivedQuery.sender}: ${receivedQuery.text}`);
+
+			// Support sends a reply
+			const supportReply = 'Thanks for reaching out! Can you confirm the reward ID?';
+			const { digest: supportDigest, messageId: supportMessageId } =
+				await messaging.executeSendMessageTransaction({
+					signer: supportSigner,
+					channelId,
+					memberCapId: supportMemberCapId,
+					message: supportReply,
+					encryptedKey: channelEncryptionKey,
+				});
+
+			console.log(`Support sent reply ${supportMessageId} in tx ${supportDigest}`);
+			expect(supportDigest).toBeDefined();
+			expect(supportMessageId).toBeDefined();
+
+			// Verify user can read support's reply
+			const userMessages = await userClient.messaging.getChannelMessages({
+				channelId,
+				userAddress: topUserAddress,
+				limit: 5,
+				direction: 'backward',
+			});
+
+			expect(userMessages.messages).toHaveLength(2);
+			const supportResponse = userMessages.messages.find(
+				(m) => m.sender === supportSigner.toSuiAddress(),
+			);
+			expect(supportResponse).toBeDefined();
+			expect(supportResponse!.text).toBe(supportReply);
+
+			console.log(`👨‍💼 ${supportResponse!.sender}: ${supportResponse!.text}`);
 		}, 320000);
 	});
 });

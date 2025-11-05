@@ -11,6 +11,7 @@ export interface EnvelopeEncryptionConfig {
 	sessionKey?: SessionKey;
 	sessionKeyConfig?: SessionKeyConfig;
 	encryptionPrimitives?: EncryptionPrimitives;
+	sealConfig?: SealConfig;
 }
 
 export interface SessionKeyConfig {
@@ -24,6 +25,21 @@ export interface SealApproveContract {
 	packageId: string;
 	module: string;
 	functionName: string;
+}
+
+/**
+ * Seal configuration for messaging operations
+ *
+ * Note: This is separate from SealClient configuration!
+ * - SealClient configuration (via SealClient.asClientExtension): Configures which key servers to use
+ * - MessagingClient SealConfig: Configures operation parameters like encryption threshold
+ */
+export interface SealConfig {
+	/**
+	 * Encryption threshold for Seal operations (default: 2)
+	 * This determines how many key servers must participate in encryption/decryption
+	 */
+	threshold?: number;
 }
 
 /**
@@ -145,7 +161,7 @@ export interface DecryptAttachmentResult extends AttachmentMetadata {
 export interface DecryptAttachmentDataResult {
 	data: Uint8Array<ArrayBuffer>;
 }
-export interface DecryptAttachmentMetadataResult extends AttachmentMetadata {}
+export type DecryptAttachmentMetadataResult = AttachmentMetadata;
 
 export type EncryptMessageOpts = CommonEncryptOpts & {
 	text: string;

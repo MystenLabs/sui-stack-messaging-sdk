@@ -8,6 +8,8 @@ The Sui Stack Messaging SDK provides a complete, end-to-end encrypted messaging 
 
 The SDK enables developers to integrate secure, wallet-linked messaging directly into their apps without building custom backends. Conversations are private by default, recoverable across devices, and composable with other applications.
 
+Try an example app built using the SDK at [https://chatty.wal.app/](https://chatty.wal.app/#). Also refer to other [Example patterns](./Examples.md).
+
 > [!IMPORTANT]
 > The Sui Stack Messaging SDK is currently in **alpha** and available on **Testnet only**. It is not production-ready and is intended for experimentation and developer feedback as we prepare for beta and GA.
 
@@ -38,20 +40,16 @@ The SDK enables developers to integrate secure, wallet-linked messaging directly
 
 ## Installation
 
-```bash
-TBD
-
-```
-
-Check out instructions for [Developer Setup](./Setup.md).
+Refer to the [Installation Guide](./Installation.md).
 
 ## Contact Us
 
-For questions about the SDK, use case discussions, or integration support, contact the team on [Sui Discord](https://discord.com/channels/tbd) or create a Github issue.
+For questions about the SDK, use case discussions, or integration support, contact the team on [Sui Discord](https://discord.com/channels/916379725201563759/1417696942074630194) or create a Github issue.
 
 ## Table of Contents
 
+- [Installation Guide](./Installation.md)
 - [Developer Setup](./Setup.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
-- Example App - TBD
+- [Example patterns](./Examples.md)

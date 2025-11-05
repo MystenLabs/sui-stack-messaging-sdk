@@ -1,3 +1,5 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -7,9 +9,8 @@ import { Signer } from '@mysten/sui/cryptography';
 
 import { setupTestEnvironment, createTestClient } from './test-helpers';
 import { loadTestUsers, getTestUserKeypair } from './fund-test-users';
-
-import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { SuiStackMessagingClient } from '../src/client';
+import { EncryptedSymmetricKey } from '../src/encryption/types';
 
 // Test data structure
 interface TestChannel {
@@ -20,6 +21,7 @@ interface TestChannel {
 		memberCapId: string;
 	}[];
 }
+
 interface TestChannelData {
 	channelId: string;
 	encryptedKey: EncryptedSymmetricKey;

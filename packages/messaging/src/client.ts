@@ -1,9 +1,12 @@
-import { Transaction, type TransactionResult } from '@mysten/sui/transactions';
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+import { Transaction } from '@mysten/sui/transactions';
+import type { TransactionResult } from '@mysten/sui/transactions';
 import type { Signer } from '@mysten/sui/cryptography';
 import { deriveDynamicFieldID } from '@mysten/sui/utils';
 import { bcs } from '@mysten/sui/bcs';
-import type { ClientWithExtensions, Experimental_SuiClientTypes } from '@mysten/sui/experimental';
-import { WalrusClient } from '@mysten/walrus';
+import type { Experimental_SuiClientTypes } from '@mysten/sui/experimental';
+import type { SessionKey } from '@mysten/seal';
 
 import {
 	_new as newChannel,
@@ -34,16 +37,21 @@ import type {
 	DecryptedChannelObject,
 	DecryptedMessagesResponse,
 	DecryptedChannelObjectsByAddressResponse,
-	Membership,
+	GetChannelObjectsByChannelIdsRequest,
+	GeneratedCaps,
 } from './types.js';
-import { MAINNET_MESSAGING_PACKAGE_CONFIG, TESTNET_MESSAGING_PACKAGE_CONFIG } from './constants.js';
+import {
+	MAINNET_MESSAGING_PACKAGE_CONFIG,
+	TESTNET_MESSAGING_PACKAGE_CONFIG,
+	DEFAULT_SEAL_APPROVE_CONTRACT,
+} from './constants.js';
 import { MessagingClientError } from './error.js';
 import type { StorageAdapter } from './storage/adapters/storage.js';
 import { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
-import type { EncryptedSymmetricKey } from './encryption/types.js';
+import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
-import type { RawTransactionArgument } from './contracts/utils';
+import type { RawTransactionArgument } from './contracts/utils/index.js';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
@@ -61,6 +69,7 @@ export class SuiStackMessagingClient {
 	#packageConfig: MessagingPackageConfig;
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
+	#sealConfig: SealConfig;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
@@ -69,8 +78,14 @@ export class SuiStackMessagingClient {
 		this.#suiClient = options.suiClient;
 		this.#storage = options.storage;
 
-		if (options.network && !options.packageConfig) {
-			const network = options.network;
+		// Initialize Seal config with defaults
+		this.#sealConfig = {
+			threshold: options.sealConfig?.threshold ?? 2, // Default threshold of 2
+		};
+
+		// Auto-detect network from client or use package config
+		if (!options.packageConfig) {
+			const network = this.#suiClient.network;
 			switch (network) {
 				case 'testnet':
 					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
@@ -79,21 +94,31 @@ export class SuiStackMessagingClient {
 					this.#packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 					break;
 				default:
-					throw new MessagingClientError(`Unsupported network: ${network}`);
+					// Fallback to testnet for unrecognized networks
+					this.#packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+					break;
 			}
 		} else {
-			this.#packageConfig = options.packageConfig!;
+			this.#packageConfig = options.packageConfig;
 		}
+
+		// Resolve sealApproveContract with defaults (use same packageId as messaging package)
+		const sealApproveContract = this.#packageConfig.sealApproveContract ?? {
+			packageId: this.#packageConfig.packageId,
+			...DEFAULT_SEAL_APPROVE_CONTRACT,
+		};
 
 		// Initialize EnvelopeEncryption directly
 		this.#envelopeEncryption = new EnvelopeEncryption({
 			suiClient: this.#suiClient,
-			sealApproveContract: this.#packageConfig.sealApproveContract,
+			sealApproveContract,
 			sessionKey: options.sessionKey,
 			sessionKeyConfig: options.sessionKeyConfig,
+			sealConfig: this.#sealConfig,
 		});
 	}
 
+	// TODO: Move to standalone function (pattern used in other Mysten TypeScript SDKs)
 	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
 		return {
 			name: 'messaging' as const,
@@ -104,16 +129,18 @@ export class SuiStackMessagingClient {
 					throw new MessagingClientError('SealClient extension is required for MessagingClient');
 				}
 
-				// Check if walrus is required but not available
-				if (!options.storage && !client.walrus) {
+				// Check if storage configuration is provided
+				if (!('storage' in options) && !('walrusStorageConfig' in options)) {
 					throw new MessagingClientError(
-						'WalrusClient extension is required for the default StorageAdapter implementation of MessagingClient. Please provide a custom storage adapter or extend the client with the WalrusClient extension.',
+						'Either a custom storage adapter via "storage" option or explicit Walrus storage configuration via "walrusStorageConfig" option must be provided. Fallback to default Walrus endpoints is not supported.',
 					);
 				}
 
+				// Auto-detect network from the client or use default package config
 				let packageConfig = options.packageConfig;
-				if (options.network && !packageConfig) {
-					switch (options.network) {
+				if (!packageConfig) {
+					const network = client.network;
+					switch (network) {
 						case 'testnet':
 							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
 							break;
@@ -121,30 +148,21 @@ export class SuiStackMessagingClient {
 							packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
 							break;
 						default:
-							throw new MessagingClientError(`Unsupported network: ${options.network}`);
+							// Fallback to testnet if network is not recognized
+							packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+							break;
 					}
 				}
 
-				if (!packageConfig) {
-					throw new MessagingClientError('Either packageConfig or network must be provided');
-				}
-
 				// Handle storage configuration
-				const storage = options.storage
-					? (c: MessagingCompatibleClient) => options.storage!(c)
-					: (c: MessagingCompatibleClient) => {
-							if (!c.walrus) {
-								throw new MessagingClientError(
-									'WalrusClient extension is required for default storage adapter',
-								);
-							}
-							// Type assertion is safe here because we've checked c.walrus exists
-							return new WalrusStorageAdapter(c as ClientWithExtensions<{ walrus: WalrusClient }>, {
-								publisher: 'https://publisher.walrus-testnet.walrus.space',
-								aggregator: 'https://aggregator.walrus-testnet.walrus.space',
-								epochs: 1,
-							});
-						};
+				const storage =
+					'storage' in options
+						? (c: MessagingCompatibleClient) => options.storage(c)
+						: (c: MessagingCompatibleClient) => {
+								// WalrusClient is optional - we can use WalrusStorageAdapter without it
+								// In the future, when WalrusClient SDK is used, we can check for its presence and use different logic
+								return new WalrusStorageAdapter(c, options.walrusStorageConfig);
+							};
 
 				return new SuiStackMessagingClient({
 					suiClient: client,
@@ -152,6 +170,7 @@ export class SuiStackMessagingClient {
 					packageConfig,
 					sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
 					sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
+					sealConfig: options.sealConfig,
 				});
 			},
 		};
@@ -166,14 +185,26 @@ export class SuiStackMessagingClient {
 	 * @returns Member cap ID
 	 */
 	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
-		const memberships = await this.getChannelMemberships({ address: userAddress });
-		const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+		let cursor: string | null = null;
+		let hasNextPage = true;
 
-		if (!membership) {
-			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
+		while (hasNextPage) {
+			const memberships = await this.getChannelMemberships({
+				address: userAddress,
+				cursor,
+			});
+
+			const membership = memberships.memberships.find((m) => m.channel_id === channelId);
+
+			if (membership) {
+				return membership.member_cap_id;
+			}
+
+			cursor = memberships.cursor;
+			hasNextPage = memberships.hasNextPage;
 		}
 
-		return membership.member_cap_id;
+		throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 	}
 
 	/**
@@ -320,9 +351,23 @@ export class SuiStackMessagingClient {
 		request: ChannelMembershipsRequest,
 	): Promise<DecryptedChannelObjectsByAddressResponse> {
 		const membershipsPaginated = await this.getChannelMemberships(request);
-		const channelObjects = await this.#getChannelObjectsByMemberships(
-			membershipsPaginated.memberships,
-		);
+
+		// Deduplicate memberships by channel_id to handle cases where a user has multiple MemberCaps for the same channel
+		// This can occur if duplicate addresses were added during channel creation
+		const seenChannelIds = new Set<string>();
+		const deduplicatedMemberships = membershipsPaginated.memberships.filter((m) => {
+			if (seenChannelIds.has(m.channel_id)) {
+				return false;
+			}
+			seenChannelIds.add(m.channel_id);
+			return true;
+		});
+
+		const channelObjects = await this.getChannelObjectsByChannelIds({
+			channelIds: deduplicatedMemberships.map((m) => m.channel_id),
+			userAddress: request.address,
+			memberCapIds: deduplicatedMemberships.map((m) => m.member_cap_id),
+		});
 
 		return {
 			hasNextPage: membershipsPaginated.hasNextPage,
@@ -332,18 +377,15 @@ export class SuiStackMessagingClient {
 	}
 
 	/**
-	 * Internal method to get channel objects by memberships (returns decrypted data)
-	 * @param memberships - Array of user memberships with channel IDs and member cap IDs
+	 * Get channel objects by channel IDs (returns decrypted data)
+	 * @param request - Request with channel IDs and user address, and optionally memberCapIds
 	 * @returns Decrypted channel objects
 	 */
-	async #getChannelObjectsByMemberships(
-		memberships: Membership[],
+	async getChannelObjectsByChannelIds(
+		request: GetChannelObjectsByChannelIdsRequest,
 	): Promise<DecryptedChannelObject[]> {
-		if (memberships.length === 0) {
-			return [];
-		}
+		const { channelIds, userAddress, memberCapIds } = request;
 
-		const channelIds = memberships.map((m) => m.channel_id);
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
 		});
@@ -357,15 +399,9 @@ export class SuiStackMessagingClient {
 			}),
 		);
 
-		// Create a map for quick lookup of member cap IDs by channel ID
-		const memberCapMap = new Map<string, string>();
-		memberships.forEach((membership) => {
-			memberCapMap.set(membership.channel_id, membership.member_cap_id);
-		});
-
 		// Decrypt each channel's last_message if it exists
 		const decryptedChannels = await Promise.all(
-			parsedChannels.map(async (channel) => {
+			parsedChannels.map(async (channel, index) => {
 				const decryptedChannel: DecryptedChannelObject = {
 					...channel,
 					last_message: null,
@@ -373,19 +409,23 @@ export class SuiStackMessagingClient {
 
 				// Decrypt last_message if it exists
 				if (channel.last_message) {
-					const userMemberCapId = memberCapMap.get(channel.id.id);
-					if (!userMemberCapId) {
-						throw new MessagingClientError(`No member cap ID found for channel ${channel.id.id}`);
+					try {
+						// Use provided memberCapId or fetch it
+						const memberCapId =
+							memberCapIds?.[index] || (await this.#getUserMemberCapId(userAddress, channel.id.id));
+						const encryptedKey = await this.#getEncryptionKeyFromChannel(channel);
+						const decryptedMessage = await this.#decryptMessage(
+							channel.last_message,
+							channel.id.id,
+							memberCapId,
+							encryptedKey,
+						);
+						decryptedChannel.last_message = decryptedMessage;
+					} catch (error) {
+						// If decryption fails, set last_message to null
+						console.warn(`Failed to decrypt last message for channel ${channel.id.id}:`, error);
+						decryptedChannel.last_message = null;
 					}
-
-					const encryptedKey = await this.#getEncryptionKeyFromChannel(channel);
-					const decryptedMessage = await this.#decryptMessage(
-						channel.last_message,
-						channel.id.id,
-						userMemberCapId,
-						encryptedKey,
-					);
-					decryptedChannel.last_message = decryptedMessage;
 				}
 
 				return decryptedChannel;
@@ -649,14 +689,26 @@ export class SuiStackMessagingClient {
 			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
 
 			// 2. Add initial members if provided
+			// Add initial members if provided
+			// Deduplicate addresses and filter out creator (who already gets a MemberCap automatically)
+			const uniqueAddresses =
+				initialMemberAddresses && initialMemberAddresses.length > 0
+					? [...new Set(initialMemberAddresses)].filter((addr) => addr !== creatorAddress)
+					: [];
+			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
+				console.warn(
+					'Duplicate addresses or creator address detected in initialMemberAddresses. Creator automatically receives a MemberCap. Using unique non-creator addresses only.',
+				);
+			}
+
 			let memberCaps: RawTransactionArgument<string> | null = null;
-			if (initialMemberAddresses && initialMemberAddresses.length > 0) {
+			if (uniqueAddresses.length > 0) {
 				memberCaps = tx.add(
 					addMembers({
 						arguments: {
 							self: channel,
 							memberCap: creatorMemberCap,
-							n: initialMemberAddresses.length,
+							n: uniqueAddresses.length,
 						},
 					}),
 				);
@@ -689,7 +741,7 @@ export class SuiStackMessagingClient {
 				tx.add(
 					transferMemberCaps({
 						arguments: {
-							memberAddresses: tx.pure.vector('address', initialMemberAddresses!),
+							memberAddresses: tx.pure.vector('address', uniqueAddresses),
 							memberCaps,
 							creatorCap,
 						},
@@ -963,10 +1015,25 @@ export class SuiStackMessagingClient {
 	}
 
 	/**
-	 * Executes a create channel transaction
-	 *
-	 * @param params - The parameters for creating a channel
-	 * @returns Promise with transaction digest, channel ID, creator cap ID, and encrypted key bytes
+	 * Update the external SessionKey instance (useful for React context updates)
+	 * Only works when the client was configured with an external SessionKey
+	 */
+	updateSessionKey(newSessionKey: SessionKey): void {
+		this.#envelopeEncryption.updateSessionKey(newSessionKey);
+	}
+
+	/**
+	 * Force refresh the managed SessionKey (useful for testing or manual refresh)
+	 * Only works when the client was configured with SessionKeyConfig
+	 */
+	async refreshSessionKey(): Promise<SessionKey> {
+		return this.#envelopeEncryption.refreshSessionKey();
+	}
+
+	/**
+	 * Execute a create channel transaction
+	 * @param params - Transaction parameters including signer and optional initial members
+	 * @returns Transaction digest, channel ID, creator cap ID, and encrypted key
 	 */
 	async executeCreateChannelTransaction({
 		transaction,
@@ -979,7 +1046,7 @@ export class SuiStackMessagingClient {
 	} & { transaction?: Transaction; signer: Signer }): Promise<{
 		digest: string;
 		channelObject: ParsedChannelObject;
-		generatedCaps: any;
+		generatedCaps: GeneratedCaps;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	}> {
 		const { transaction: tx, encryptedKeyBytes } = await this.createChannelTransaction({
@@ -1044,7 +1111,7 @@ export class SuiStackMessagingClient {
 			throw new MessagingClientError(`Failed to ${action} (${digest}): ${effects?.status.error}`);
 		}
 
-		if (!!waitForTransaction) {
+		if (waitForTransaction) {
 			await this.#suiClient.core.waitForTransaction({
 				digest,
 			});
@@ -1165,7 +1232,8 @@ export class SuiStackMessagingClient {
 			}),
 		);
 		const filteredAdditionalMemberCaps = additionalMemberCapsParsed.filter(
-			(cap) => cap !== null && cap.capObject.id.id !== creatorMemberCapWithOwner.capObject.id.id,
+			(cap): cap is NonNullable<typeof cap> =>
+				cap !== null && cap.capObject.id.id !== creatorMemberCapWithOwner.capObject.id.id,
 		);
 
 		return {
@@ -1232,26 +1300,26 @@ export class SuiStackMessagingClient {
 		blobRef: string;
 		nonce: Uint8Array;
 	}): Promise<Uint8Array<ArrayBuffer>> {
-		return new Promise(async (resolve, reject) => {
-			try {
-				// Download the encrypted data
-				const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
+		const downloadAndDecrypt = async (): Promise<Uint8Array<ArrayBuffer>> => {
+			// Download the encrypted data
+			const [encryptedData] = await this.#storage(this.#suiClient).download([blobRef]);
 
-				// Decrypt the data
-				const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
-					$kind: 'Encrypted',
-					encryptedBytes: new Uint8Array(encryptedData),
-					nonce: new Uint8Array(nonce),
-					channelId,
-					memberCapId,
-					sender,
-					encryptedKey,
-				});
+			// Decrypt the data
+			const decryptedData = await this.#envelopeEncryption.decryptAttachmentData({
+				$kind: 'Encrypted',
+				encryptedBytes: new Uint8Array(encryptedData),
+				nonce: new Uint8Array(nonce),
+				channelId,
+				memberCapId,
+				sender,
+				encryptedKey,
+			});
 
-				resolve(decryptedData.data);
-			} catch (error) {
-				reject(error);
-			}
+			return decryptedData.data;
+		};
+
+		return new Promise((resolve, reject) => {
+			downloadAndDecrypt().then(resolve).catch(reject);
 		});
 	}
 

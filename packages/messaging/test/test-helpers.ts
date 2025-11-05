@@ -1,10 +1,12 @@
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 import { SuiClient } from '@mysten/sui/client';
 import { SealClient } from '@mysten/seal';
-import { WalrusClient } from '@mysten/walrus';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { Transaction } from '@mysten/sui/transactions';
 
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
@@ -17,7 +19,7 @@ import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_ca
 import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
-import { SuiGrpcClient } from '@mysten/sui-grpc';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Experimental_BaseClient } from '@mysten/sui/dist/cjs/experimental';
 
 // --- Constants ---
@@ -41,6 +43,7 @@ export interface TestEnvironmentSetup {
 	suiClient: SuiClient;
 	suiGrpcClient?: SuiGrpcClient;
 	signer: Signer;
+	userSigner: Signer;
 	packageId: string;
 	cleanup?: () => Promise<void>;
 }
@@ -172,6 +175,11 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	// Fund the account
 	await suiLocalNode.exec(['sui', 'client', 'faucet']);
 
+	// Create and fund a user signer
+	const userKeypair = Ed25519Keypair.generate();
+	const userAddress = userKeypair.toSuiAddress();
+	await suiLocalNode.exec(['sui', 'client', 'faucet', '--address', userAddress]);
+
 	// Publish the package
 	const publishResult = await suiLocalNode.exec([
 		'sui',
@@ -215,16 +223,10 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	};
 
 	// Update the config with the actual deployed package ID
-	const updatedConfig = {
+	const updatedConfig: TestConfig = {
 		...config,
 		packageConfig: {
-			...config.packageConfig,
 			packageId,
-			memberCapType: `${packageId}::channel::MemberCap`,
-			sealApproveContract: {
-				...config.packageConfig.sealApproveContract,
-				packageId,
-			},
 		},
 	};
 
@@ -232,6 +234,7 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		config: updatedConfig,
 		suiClient,
 		signer,
+		userSigner: userKeypair,
 		packageId,
 		cleanup,
 	};
@@ -268,11 +271,28 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 	}
 	const signer = Ed25519Keypair.fromSecretKey(config.secretKey);
 
+	// Create and fund a user signer
+	const userKeypair = Ed25519Keypair.generate();
+	const userAddress = userKeypair.toSuiAddress();
+
+	// Fund user using the main signer
+	const tx = new Transaction();
+	const FUND_AMOUNT = 100_000_000; // 0.1 SUI in MIST
+	tx.transferObjects([tx.splitCoins(tx.gas, [FUND_AMOUNT])], userAddress);
+	const { digest } = await suiClient.signAndExecuteTransaction({
+		transaction: tx,
+		signer: signer,
+	});
+
+	// Wait for transaction to be processed to avoid gas coin version conflicts
+	await suiClient.waitForTransaction({ digest });
+
 	return {
 		config,
 		suiClient,
 		suiGrpcClient,
 		signer,
+		userSigner: userKeypair,
 		packageId: config.packageConfig.packageId,
 		// No cleanup needed for testnet since we're not using Docker containers
 	};
@@ -320,19 +340,6 @@ class MockSealClient {
 	}
 }
 
-class MockWalrusClient {
-	/**
-	 * Returns the client extension to be used with `SuiClient.$extend`.
-	 * This mirrors the real SealClient's API for consistency.
-	 */
-	static asClientExtension() {
-		return {
-			name: 'walrus' as const,
-			register: () => new MockWalrusClient() as unknown as WalrusClient,
-		};
-	}
-}
-
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
@@ -361,23 +368,22 @@ export function createTestClient(
 	signer: Signer,
 ) {
 	return config.environment === 'localnet'
-		? suiRpcClient
-				.$extend(MockSealClient.asClientExtension())
-				.$extend(MockWalrusClient.asClientExtension())
-				.$extend(
-					SuiStackMessagingClient.experimental_asClientExtension({
-						packageConfig: config.packageConfig,
-						storage: (_client) => new MockStorageAdapter(),
-						sessionKeyConfig: {
-							address: signer.toSuiAddress(),
-							ttlMin: 30,
-							signer,
-						},
-					}),
-				)
+		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
+				SuiStackMessagingClient.experimental_asClientExtension({
+					packageConfig: config.packageConfig,
+					storage: (_client) => new MockStorageAdapter(),
+					sessionKeyConfig: {
+						address: signer.toSuiAddress(),
+						ttlMin: 30,
+						signer,
+					},
+				}),
+			)
 		: suiRpcClient
-				.$extend(MockWalrusClient.asClientExtension())
 				.$extend(
+					// NOTE: Using deprecated asClientExtension() because the new seal() function
+					// is not exported from @mysten/seal package index (v0.9.1).
+					// TODO: Switch to seal() once available
 					SealClient.asClientExtension({
 						serverConfigs: config.sealConfig?.serverConfigs || [],
 					}),

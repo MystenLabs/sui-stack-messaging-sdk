@@ -1,101 +1,366 @@
 ## Table of Contents
 
-- [Home - Overview and Installation](./README.md)
+- [Home](./README.md)
+- [Installation Guide](./Installation.md)
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
-- Example App - TBD
+- [Example patterns](./Examples.md)
 
 # Developer Setup
 
-The MessagingClient uses Sui's client extension system, which allows you to extend a base Sui client with additional functionality. You start with either a `SuiClient` (JSON-RPC) or `SuiGrpcClient` and extend it with other clients that expose `asClientExtension` or `experimental_asClientExtension` methods.
+This guide shows you how to gte started with the Sui Stack Messaging SDK in your application.
 
-## Client Extension Pattern
+## Client extension system
 
-The `$extend` method allows you to compose multiple client extensions into a single client instance. Each extension adds new methods and capabilities to the base client:
+The `MessagingClient` uses Sui's client extension system, which allows you to extend a base Sui client with additional functionality.
 
-**Required Dependencies:**
+### Why use client extensions?
 
-- **SealClient**: Required for end-to-end encryption functionality. The MessagingClient depends on SealClient for encrypting and decrypting messages.
+- **Integrates seamlessly** with your existing Sui client setup
+- **Composes naturally** with other client extensions (e.g. other ts-sdks like Seal, Walrus, etc)
+- **Provides maximum flexibility** for advanced configurations
+- **Enables progressive enhancement** and add messaging to existing applications
 
-**Optional Dependencies:**
+### Pre-requisites
 
-- **WalrusClient**: Optional for attachment storage.
-
-**Storage Adapter:**
-By default, the MessagingClient uses `WalrusStorageAdapter` which stores encrypted attachment data on Walrus (decentralized storage). In this initial alpha version, the WalrusStorageAdapter only uses aggregators/publishers for storage operations.
-In the future, it will also support the `@mysten/walrus` sdk client, which for example will enable the upload relay.
-
-If you need different storage behavior, you can implement your own `StorageAdapter` by implementing the `StorageAdapter` interface and passing it to the MessagingClient configuration.
+Before extending your client, ensure you have:
 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
-import { SuiGrpcClient } from "@mysten/sui-grpc"; // Alternative base client
-import { GrpcWebFetchTransport } from "@protobuf-ts/grpcweb-transport";
-import { MessagingClient } from "@mysten/sui-messaging";
 import { SealClient } from "@mysten/seal";
-import { WalrusClient } from "@mysten/walrus";
-import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-
-// Not necessary to work with a Signer.
-const signer = Ed25519Keypair.generate();
-
-// Option 1: Using SuiClient (JSON-RPC)
-const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
-  .$extend(
-    SealClient.asClientExtension({
-      serverConfigs: [], // Seal server configurations
-    })
-  )
-  .$extend(WalrusClient.asClientExtension())
-  .$extend(
-    MessagingClient.experimental_asClientExtension({
-      network: "testnet", // or "mainnet"
-      sessionKeyConfig: {
-        address: signer.toSuiAddress(),
-        ttlMin: 30,
-        signer, // optional, e.g. in frontend apps you typically would not work with Signers
-      },
-      // Optional: custom storage adapter (if you don't want to use WalrusStorageAdapter)
-      // storage: (client) => new CustomStorageAdapter(client, config)
-    })
-  );
-
-// Option 2: Using SuiGrpcClient (gRPC)
-const grpcClient = new SuiGrpcClient({
-  network: "testnet",
-  transport: new GrpcWebFetchTransport({
-    baseUrl: "https://fullnode.testnet.sui.io:443",
-  }),
-})
-  .$extend(SealClient.asClientExtension({ serverConfigs: [] }))
-  .$extend(WalrusClient.asClientExtension())
-  .$extend(
-    MessagingClient.experimental_asClientExtension({
-      network: "testnet",
-      sessionKeyConfig: {
-        address: signer.toSuiAddress(),
-        ttlMin: 30,
-        signer,
-      },
-    })
-  );
-
-// Access messaging functionality
-const messaging = client.messaging; // or grpcClient.messaging
+import { SuiStackMessagingClient } from "@mysten/sui-messaging";
 ```
 
-## Configuration Options
+### Step-by-Step extension
 
-- `network`: "testnet" | "mainnet" - Uses predefined package configs
-- `packageConfig`: Custom package configuration (overrides network)
-  // Alternatively you can provide your own managed instance of a @mysten/seal/SessionKey
-- `sessionKeyConfig`: Required for encryption/decryption
-  - `address`: User's Sui address
-  - `ttlMin`: Session key time-to-live in minutes
-  - `signer`: Optional Signer for session key operations
-- `storage`: Optional custom storage adapter (defaults to WalrusStorageAdapter)
-  - If not provided and WalrusClient is available, uses WalrusStorageAdapter
-  - If not provided and WalrusClient is not available, you must provide a custom storage adapter
-  - Custom storage adapters must implement the `StorageAdapter` interface
+**Step 1: Create your base client with MVR integration**
+
+```typescript
+const baseClient = new SuiClient({
+  url: "https://fullnode.testnet.sui.io:443",
+  mvr: {
+    overrides: {
+      packages: {
+        '@local-pkg/sui-stack-messaging': "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d", // Or provide your own package ID
+      },
+    },
+  },
+});
+```
+
+**Step 2: Extend with SealClient (required for encryption)**
+
+The `SealClient` configures which key servers to use for encryption and decryption:
+
+```typescript
+const clientWithSeal = baseClient.$extend(
+  SealClient.asClientExtension({
+    // Testnet key servers
+    serverConfigs: [
+      {
+        objectId:
+          "0xa...",
+        weight: 1,
+      },
+      {
+        objectId:
+          "0xb...",
+        weight: 1,
+      },
+    ],
+  })
+);
+```
+
+Refer to [verified key servers](https://seal-docs.wal.app/Pricing/#verified-key-servers) for the list of verified key servers on Testnet and Mainnet.
+
+**Step 3: Extend with SuiStackMessagingClient**
+
+```typescript
+const messagingClient = clientWithSeal.$extend(
+  SuiStackMessagingClient.experimental_asClientExtension({
+    // Session key configuration (choose one of the available approaches - see below)
+    sessionKeyConfig: {
+      address: "0x...", // User's Sui address
+      ttlMin: 30, // Session key lifetime in minutes
+      // signer: optional - provide if needed for your use case
+    },
+
+    // Storage configuration (choose one of the available approaches - see below)
+    walrusStorageConfig: {
+      publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
+      aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
+      epochs: 1, // Storage duration in Walrus epochs
+    },
+
+    // Optional: Seal operation configuration
+    sealConfig: {
+      threshold: 2, // Number of key servers required (default: 2)
+    },
+
+    // Optional: if using a smart contract specific to your app (see below for full config)
+    packageConfig: { ... }
+  })
+);
+
+// Access messaging functionality
+const messaging = messagingClient.messaging;
+```
+
+### Complete extension example
+
+```typescript
+const client = new SuiClient({
+  url: "https://fullnode.testnet.sui.io:443",
+  mvr: {
+    overrides: {
+      packages: {
+        '@local-pkg/sui-stack-messaging': "0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d", // Or provide your own package ID
+      },
+    },
+  },
+})
+  .$extend(
+    SealClient.asClientExtension({
+      serverConfigs: [
+        {
+          objectId:
+            "0xa...",
+          weight: 1,
+        },
+        {
+          objectId:
+            "0xb...",
+          weight: 1,
+        },
+      ],
+    })
+  )
+  .$extend(
+    SuiStackMessagingClient.experimental_asClientExtension({
+      sessionKeyConfig: {
+        address: "0x...",
+        ttlMin: 30,
+      },
+      walrusStorageConfig: {
+        publisher: "https://publisher.walrus-testnet.walrus.space", // provide your preferred publisher URL
+        aggregator: "https://aggregator.walrus-testnet.walrus.space", // provide your preferred aggregator URL
+        epochs: 1,
+      },
+      sealConfig: {
+        threshold: 2,
+      },
+      packageConfig: { ... }, // if using smart contract specific to your app
+    })
+  );
+
+// Now you have: client.core, client.seal, client.messaging
+```
+
+## Configuration reference
+
+### Required dependencies
+
+| Dependency   | Purpose                                            | Required |
+| ------------ | -------------------------------------------------- | -------- |
+| `SealClient` | End-to-end encryption and decryption for messages and attachments | ✅ Yes |
+| Sui smart contract | Your app specific smart contract to manage channels, messages, and membership | No (it's optional) |
+
+> [!NOTE] 
+> The `WalrusStorageAdapter` works without `WalrusClient` by using direct publisher and aggregator URLs. In future, we plan to support the `WalrusClient` as an option, enabling features like the upload relay.
+
+### Seal session key configuration
+
+You must choose **one** of the following approaches:
+
+#### Option A: Manual session key management
+
+Provide your own managed `@mysten/seal/SessionKey` instance:
+
+```typescript
+sessionKey: SessionKey; // Your own SessionKey instance
+```
+
+**Example:**
+
+```typescript
+import { SessionKey } from "@mysten/seal";
+
+const mySessionKey = await SessionKey.create(/* ... */);
+
+SuiStackMessagingClient.experimental_asClientExtension({
+  sessionKey: mySessionKey,
+  // ... other config
+});
+```
+
+#### Option B: Automatic session key management
+
+The SDK manages the session key lifecycle automatically:
+
+```typescript
+sessionKeyConfig: {
+  address: string;       // User's Sui address (required)
+  ttlMin: number;        // Session key lifetime in minutes (required)
+  signer?: Signer;       // Optional: Signer for session key creation
+  mvrName?: string;      // Optional: MVR name for session key
+}
+```
+
+**Example:**
+
+```typescript
+sessionKeyConfig: {
+  address: "0x123...",
+  ttlMin: 30,
+}
+```
+
+### Storage configuration
+
+You must choose **one** of the following approaches to specify the storage configuration:
+
+#### Option A: Walrus storage (built-in)
+
+Use Walrus decentralized storage for attachments:
+
+```typescript
+walrusStorageConfig: {
+  publisher: string; // Walrus publisher URL (required)
+  aggregator: string; // Walrus aggregator URL (required)
+  epochs: number; // Storage duration in Walrus epochs (required)
+}
+```
+
+**Example:**
+
+```typescript
+walrusStorageConfig: {
+  publisher: "https://publisher.walrus-testnet.walrus.space",
+  aggregator: "https://aggregator.walrus-testnet.walrus.space",
+  epochs: 1,
+}
+```
+
+#### Option B: Custom storage adapter
+
+Implement your own storage backend:
+
+```typescript
+storage: (client: MessagingCompatibleClient) => StorageAdapter;
+```
+
+**Example:**
+
+```typescript
+import { StorageAdapter } from "@mysten/sui-stack-messaging-sdk";
+
+class MyCustomStorage implements StorageAdapter {
+  async upload(
+    data: Uint8Array[],
+    options: StorageOptions
+  ): Promise<{ ids: string[] }> {
+    // Your upload logic
+  }
+
+  async download(ids: string[]): Promise<Uint8Array[]> {
+    // Your download logic
+  }
+}
+
+SuiStackMessagingClient.experimental_asClientExtension({
+  storage: (client) => new MyCustomStorage(client),
+  // ... other config
+});
+```
+
+### Other Seal configuration (optional)
+
+You can optionally configure the following parameters for Seal encryption and decryption:
+
+```typescript
+sealConfig?: {
+  threshold?: number;    // Number of key servers required (default: 2)
+}
+```
+
+#### Distinction between the two Seal configurations
+
+- `SealClient` configuration (`SealClient.asClientExtension`): Defines **which** key servers to use
+- `MessagingClient` sealConfig: Defines operational parameters like encryption **threshold**
+
+Refer to [Seal design](https://seal-docs.wal.app/Design/) and [Seal developer guide](https://seal-docs.wal.app/UsingSeal/) for relevant information.
+
+**Example:**
+
+```typescript
+// SealClient: Configure key servers
+SealClient.asClientExtension({
+  serverConfigs: [
+    { objectId: "0x...", weight: 1 },
+    { objectId: "0x...", weight: 1 },
+    { objectId: "0x...", weight: 1 },
+  ],
+});
+
+// MessagingClient: Configure threshold (how many servers must participate)
+SuiStackMessagingClient.experimental_asClientExtension({
+  sealConfig: {
+    threshold: 2, // Require 2 out of 3 key servers
+  },
+  // ... other config
+});
+```
+
+### Smart contract configuration
+
+You may provide a smart contract specific to your app. Else the package deployed on `Testnet` will be used - `0x984960ebddd75c15c6d38355ac462621db0ffc7d6647214c802cd3b685e1af3d`. Check out the [relevant installation instructions](./Installation.md#smart-contract-deployment).
+
+If providing your own package, specify your own `packageConfig`:
+
+```typescript
+packageConfig: {
+  packageId: string;                    // Your smart contract package ID (required)
+  sealApproveContract?: {               // Required if your Seal access policy package is different from the main package
+    packageId: string;                  // Seal access policy package ID
+    module: string;                     // Module name (default: "seal_policies")
+    functionName: string;               // Function name (default: "seal_approve")
+  }
+}
+```
+
+**Example:**
+
+```typescript
+SuiStackMessagingClient.experimental_asClientExtension({
+  packageConfig: {
+    packageId: "0xabc123...",
+    sealApproveContract: {
+      packageId: "0xabc123...",
+      module: "seal_policies",
+      functionName: "seal_approve",
+    },
+  },
+  // ... other config
+});
+```
+
+## Next steps
+
+See the [SDK API Reference](./APIRef.md) for details of the available SDK methods.
+
+## Troubleshooting
+
+### Common issues
+
+- `SealClient extension is required` - Make sure to extend with `SealClient` before `SuiStackMessagingClient`.
+- `Must provide either storage or walrusStorageConfig` - Choose one of the storage configuration approaches.
+- `Cannot provide both sessionKey and sessionKeyConfig` - Choose one of the Seal session key approaches.
+
+### Getting help
+
+- Check the [Integration Testing](./Testing.md) guide for setup validation
+- Review example implementations in the test files and also [example patterns](./Examples.md)
+- [Contact Us](./README.md#contact-us)
 
 [Back to table of contents](#table-of-contents)

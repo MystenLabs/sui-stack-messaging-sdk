@@ -1,4 +1,5 @@
-#!/usr/bin/env tsx
+import { fundTestUsers } from './fund-test-users';
+import { prepareTestData } from './prepare-test-data';
 
 /**
  * Testnet Setup Script
@@ -8,19 +9,15 @@
  * 2. Prepares test data (channels and messages)
  *
  * Usage:
- *   npx tsx test/setup-testnet.ts
+ *   npx tsx setup-testnet.ts
  *
  * Required Environment Variables:
  *   - TESTNET_FUNDER_ADDRESS: Address of the account with testnet SUI
- *   - TESTNET_FUNDER_PHRASE: Recovery phrase of the funder account
+ *   - TESTNET_FUNDER_SECRET_KEY: Secret key of the funder account
  *   - TESTNET_PACKAGE_ID: Deployed package ID on testnet
  *   - TESTNET_SEAL_APPROVE_PACKAGE_ID: Seal approve contract package ID
- *   - PHRASE: Recovery phrase for the main test account
+ *   - TESTNET_SECRET_KEY: Secret key for the main test account
  */
-
-import { fundTestUsers } from './fund-test-users';
-import { prepareTestData } from './prepare-test-data';
-
 async function setupTestnet(): Promise<void> {
 	console.log('🚀 Starting testnet setup...');
 
@@ -34,8 +31,10 @@ async function setupTestnet(): Promise<void> {
 
 	console.log('\n✅ Testnet setup completed successfully!');
 	console.log('\n📝 Next steps:');
-	console.log('   1. Run integration tests: npm test integration-read-v2.test.ts');
-	console.log('   2. Or run all tests: npm test');
+	console.log(
+		'   1. Run integration tests: TEST_ENVIRONMENT=testnet pnpm vitest integration-read-v2.test.ts',
+	);
+	console.log('   2. Or run all tests: pnpm test:integration:testnet');
 }
 
 // Run the script

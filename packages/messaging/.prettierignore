@@ -1,0 +1,29 @@
+# ignore everything by default
+# /*
+# Enable prettier for apps, dapps and sdk
+!/packages
+
+# ignore generated files
+/apps/icons/src
+npm-debug.log*
+package-lock.json
+yarn-debug.log*
+.next/
+.source/
+.swc/
+build/
+coverage/
+dist/
+out/
+generated/
+playwright-report/
+storybook-static/
+CHANGELOG.md
+packages/move-bytecode-template/pkg
+packages/docs/public/typedoc
+packages/walrus-wasm
+packages/move-bytecode-template
+packages/walrus/src/client
+package.json
+pnpm-lock.yaml
+package_summaries/

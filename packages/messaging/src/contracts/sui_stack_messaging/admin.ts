@@ -1,7 +1,5 @@
-/**************************************************************
- * THIS FILE IS GENERATED AND SHOULD NOT BE MANUALLY MODIFIED *
- **************************************************************/
-
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 /**
  * Package-level Admin features: Change package version Change Channel object's
