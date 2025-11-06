@@ -1058,23 +1058,25 @@ export class SuiStackMessagingClient {
 
 		const { digest, effects } = await this.#executeTransaction(tx, signer, 'create channel', true);
 
-		// Extract the created objects from the transaction effects
-		const createdObjectIds = effects.changedObjects
-			.filter((object) => object.idOperation === 'Created')
+		// Extract the created channel object id from the transaction effects
+		const createdChannelObjectIds = effects.changedObjects
+			.filter(
+				(object) =>
+					object.idOperation === 'Created' &&
+					!!object.outputOwner &&
+					object.outputOwner.$kind === 'Shared',
+			)
 			.map((object) => object.id);
 
-		const createdObjects = await this.#suiClient.core.getObjects({
-			objectIds: createdObjectIds,
-		});
+		if (createdChannelObjectIds.length > 1) {
+			throw new MessagingClientError(
+				`Found ${createdChannelObjectIds.length} Channel objects. Only 1 should have been created.`,
+			);
+		}
 
-		// Find the channel object
-		const channelType = Channel.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-		const channelObject = createdObjects.objects.find(
-			(object) => !(object instanceof Error) && object.type === channelType,
-		);
+		const channelObject = await this.#suiClient.core.getObject({
+			objectId: createdChannelObjectIds[0],
+		});
 
 		if (channelObject instanceof Error || !channelObject) {
 			throw new MessagingClientError(
@@ -1082,7 +1084,7 @@ export class SuiStackMessagingClient {
 			);
 		}
 
-		const channelObjectParsed = Channel.parse(await channelObject.content);
+		const channelObjectParsed = Channel.parse(await channelObject.object.content);
 		const generatedCaps = await this.#getGeneratedCaps(digest);
 
 		return {

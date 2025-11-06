@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 import { SuiClient } from '@mysten/sui/client';
-import { SealClient } from '@mysten/seal';
+import { SealClient, EncryptedObject } from '@mysten/seal';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
@@ -70,8 +70,8 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	const SUI_TOOLS_TAG =
 		process.env.SUI_TOOLS_TAG ||
 		(process.arch === 'arm64'
-			? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
-			: 'e4d7ef827d609d606907969372bb30ff4c10d60a');
+			? '2cde80b5766b0bc2073908e10f6e3c81c93fd691-arm64'
+			: '2cde80b5766b0bc2073908e10f6e3c81c93fd691');
 
 	// Start Docker network
 	const dockerNetwork = await new Network().start();
@@ -185,11 +185,30 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		'sui',
 		'client',
 		'publish',
-		'./sui_stack_messaging',
+		'/sui/sui_stack_messaging',
+		'--with-unpublished-dependencies',
+		'--skip-dependency-verification',
 		'--json',
 	]);
 
-	const publishResultJson = JSON.parse(publishResult.stdout);
+	// Add error handling to debug publish issues
+	if (publishResult.exitCode !== 0) {
+		console.error('Publish command failed with exit code:', publishResult.exitCode);
+		console.error('stdout:', publishResult.stdout);
+		console.error('stderr:', publishResult.stderr);
+		throw new Error(`Failed to publish package to localnet. Exit code: ${publishResult.exitCode}`);
+	}
+
+	let publishResultJson;
+	try {
+		publishResultJson = JSON.parse(publishResult.stdout);
+	} catch (parseError) {
+		console.error('Failed to parse publish result as JSON');
+		console.error('stdout:', publishResult.stdout);
+		console.error('stderr:', publishResult.stderr);
+		throw new Error(`Publish result is not valid JSON: ${publishResult.stdout.substring(0, 200)}`);
+	}
+
 	if (publishResultJson.effects.status.status !== 'success') {
 		throw new Error('Failed to publish package to localnet');
 	}
@@ -305,27 +324,68 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 /**
  * A mock SealClient for localnet testing.
  * SealClient officially supports only testnet and mainnet. This mock
- * bypasses actual encryption and acts as a pass-through for the DEK,
- * and mimics the static `asClientExtension` method for a consistent API.
+ * bypasses actual encryption but produces a valid EncryptedObject structure
+ * with the unencrypted data stored in the ciphertext.Aes256Gcm.blob field.
  */
 class MockSealClient {
-	async encrypt({ data }: { data: Uint8Array }): Promise<{
+	async encrypt({
+		data,
+		id,
+		packageId,
+		threshold,
+	}: {
+		data: Uint8Array;
+		id: string;
+		packageId: string;
+		threshold: number;
+	}): Promise<{
 		encryptedObject: Uint8Array;
 		key: Uint8Array;
 	}> {
-		// For local testing, we bypass Seal encryption.
-		// The "encrypted" object is simply the original data (the DEK).
-		// The returned `key` can be the same, as it's used for backup purposes.
+		// Create a valid EncryptedObject structure that can be parsed
+		// Store the unencrypted DEK in the ciphertext blob (mock only!)
+		const encryptedObjectData = {
+			version: 1,
+			packageId: packageId,
+			id: id,
+			services: [], // Empty services for mock
+			threshold: threshold,
+			encryptedShares: {
+				BonehFranklinBLS12381: {
+					nonce: new Uint8Array(96), // Mock nonce
+					encryptedShares: [],
+					encryptedRandomness: new Uint8Array(32), // Mock randomness
+				},
+			},
+			ciphertext: {
+				Aes256Gcm: {
+					blob: data, // Store unencrypted data here for mock
+					aad: null,
+				},
+			},
+		};
+
+		// Serialize the EncryptedObject structure
+		const encryptedObject = EncryptedObject.serialize(encryptedObjectData).toBytes();
+
 		return {
-			encryptedObject: data,
-			key: data,
+			encryptedObject: encryptedObject,
+			key: data, // Return original data as backup key
 		};
 	}
 
 	async decrypt({ data }: { data: Uint8Array }): Promise<Uint8Array> {
-		// The mock decrypt is an identity function.
-		// It returns the "encrypted object" as is, because for the mock, it's just the raw DEK.
-		return data;
+		// Parse the EncryptedObject and extract the unencrypted data from the blob
+		const parsed = EncryptedObject.parse(data);
+
+		// Extract the blob from the Aes256Gcm variant
+		if (parsed.ciphertext.Aes256Gcm && 'Aes256Gcm' in parsed.ciphertext) {
+			return parsed.ciphertext.Aes256Gcm.blob;
+		}
+
+		throw new Error(
+			'MockSealClient: Expected Aes256Gcm ciphertext variant in mock EncryptedObject',
+		);
 	}
 
 	/**
@@ -342,16 +402,32 @@ class MockSealClient {
 
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
+	// In-memory storage for mock blobs
+	private storage: Map<string, Uint8Array> = new Map();
+
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
 		// artificial delay
 		await new Promise((resolve) => setTimeout(resolve, 1000));
-		// Return mock blob IDs for testing
-		return { ids: data.map((_, i) => `mock-blob-${i}-${Date.now()}`) };
+		// Generate mock blob IDs and store the data
+		const ids = data.map((blob, i) => {
+			const id = `mock-blob-${i}-${Date.now()}`;
+			this.storage.set(id, blob);
+			return id;
+		});
+		return { ids };
 	}
 
-	// @ts-ignore
 	async download(ids: string[]): Promise<Uint8Array[]> {
-		return [];
+		// artificial delay
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		// Retrieve stored data
+		return ids.map((id) => {
+			const data = this.storage.get(id);
+			if (!data) {
+				throw new Error(`MockStorageAdapter: Blob ${id} not found`);
+			}
+			return data;
+		});
 	}
 }
 
@@ -367,11 +443,15 @@ export function createTestClient(
 	config: TestConfig,
 	signer: Signer,
 ) {
+	// Create a single shared MockStorageAdapter instance for localnet
+	// This ensures uploaded data persists across operations
+	const mockStorage = new MockStorageAdapter();
+
 	return config.environment === 'localnet'
 		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
 				SuiStackMessagingClient.experimental_asClientExtension({
 					packageConfig: config.packageConfig,
-					storage: (_client) => new MockStorageAdapter(),
+					storage: (_client) => mockStorage,
 					sessionKeyConfig: {
 						address: signer.toSuiAddress(),
 						ttlMin: 30,

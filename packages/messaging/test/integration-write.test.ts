@@ -44,7 +44,7 @@ describe('Integration tests - Write Path', () => {
 				transport: new GrpcWebFetchTransport({ baseUrl: 'http://127.0.0.1:9000' }),
 			});
 		}
-	}, 200000);
+	}, 600000); // 10 minutes to allow for Docker image download
 
 	afterAll(async () => {
 		// Cleanup test environment if cleanup function is provided

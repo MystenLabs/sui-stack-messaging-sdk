@@ -119,18 +119,20 @@ describe('Integration tests - Read Path v2', () => {
 			// The signer is the one who created the channels and should have access
 			const testUser = testSetup.signer.toSuiAddress();
 
-			// Get all channel objects for the user (this will include all channels they're a member of)
-			const result = await client.messaging.getChannelObjectsByAddress({
-				address: testUser,
-				limit: 10,
+			// Get specific channels by their IDs
+			const testChannelIds = testData.channels.map((ch) => ch.channelId);
+			const result = await client.messaging.getChannelObjectsByChannelIds({
+				channelIds: testChannelIds,
+				userAddress: testUser,
 			});
 
-			// Filter to only include channels from our test data
-			const testChannelIds = testData.channels.map((ch) => ch.channelId);
-			const testChannels = result.channelObjects.filter((ch) => testChannelIds.includes(ch.id.id));
-
-			expect(testChannels.length).toBe(testChannelIds.length);
-			expect(testChannels.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(true);
+			expect(result.length).toBe(testChannelIds.length);
+			expect(result.every((ch) => ch.id && ch.messages_count !== undefined)).toBe(true);
+			// Verify all requested channel IDs are present in the result
+			const resultIds = result.map((ch) => ch.id.id);
+			testChannelIds.forEach((id) => {
+				expect(resultIds).toContain(id);
+			});
 		});
 
 		it('should handle non-existent channel IDs gracefully', async () => {
@@ -298,14 +300,26 @@ describe('Integration tests - Read Path v2', () => {
 			// Use the test setup signer address instead of a random member address
 			// The signer is the one who created the channels and should have access
 			const testUser = testSetup.signer.toSuiAddress();
-			const allChannelObjects = await client.messaging.getChannelObjectsByAddress({
+			let allChannelObjects = await client.messaging.getChannelObjectsByAddress({
 				address: testUser,
-				limit: 10,
+				limit: 50,
 			});
 
-			const channelObject = allChannelObjects.channelObjects.find(
+			let channelObject = allChannelObjects.channelObjects.find(
 				(ch) => ch.id.id === testChannel.channelId,
 			);
+
+			while (!channelObject && allChannelObjects.hasNextPage) {
+				allChannelObjects = await client.messaging.getChannelObjectsByAddress({
+					address: testUser,
+					cursor: allChannelObjects.cursor ?? undefined,
+					limit: 50,
+				});
+				channelObject = allChannelObjects.channelObjects.find(
+					(ch) => ch.id.id === testChannel.channelId,
+				);
+			}
+
 			if (!channelObject) {
 				throw new Error(`Channel ${testChannel.channelId} not found in user's channels`);
 			}
