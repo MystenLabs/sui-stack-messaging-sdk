@@ -21,7 +21,9 @@
 
 # Scripts
 .env
+.env.bak*
 .publish.res.json
+.publish.res.*.json
 .template_bytecode.json
 
 # Test data and sensitive information
@@ -45,3 +47,5 @@ load-tests/k6/details*.json
 
 .DS_store
 CLAUDE.md
+TODO.md
+docs/plans/
