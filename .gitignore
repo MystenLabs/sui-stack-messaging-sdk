@@ -21,7 +21,7 @@
 
 # Scripts
 .env
-.publish.res.json
+.publish.res*.json
 .template_bytecode.json
 
 # Test data and sensitive information
