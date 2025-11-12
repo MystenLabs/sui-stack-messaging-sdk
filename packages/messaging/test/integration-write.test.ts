@@ -576,4 +576,213 @@ describe('Integration tests - Write Path', () => {
 			console.log(`👨‍💼 ${supportResponse!.sender}: ${supportResponse!.text}`);
 		}, 320000);
 	});
+
+	describe('Permission Management', () => {
+		it('should allow admin to promote member to SendMessage permission', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const memberKeypair = Ed25519Keypair.generate();
+			const memberAddress = memberKeypair.toSuiAddress();
+
+			// Create channel with a member
+			const { channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [memberAddress],
+			});
+
+			// Get admin's member cap ID
+			let adminMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !adminMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+			expect(adminMembership).toBeDefined();
+			const adminMemberCapId = adminMembership!.member_cap_id;
+
+			// Get member's member cap ID
+			let memberMembership: Membership | null | undefined = null;
+			let memberCursor: string | null = null;
+			let memberHasNextPage: boolean = true;
+			while (memberHasNextPage && !memberMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: memberAddress,
+					cursor: memberCursor,
+				});
+				memberMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				memberHasNextPage = memberships.hasNextPage;
+				memberCursor = memberships.cursor;
+			}
+			expect(memberMembership).toBeDefined();
+			const memberCapId = memberMembership!.member_cap_id;
+
+			// Promote member to SendMessage
+			const tx = new (await import('@mysten/sui/transactions')).Transaction();
+			const promoteBuilder = client.messaging.promoteMember(
+				channelId,
+				adminMemberCapId,
+				memberCapId,
+				(await import('../src/types.js')).Permission.SendMessage,
+			);
+			promoteBuilder(tx);
+
+			tx.setSenderIfNotSet(signer.toSuiAddress());
+			const { digest } = await signer.signAndExecuteTransaction({
+				transaction: tx,
+				client,
+			});
+			expect(digest).toBeDefined();
+
+			// Wait for transaction to be indexed
+			await client.core.waitForTransaction({ digest });
+		}, 60000);
+
+		it('should allow admin to demote member from SendMessage permission', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const memberKeypair = Ed25519Keypair.generate();
+			const memberAddress = memberKeypair.toSuiAddress();
+
+			// Create channel with a member
+			const { channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [memberAddress],
+			});
+
+			// Get admin's member cap ID
+			let adminMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !adminMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+			expect(adminMembership).toBeDefined();
+			const adminMemberCapId = adminMembership!.member_cap_id;
+
+			// Get member's member cap ID
+			let memberMembership: Membership | null | undefined = null;
+			let memberCursor: string | null = null;
+			let memberHasNextPage: boolean = true;
+			while (memberHasNextPage && !memberMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: memberAddress,
+					cursor: memberCursor,
+				});
+				memberMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				memberHasNextPage = memberships.hasNextPage;
+				memberCursor = memberships.cursor;
+			}
+			expect(memberMembership).toBeDefined();
+			const memberCapId = memberMembership!.member_cap_id;
+
+			// First promote to SendMessage
+			const promoteTx = new (await import('@mysten/sui/transactions')).Transaction();
+			const promoteBuilder = client.messaging.promoteMember(
+				channelId,
+				adminMemberCapId,
+				memberCapId,
+				(await import('../src/types.js')).Permission.SendMessage,
+			);
+			promoteBuilder(promoteTx);
+			promoteTx.setSenderIfNotSet(signer.toSuiAddress());
+			await signer.signAndExecuteTransaction({
+				transaction: promoteTx,
+				client,
+			});
+
+			// Then demote from SendMessage
+			const demoteTx = new (await import('@mysten/sui/transactions')).Transaction();
+			const demoteBuilder = client.messaging.demoteMember(
+				channelId,
+				adminMemberCapId,
+				memberCapId,
+				(await import('../src/types.js')).Permission.SendMessage,
+			);
+			demoteBuilder(demoteTx);
+
+			demoteTx.setSenderIfNotSet(signer.toSuiAddress());
+			const { digest } = await signer.signAndExecuteTransaction({
+				transaction: demoteTx,
+				client,
+			});
+			expect(digest).toBeDefined();
+
+			// Wait for transaction to be indexed
+			await client.core.waitForTransaction({ digest });
+		}, 60000);
+
+		it('should allow delegating ManagePermissions to another member', async () => {
+			const client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
+			const memberKeypair = Ed25519Keypair.generate();
+			const memberAddress = memberKeypair.toSuiAddress();
+
+			// Create channel with a member
+			const { channelId } = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [memberAddress],
+			});
+
+			// Get admin's member cap ID
+			let adminMembership: Membership | null | undefined = null;
+			let cursor: string | null = null;
+			let hasNextPage: boolean = true;
+			while (hasNextPage && !adminMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: signer.toSuiAddress(),
+					cursor,
+				});
+				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				hasNextPage = memberships.hasNextPage;
+				cursor = memberships.cursor;
+			}
+			expect(adminMembership).toBeDefined();
+			const adminMemberCapId = adminMembership!.member_cap_id;
+
+			// Get member's member cap ID
+			let memberMembership: Membership | null | undefined = null;
+			let memberCursor: string | null = null;
+			let memberHasNextPage: boolean = true;
+			while (memberHasNextPage && !memberMembership) {
+				const memberships = await client.messaging.getChannelMemberships({
+					address: memberAddress,
+					cursor: memberCursor,
+				});
+				memberMembership = memberships.memberships.find((m) => m.channel_id === channelId);
+				memberHasNextPage = memberships.hasNextPage;
+				memberCursor = memberships.cursor;
+			}
+			expect(memberMembership).toBeDefined();
+			const memberCapId = memberMembership!.member_cap_id;
+
+			// Grant ManagePermissions to the member
+			const tx = new (await import('@mysten/sui/transactions')).Transaction();
+			const promoteBuilder = client.messaging.promoteMember(
+				channelId,
+				adminMemberCapId,
+				memberCapId,
+				(await import('../src/types.js')).Permission.ManagePermissions,
+			);
+			promoteBuilder(tx);
+
+			tx.setSenderIfNotSet(signer.toSuiAddress());
+			const { digest } = await signer.signAndExecuteTransaction({
+				transaction: tx,
+				client,
+			});
+			expect(digest).toBeDefined();
+
+			// Wait for transaction to be indexed
+			await client.core.waitForTransaction({ digest });
+		}, 60000);
+	});
 });
