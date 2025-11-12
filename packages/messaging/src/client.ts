@@ -15,6 +15,7 @@ import {
 	sendMessage,
 	addMembers,
 	promoteMember,
+	promoteMembers,
 	demoteMember,
 	Channel,
 } from './contracts/sui_stack_messaging/channel.js';
@@ -666,6 +667,7 @@ export class SuiStackMessagingClient {
 	createChannelFlow({
 		creatorAddress,
 		initialMemberAddresses,
+		readOnlyInitialMembers = false,
 	}: CreateChannelFlowOpts): CreateChannelFlow {
 		const build = () => {
 			const tx = new Transaction();
@@ -695,6 +697,27 @@ export class SuiStackMessagingClient {
 						},
 					}),
 				);
+
+				// If not read-only, promote initial members to have SendMessage permission
+				if (!readOnlyInitialMembers) {
+					// Use the promote_members function to grant SendMessage permission to all initial members
+					memberCaps = tx.add(
+						promoteMembers({
+							package: this.#packageConfig.packageId,
+							arguments: {
+								self: channel,
+								granterCap: creatorMemberCap,
+								memberCaps: memberCaps,
+							},
+							typeArguments: [
+								PermissionTypeMap[Permission.SendMessage].replace(
+									'@local-pkg/sui-stack-messaging',
+									this.#packageConfig.packageId,
+								),
+							],
+						}),
+					);
+				}
 			}
 
 			// Share the channel
@@ -720,7 +743,7 @@ export class SuiStackMessagingClient {
 		};
 
 		const getGeneratedCaps = async ({ digest }: CreateChannelFlowGetGeneratedCapsOpts) => {
-			return await this.#getGeneratedCaps(digest);
+			return await this.#getGeneratedCaps(digest, creatorAddress);
 		};
 
 		const generateAndAttachEncryptionKey = async ({
@@ -997,7 +1020,12 @@ export class SuiStackMessagingClient {
 						granterCap: tx.object(granterMemberCapId),
 						memberCapId: tx.pure.id(targetMemberCapId),
 					},
-					typeArguments: [PermissionTypeMap[permission].replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId)],
+					typeArguments: [
+						PermissionTypeMap[permission].replace(
+							'@local-pkg/sui-stack-messaging',
+							this.#packageConfig.packageId,
+						),
+					],
 				}),
 			);
 		};
@@ -1026,7 +1054,12 @@ export class SuiStackMessagingClient {
 						revokerCap: tx.object(revokerMemberCapId),
 						memberCapId: tx.pure.id(targetMemberCapId),
 					},
-					typeArguments: [PermissionTypeMap[permission].replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId)],
+					typeArguments: [
+						PermissionTypeMap[permission].replace(
+							'@local-pkg/sui-stack-messaging',
+							this.#packageConfig.packageId,
+						),
+					],
 				}),
 			);
 		};
@@ -1056,8 +1089,15 @@ export class SuiStackMessagingClient {
 	async executeCreateChannelTransaction({
 		signer,
 		initialMembers,
+		readOnlyInitialMembers = false,
 	}: {
 		initialMembers?: string[];
+		/**
+		 * If set to true, initial members will only have `ReadMessages` permission.
+		 * By default, they will get the `SendMessage` permission as well.
+		 * @default false
+		 */
+		readOnlyInitialMembers?: boolean;
 	} & { signer: Signer }): Promise<{
 		digest: string;
 		channelId: string;
@@ -1067,6 +1107,7 @@ export class SuiStackMessagingClient {
 		const flow = this.createChannelFlow({
 			creatorAddress: signer.toSuiAddress(),
 			initialMemberAddresses: initialMembers,
+			readOnlyInitialMembers,
 		});
 
 		// Step 1: Build and execute the channel creation transaction
@@ -1078,10 +1119,7 @@ export class SuiStackMessagingClient {
 		);
 
 		// Step 2: Get the creator member cap from the transaction
-		const {
-			creatorMemberCap,
-			additionalMemberCaps: _,
-		} = await flow.getGeneratedCaps({
+		const { creatorMemberCap } = await flow.getGeneratedCaps({
 			digest: channelDigest,
 		});
 
@@ -1131,7 +1169,7 @@ export class SuiStackMessagingClient {
 		return { digest, effects };
 	}
 
-	async #getGeneratedCaps(digest: string) {
+	async #getGeneratedCaps(digest: string, creatorAddress: string) {
 		const memberCapType = MemberCap.name.replace(
 			'@local-pkg/sui-stack-messaging',
 			this.#packageConfig.packageId,
@@ -1151,36 +1189,64 @@ export class SuiStackMessagingClient {
 			objectIds: createdObjectIds,
 		});
 
-		// Get all MemberCap objects
-		const suiMemberCapObjects = createdObjects.objects.filter(
-			(object) => !(object instanceof Error) && object.type === memberCapType,
+		const suiCreatorMemberCapObject = createdObjects.objects.find(
+			(object) =>
+				!(object instanceof Error) &&
+				object.type === memberCapType &&
+				// only get the creator's member cap
+				object.owner.$kind === 'AddressOwner' &&
+				object.owner.AddressOwner === creatorAddress,
 		);
 
-		if (suiMemberCapObjects.length === 0) {
+		if (suiCreatorMemberCapObject instanceof Error || !suiCreatorMemberCapObject) {
 			throw new MessagingClientError(
-				`No MemberCap objects found in transaction effects for transaction (${digest})`,
+				`CreatorMemberCap object not found in transaction effects for transaction (${digest})`,
 			);
 		}
 
-		// Parse all MemberCaps
-		const allMemberCapsParsed = await Promise.all(
-			suiMemberCapObjects.map(async (object) => {
+		const creatorMemberCapParsed = MemberCap.parse(await suiCreatorMemberCapObject.content);
+
+		const suiAdditionalMemberCapsObjects = createdObjects.objects.filter(
+			(object) => !(object instanceof Error) && object.type === memberCapType,
+		);
+
+		// exclude the creator's member cap from the additional member caps
+		const additionalMemberCapsParsed = await Promise.all(
+			suiAdditionalMemberCapsObjects.map(async (object) => {
 				if (object instanceof Error) {
 					throw new MessagingClientError(
-						`MemberCap object not found in transaction effects for transaction (${digest})`,
+						`AdditionalMemberCap object not found in transaction effects for transaction (${digest})`,
 					);
 				}
-				return MemberCap.parse(await object.content);
+				const parsedMemberCap = MemberCap.parse(await object.content);
+
+				// Get the owner address from the object
+				let ownerAddress: string | null = null;
+				if (object.owner) {
+					if (object.owner.$kind === 'AddressOwner') {
+						ownerAddress = object.owner.AddressOwner;
+					} else {
+						return null;
+					}
+				}
+
+				return {
+					capObject: parsedMemberCap,
+					ownerAddress,
+				};
 			}),
 		);
 
-		// First MemberCap created is the creator's (based on transaction order)
-		const creatorMemberCapParsed = allMemberCapsParsed[0];
-		const additionalMemberCapsParsed = allMemberCapsParsed.slice(1);
+		const filteredAdditionalMemberCaps = additionalMemberCapsParsed.filter(
+			(cap): cap is { capObject: (typeof MemberCap)['$inferType']; ownerAddress: string } =>
+				cap !== null &&
+				cap.ownerAddress !== null &&
+				cap.capObject.id.id !== creatorMemberCapParsed.id.id,
+		);
 
 		return {
 			creatorMemberCap: creatorMemberCapParsed,
-			additionalMemberCaps: additionalMemberCapsParsed,
+			additionalMemberCaps: filteredAdditionalMemberCaps,
 		};
 	}
 

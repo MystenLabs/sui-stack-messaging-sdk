@@ -70,8 +70,8 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 	const SUI_TOOLS_TAG =
 		process.env.SUI_TOOLS_TAG ||
 		(process.arch === 'arm64'
-			? 'e4d7ef827d609d606907969372bb30ff4c10d60a-arm64'
-			: 'e4d7ef827d609d606907969372bb30ff4c10d60a');
+			? '2cde80b5766b0bc2073908e10f6e3c81c93fd691-arm64'
+			: '2cde80b5766b0bc2073908e10f6e3c81c93fd691');
 
 	// Start Docker network
 	const dockerNetwork = await new Network().start();
@@ -185,7 +185,9 @@ async function setupLocalnetEnvironment(config: TestConfig): Promise<TestEnviron
 		'sui',
 		'client',
 		'publish',
-		'./sui_stack_messaging',
+		'/sui/sui_stack_messaging',
+		'--with-unpublished-dependencies',
+		'--skip-dependency-verification',
 		'--json',
 	]);
 

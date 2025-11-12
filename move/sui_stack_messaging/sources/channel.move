@@ -207,6 +207,25 @@ public fun promote_member<Permission: drop>(
     self.updated_at_ms = clock.timestamp_ms();
 }
 
+/// Grant a permission to multiple members at once.
+/// Requires ManagePermissions permission.
+///
+/// This is useful for promoting initial members during channel creation.
+/// Takes a vector of MemberCaps and grants the specified permission to all of them.
+public fun promote_members<Permission: drop>(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_caps: vector<MemberCap>,
+    clock: &Clock,
+): vector<MemberCap> {
+    let granter_id = object::id(granter_cap);
+    member_caps.do_ref!(|cap| {
+        self.auth.grant_permission<Permission>(granter_id, object::id(cap));
+    });
+    self.updated_at_ms = clock.timestamp_ms();
+    member_caps
+}
+
 /// Revoke a permission from a member.
 /// Requires ManagePermissions permission.
 ///

@@ -6,10 +6,11 @@ import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { Transaction } from '@mysten/sui/transactions';
 import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
-import { Membership } from '../src/types';
+import { Membership, Permission } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -303,11 +304,14 @@ describe('Integration tests - Write Path', () => {
 		// Before each message test, create a fresh channel
 		beforeAll(async () => {
 			client = createTestClient(suiJsonRpcClient, testSetup.config, signer);
-			const { channelId: newChannelId, encryptedKeyBytes } =
-				await client.messaging.executeCreateChannelTransaction({
-					signer,
-					initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
-				});
+			const {
+				channelId: newChannelId,
+				encryptedKeyBytes,
+				creatorMemberCapId,
+			} = await client.messaging.executeCreateChannelTransaction({
+				signer,
+				initialMembers: [Ed25519Keypair.generate().toSuiAddress()],
+			});
 
 			const channelObjects = await client.messaging.getChannelObjectsByChannelIds({
 				channelIds: [newChannelId],
@@ -315,24 +319,9 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap (taking pagination into account)
-			let creatorMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !creatorMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
-				});
-				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(creatorMembership).toBeDefined();
-
-			// Get the actual MemberCap object
+			// Use the creator's MemberCap ID returned from channel creation
 			const memberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
+				objectIds: [creatorMemberCapId],
 			});
 			const memberCapObject = memberCapObjects.objects[0];
 			if (memberCapObject instanceof Error || !memberCapObject.content) {
@@ -444,31 +433,18 @@ describe('Integration tests - Write Path', () => {
 			// Step 2: Create a 1:1 support channel for a user
 			const topUserAddress = userSigner.toSuiAddress();
 
-			const { channelId, encryptedKeyBytes } = await messaging.executeCreateChannelTransaction({
-				signer: supportSigner,
-				initialMembers: [topUserAddress],
-			});
+			const { channelId, encryptedKeyBytes, creatorMemberCapId } =
+				await messaging.executeCreateChannelTransaction({
+					signer: supportSigner,
+					initialMembers: [topUserAddress],
+				});
 
 			console.log(`Support channel created for user: ${channelId}`);
 			expect(channelId).toBeDefined();
 			expect(encryptedKeyBytes).toBeDefined();
 
-			// Step 3: Fetch the memberCapId and encryptionKey (support handle)
-			let supportMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-
-			while (hasNextPage && !supportMembership) {
-				const memberships = await messaging.getChannelMemberships({
-					address: supportSigner.toSuiAddress(),
-					cursor,
-				});
-				supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(supportMembership).toBeDefined();
-			const supportMemberCapId = supportMembership!.member_cap_id;
+			// Step 3: Use the creator's member cap ID (returned from channel creation)
+			const supportMemberCapId = creatorMemberCapId;
 
 			// Get the channel object with encryption key info
 			const channelObjects = await messaging.getChannelObjectsByChannelIds({
@@ -511,7 +487,8 @@ describe('Integration tests - Write Path', () => {
 				version: userChannelObj.encryption_key_history.latest_version,
 			};
 
-			// Step 4: User sends a support query
+			// Step 4: User sends a support query (user already has SendMessage permission by default)
+
 			const userClient = createTestClient(suiJsonRpcClient, testSetup.config, userSigner);
 			const userQuery = "I can't claim my reward from yesterday's tournament.";
 
@@ -583,29 +560,15 @@ describe('Integration tests - Write Path', () => {
 			const memberKeypair = Ed25519Keypair.generate();
 			const memberAddress = memberKeypair.toSuiAddress();
 
-			// Create channel with a member
-			const { channelId } = await client.messaging.executeCreateChannelTransaction({
-				signer,
-				initialMembers: [memberAddress],
-			});
-
-			// Get admin's member cap ID
-			let adminMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !adminMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
+			// Create channel with a member - this returns the creator's member cap ID
+			const { channelId, creatorMemberCapId } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMembers: [memberAddress],
+					readOnlyInitialMembers: true,
 				});
-				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(adminMembership).toBeDefined();
-			const adminMemberCapId = adminMembership!.member_cap_id;
 
-			// Get member's member cap ID
+			// Get member's member cap ID by fetching their memberships
 			let memberMembership: Membership | null | undefined = null;
 			let memberCursor: string | null = null;
 			let memberHasNextPage: boolean = true;
@@ -621,13 +584,13 @@ describe('Integration tests - Write Path', () => {
 			expect(memberMembership).toBeDefined();
 			const memberCapId = memberMembership!.member_cap_id;
 
-			// Promote member to SendMessage
-			const tx = new (await import('@mysten/sui/transactions')).Transaction();
+			// Promote member to SendMessage using creator's member cap
+			const tx = new Transaction();
 			const promoteBuilder = client.messaging.promoteMember(
 				channelId,
-				adminMemberCapId,
+				creatorMemberCapId,
 				memberCapId,
-				(await import('../src/types.js')).Permission.SendMessage,
+				Permission.SendMessage,
 			);
 			promoteBuilder(tx);
 
@@ -647,29 +610,16 @@ describe('Integration tests - Write Path', () => {
 			const memberKeypair = Ed25519Keypair.generate();
 			const memberAddress = memberKeypair.toSuiAddress();
 
-			// Create channel with a member
-			const { channelId } = await client.messaging.executeCreateChannelTransaction({
-				signer,
-				initialMembers: [memberAddress],
-			});
-
-			// Get admin's member cap ID
-			let adminMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !adminMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
+			// Create channel with a member - this returns the creator's member cap ID
+			// Use readOnlyInitialMembers so we can test promoting them later
+			const { channelId, creatorMemberCapId } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMembers: [memberAddress],
+					readOnlyInitialMembers: true,
 				});
-				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(adminMembership).toBeDefined();
-			const adminMemberCapId = adminMembership!.member_cap_id;
 
-			// Get member's member cap ID
+			// Get member's member cap ID by fetching their memberships
 			let memberMembership: Membership | null | undefined = null;
 			let memberCursor: string | null = null;
 			let memberHasNextPage: boolean = true;
@@ -686,12 +636,12 @@ describe('Integration tests - Write Path', () => {
 			const memberCapId = memberMembership!.member_cap_id;
 
 			// First promote to SendMessage
-			const promoteTx = new (await import('@mysten/sui/transactions')).Transaction();
+			const promoteTx = new Transaction();
 			const promoteBuilder = client.messaging.promoteMember(
 				channelId,
-				adminMemberCapId,
+				creatorMemberCapId,
 				memberCapId,
-				(await import('../src/types.js')).Permission.SendMessage,
+				Permission.SendMessage,
 			);
 			promoteBuilder(promoteTx);
 			promoteTx.setSenderIfNotSet(signer.toSuiAddress());
@@ -701,12 +651,12 @@ describe('Integration tests - Write Path', () => {
 			});
 
 			// Then demote from SendMessage
-			const demoteTx = new (await import('@mysten/sui/transactions')).Transaction();
+			const demoteTx = new Transaction();
 			const demoteBuilder = client.messaging.demoteMember(
 				channelId,
-				adminMemberCapId,
+				creatorMemberCapId,
 				memberCapId,
-				(await import('../src/types.js')).Permission.SendMessage,
+				Permission.SendMessage,
 			);
 			demoteBuilder(demoteTx);
 
@@ -726,29 +676,14 @@ describe('Integration tests - Write Path', () => {
 			const memberKeypair = Ed25519Keypair.generate();
 			const memberAddress = memberKeypair.toSuiAddress();
 
-			// Create channel with a member
-			const { channelId } = await client.messaging.executeCreateChannelTransaction({
-				signer,
-				initialMembers: [memberAddress],
-			});
-
-			// Get admin's member cap ID
-			let adminMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !adminMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
+			// Create channel with a member - this returns the creator's member cap ID
+			const { channelId, creatorMemberCapId } =
+				await client.messaging.executeCreateChannelTransaction({
+					signer,
+					initialMembers: [memberAddress],
 				});
-				adminMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(adminMembership).toBeDefined();
-			const adminMemberCapId = adminMembership!.member_cap_id;
 
-			// Get member's member cap ID
+			// Get member's member cap ID by fetching their memberships
 			let memberMembership: Membership | null | undefined = null;
 			let memberCursor: string | null = null;
 			let memberHasNextPage: boolean = true;
@@ -764,13 +699,13 @@ describe('Integration tests - Write Path', () => {
 			expect(memberMembership).toBeDefined();
 			const memberCapId = memberMembership!.member_cap_id;
 
-			// Grant ManagePermissions to the member
-			const tx = new (await import('@mysten/sui/transactions')).Transaction();
+			// Grant ManagePermissions to the member using creator's member cap
+			const tx = new Transaction();
 			const promoteBuilder = client.messaging.promoteMember(
 				channelId,
-				adminMemberCapId,
+				creatorMemberCapId,
 				memberCapId,
-				(await import('../src/types.js')).Permission.ManagePermissions,
+				Permission.ManagePermissions,
 			);
 			promoteBuilder(tx);
 

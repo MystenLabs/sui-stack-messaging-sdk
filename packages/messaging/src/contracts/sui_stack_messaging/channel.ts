@@ -260,6 +260,47 @@ export function promoteMember(options: PromoteMemberOptions) {
 			typeArguments: options.typeArguments,
 		});
 }
+export interface PromoteMembersArguments {
+	self: RawTransactionArgument<string>;
+	granterCap: RawTransactionArgument<string>;
+	memberCaps: RawTransactionArgument<string[]>;
+}
+export interface PromoteMembersOptions {
+	package?: string;
+	arguments:
+		| PromoteMembersArguments
+		| [
+				self: RawTransactionArgument<string>,
+				granterCap: RawTransactionArgument<string>,
+				memberCaps: RawTransactionArgument<string[]>,
+		  ];
+	typeArguments: [string];
+}
+/**
+ * Grant a permission to multiple members at once. Requires ManagePermissions
+ * permission.
+ *
+ * This is useful for promoting initial members during channel creation. Takes a
+ * vector of MemberCaps and grants the specified permission to all of them.
+ */
+export function promoteMembers(options: PromoteMembersOptions) {
+	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
+	const argumentsTypes = [
+		`${packageAddress}::channel::Channel`,
+		`${packageAddress}::member_cap::MemberCap`,
+		`vector<${packageAddress}::member_cap::MemberCap>`,
+		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
+	] satisfies string[];
+	const parameterNames = ['self', 'granterCap', 'memberCaps'];
+	return (tx: Transaction) =>
+		tx.moveCall({
+			package: packageAddress,
+			module: 'channel',
+			function: 'promote_members',
+			arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+			typeArguments: options.typeArguments,
+		});
+}
 export interface DemoteMemberArguments {
 	self: RawTransactionArgument<string>;
 	revokerCap: RawTransactionArgument<string>;

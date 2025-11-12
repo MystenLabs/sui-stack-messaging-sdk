@@ -60,6 +60,12 @@ export interface MessagingClientOptions {
 export interface CreateChannelFlowOpts {
 	creatorAddress: string;
 	initialMemberAddresses?: string[];
+	/**
+	 * If set to true, initial members will only have `ReadMessages` permission.
+	 * By default, they will get the `SendMessage` permission as well.
+	 * @default false
+	 */
+	readOnlyInitialMembers?: boolean;
 }
 
 export interface CreateChannelFlowGenerateAndAttachEncryptionKeyOpts {
@@ -74,7 +80,7 @@ export interface CreateChannelFlow {
 	build: () => Transaction;
 	getGeneratedCaps: (opts: CreateChannelFlowGetGeneratedCapsOpts) => Promise<{
 		creatorMemberCap: (typeof MemberCap)['$inferType'];
-		additionalMemberCaps: (typeof MemberCap)['$inferType'][];
+		additionalMemberCaps: { capObject: (typeof MemberCap)['$inferType']; ownerAddress: string }[];
 	}>;
 	generateAndAttachEncryptionKey: (
 		opts: CreateChannelFlowGenerateAndAttachEncryptionKeyOpts,
