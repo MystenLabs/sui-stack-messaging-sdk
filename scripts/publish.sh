@@ -2,6 +2,28 @@
 
 set -e
 
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "❌ Error: jq is required but not installed. Install with: brew install jq"
+    exit 1
+fi
+
+# Generate timestamp for backups
+BACKUP_TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Backup existing .env if it exists
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    echo "📦 Backing up existing .env to .env.bak_$BACKUP_TIMESTAMP"
+    cp "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.bak_$BACKUP_TIMESTAMP"
+fi
+
+# Backup existing .publish.res.json if it exists
+if [ -f "$SCRIPT_DIR/.publish.res.json" ]; then
+    echo "📦 Backing up existing .publish.res.json to .publish.res.bak_$BACKUP_TIMESTAMP.json"
+    cp "$SCRIPT_DIR/.publish.res.json" "$SCRIPT_DIR/.publish.res.bak_$BACKUP_TIMESTAMP.json"
+fi
+
 # dir of smart contract
 MOVE_PACKAGE_DIR="../move/sui_stack_messaging"
 PUBLISH_GAS_BUDGET=1000000000
@@ -95,5 +117,37 @@ cat >.env <<-API_ENV
 	UPGRADE_CAP=$UPGRADE_CAP
 	ADMIN_PRIVATE_KEY=$ADMIN_PRIVATE_KEY
 API_ENV
+
+# Extract the published package ID from .publish.res.json
+TESTNET_PACKAGE_ID=$(jq -r '.objectChanges[] | select(.type == "published") | .packageId' "$SCRIPT_DIR/.publish.res.json")
+
+if [ -z "$TESTNET_PACKAGE_ID" ] || [ "$TESTNET_PACKAGE_ID" = "null" ]; then
+    echo "❌ Error: Could not extract packageId from .publish.res.json"
+    exit 1
+fi
+
+echo "✅ Published package ID: $TESTNET_PACKAGE_ID"
+
+# Path to testnet-setup.sh
+TESTNET_SETUP_SCRIPT="$SCRIPT_DIR/../packages/messaging/test/testnet-setup.sh"
+
+# Backup and update testnet-setup.sh
+if [ -f "$TESTNET_SETUP_SCRIPT" ]; then
+    echo "📦 Backing up existing testnet-setup.sh to testnet-setup.bak_$BACKUP_TIMESTAMP.sh"
+    cp "$TESTNET_SETUP_SCRIPT" "${TESTNET_SETUP_SCRIPT%.sh}.bak_$BACKUP_TIMESTAMP.sh"
+
+    # Update TESTNET_PACKAGE_ID in testnet-setup.sh
+    sed -i.tmp "s|TESTNET_PACKAGE_ID=.*|TESTNET_PACKAGE_ID=\"$TESTNET_PACKAGE_ID\"|" "$TESTNET_SETUP_SCRIPT"
+
+    # Update TESTNET_SEAL_APPROVE_PACKAGE_ID (same as TESTNET_PACKAGE_ID)
+    sed -i.tmp "s|TESTNET_SEAL_APPROVE_PACKAGE_ID=.*|TESTNET_SEAL_APPROVE_PACKAGE_ID=\"$TESTNET_PACKAGE_ID\"|" "$TESTNET_SETUP_SCRIPT"
+
+    # Clean up temporary file created by sed
+    rm -f "${TESTNET_SETUP_SCRIPT}.tmp"
+
+    echo "✅ Updated testnet-setup.sh with new package ID"
+else
+    echo "⚠️  Warning: testnet-setup.sh not found at $TESTNET_SETUP_SCRIPT"
+fi
 
 echo "Done - Proceed to run the setup scripts"
