@@ -69,7 +69,7 @@ export function _new(options: NewOptions) {
 		`vector<${packageAddress}::attachment::Attachment>`,
 		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
 	] satisfies string[];
-	const parameterNames = ['sender', 'ciphertext', 'nonce', 'keyVersion', 'attachments', 'clock'];
+	const parameterNames = ['sender', 'ciphertext', 'nonce', 'keyVersion', 'attachments'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,

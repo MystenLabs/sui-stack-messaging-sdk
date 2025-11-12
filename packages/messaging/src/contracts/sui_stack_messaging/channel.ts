@@ -54,8 +54,12 @@ export const Channel = new MoveStruct({
 		encryption_key_history: encryption_key_history.EncryptionKeyHistory,
 	},
 });
-export const SimpleMessenger = new MoveTuple({
-	name: `${$moduleName}::SimpleMessenger`,
+export const ReadMessages = new MoveTuple({
+	name: `${$moduleName}::ReadMessages`,
+	fields: [bcs.bool()],
+});
+export const SendMessage = new MoveTuple({
+	name: `${$moduleName}::SendMessage`,
 	fields: [bcs.bool()],
 });
 export interface NewArguments {
@@ -71,7 +75,7 @@ export interface NewOptions {
  *
  * The flow is: new() -> (optionally set initial config) -> (optionally set initial
  * members) -> share() -> client generate a DEK and encrypt it with Seal using the
- * ChannelID as identity bytes -> add_encrypted_key(CreatorCap)
+ * ChannelID as identity bytes -> add_encrypted_key()
  */
 export function _new(options: NewOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
@@ -79,7 +83,7 @@ export function _new(options: NewOptions) {
 		`0x0000000000000000000000000000000000000000000000000000000000000001::option::Option<${packageAddress}::config::Config>`,
 		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
 	] satisfies string[];
-	const parameterNames = ['config', 'clock'];
+	const parameterNames = ['config'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,
@@ -90,26 +94,20 @@ export function _new(options: NewOptions) {
 }
 export interface ShareArguments {
 	self: RawTransactionArgument<string>;
-	creatorCap: RawTransactionArgument<string>;
 }
 export interface ShareOptions {
 	package?: string;
-	arguments:
-		| ShareArguments
-		| [self: RawTransactionArgument<string>, creatorCap: RawTransactionArgument<string>];
+	arguments: ShareArguments | [self: RawTransactionArgument<string>];
 }
 /**
- * Share the Channel object Note: at this point the client needs to attach an
- * encrypted DEK Otherwise, it is considered in an invalid state, and cannot be
- * interacted with.
+ * Share the Channel object, making it accessible to all members. Note: at this
+ * point the client needs to attach an encrypted DEK. Otherwise, the channel is
+ * considered in an invalid state.
  */
 export function share(options: ShareOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
-	const argumentsTypes = [
-		`${packageAddress}::channel::Channel`,
-		`${packageAddress}::creator_cap::CreatorCap`,
-	] satisfies string[];
-	const parameterNames = ['self', 'creatorCap'];
+	const argumentsTypes = [`${packageAddress}::channel::Channel`] satisfies string[];
+	const parameterNames = ['self'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,
@@ -165,7 +163,10 @@ export interface AddMembersOptions {
 				n: RawTransactionArgument<number | bigint>,
 		  ];
 }
-/** Add new members to the Channel with the default SimpleMessenger permission */
+/**
+ * Add new members to the Channel with the default ReadMessages permission.
+ * ReadMessages is the minimum permission granted to all members.
+ */
 export function addMembers(options: AddMembersOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
 	const argumentsTypes = [
@@ -174,7 +175,7 @@ export function addMembers(options: AddMembersOptions) {
 		'u64',
 		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
 	] satisfies string[];
-	const parameterNames = ['self', 'memberCap', 'n', 'clock'];
+	const parameterNames = ['self', 'memberCap', 'n'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,
@@ -210,13 +211,92 @@ export function removeMembers(options: RemoveMembersOptions) {
 		'vector<0x0000000000000000000000000000000000000000000000000000000000000002::object::ID>',
 		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
 	] satisfies string[];
-	const parameterNames = ['self', 'memberCap', 'membersToRemove', 'clock'];
+	const parameterNames = ['self', 'memberCap', 'membersToRemove'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,
 			module: 'channel',
 			function: 'remove_members',
 			arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+		});
+}
+export interface PromoteMemberArguments {
+	self: RawTransactionArgument<string>;
+	granterCap: RawTransactionArgument<string>;
+	memberCapId: RawTransactionArgument<string>;
+}
+export interface PromoteMemberOptions {
+	package?: string;
+	arguments:
+		| PromoteMemberArguments
+		| [
+				self: RawTransactionArgument<string>,
+				granterCap: RawTransactionArgument<string>,
+				memberCapId: RawTransactionArgument<string>,
+		  ];
+	typeArguments: [string];
+}
+/**
+ * Grant a permission to a member. Requires ManagePermissions permission.
+ *
+ * Example: promote_member<SendMessage>(&mut channel, &admin_cap, member_id,
+ * &clock)
+ */
+export function promoteMember(options: PromoteMemberOptions) {
+	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
+	const argumentsTypes = [
+		`${packageAddress}::channel::Channel`,
+		`${packageAddress}::member_cap::MemberCap`,
+		'0x0000000000000000000000000000000000000000000000000000000000000002::object::ID',
+		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
+	] satisfies string[];
+	const parameterNames = ['self', 'granterCap', 'memberCapId'];
+	return (tx: Transaction) =>
+		tx.moveCall({
+			package: packageAddress,
+			module: 'channel',
+			function: 'promote_member',
+			arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+			typeArguments: options.typeArguments,
+		});
+}
+export interface DemoteMemberArguments {
+	self: RawTransactionArgument<string>;
+	revokerCap: RawTransactionArgument<string>;
+	memberCapId: RawTransactionArgument<string>;
+}
+export interface DemoteMemberOptions {
+	package?: string;
+	arguments:
+		| DemoteMemberArguments
+		| [
+				self: RawTransactionArgument<string>,
+				revokerCap: RawTransactionArgument<string>,
+				memberCapId: RawTransactionArgument<string>,
+		  ];
+	typeArguments: [string];
+}
+/**
+ * Revoke a permission from a member. Requires ManagePermissions permission.
+ *
+ * Example: demote_member<SendMessage>(&mut channel, &admin_cap, member_id, &clock)
+ */
+export function demoteMember(options: DemoteMemberOptions) {
+	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
+	const argumentsTypes = [
+		`${packageAddress}::channel::Channel`,
+		`${packageAddress}::member_cap::MemberCap`,
+		'0x0000000000000000000000000000000000000000000000000000000000000002::object::ID',
+		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
+	] satisfies string[];
+	const parameterNames = ['self', 'revokerCap', 'memberCapId'];
+	return (tx: Transaction) =>
+		tx.moveCall({
+			package: packageAddress,
+			module: 'channel',
+			function: 'demote_member',
+			arguments: normalizeMoveArguments(options.arguments, argumentsTypes, parameterNames),
+			typeArguments: options.typeArguments,
 		});
 }
 export interface SendMessageArguments {
@@ -238,7 +318,7 @@ export interface SendMessageOptions {
 				attachments: RawTransactionArgument<string[]>,
 		  ];
 }
-/** Send a new message to the Channel */
+/** Send a new message to the Channel. Requires SendMessage permission. */
 export function sendMessage(options: SendMessageOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
 	const argumentsTypes = [
@@ -249,7 +329,7 @@ export function sendMessage(options: SendMessageOptions) {
 		`vector<${packageAddress}::attachment::Attachment>`,
 		'0x0000000000000000000000000000000000000000000000000000000000000002::clock::Clock',
 	] satisfies string[];
-	const parameterNames = ['self', 'memberCap', 'ciphertext', 'nonce', 'attachments', 'clock'];
+	const parameterNames = ['self', 'memberCap', 'ciphertext', 'nonce', 'attachments'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,

@@ -14,6 +14,8 @@ import {
 	share as shareChannel,
 	sendMessage,
 	addMembers,
+	promoteMember,
+	demoteMember,
 	Channel,
 } from './contracts/sui_stack_messaging/channel.js';
 
@@ -42,6 +44,7 @@ import type {
 	DecryptedChannelObjectsByAddressResponse,
 	GetChannelObjectsByChannelIdsRequest,
 } from './types.js';
+import { Permission, PermissionTypeMap } from './types.js';
 import {
 	MAINNET_MESSAGING_PACKAGE_CONFIG,
 	TESTNET_MESSAGING_PACKAGE_CONFIG,
@@ -54,10 +57,6 @@ import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
 import type { RawTransactionArgument } from './contracts/utils/index.js';
-import {
-	CreatorCap,
-	transferToSender as transferCreatorCap,
-} from './contracts/sui_stack_messaging/creator_cap.js';
 import {
 	MemberCap,
 	transferMemberCaps,
@@ -654,11 +653,11 @@ export class SuiStackMessagingClient {
 	 * // 1. build
 	 * const tx = flow.build();
 	 * // 2. getGeneratedCaps
-	 * const { creatorCap, creatorMemberCap, additionalMemberCaps } = await flow.getGeneratedCaps({ digest });
+	 * const { creatorMemberCap, additionalMemberCaps } = await flow.getGeneratedCaps({ digest });
 	 * // 3. generateAndAttachEncryptionKey
-	 * const { transaction, creatorCap, encryptedKeyBytes } = await flow.generateAndAttachEncryptionKey({ creatorCap, creatorMemberCap });
+	 * const transaction = await flow.generateAndAttachEncryptionKey({ creatorMemberCap });
 	 * // 4. getGeneratedEncryptionKey
-	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
+	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey();
 	 * ```
 	 *
 	 * @param opts - Options including creator address and initial members
@@ -671,7 +670,7 @@ export class SuiStackMessagingClient {
 		const build = () => {
 			const tx = new Transaction();
 			const config = tx.add(noneConfig());
-			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
+			const [channel, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
 
 			// Add initial members if provided
 			// Deduplicate addresses and filter out creator (who already gets a MemberCap automatically)
@@ -698,12 +697,12 @@ export class SuiStackMessagingClient {
 				);
 			}
 
-			// Share the channel and transfer creator cap
-			tx.add(shareChannel({ arguments: { self: channel, creatorCap } }));
+			// Share the channel
+			tx.add(shareChannel({ arguments: { self: channel } }));
 			// Transfer MemberCaps
 			tx.add(
 				transferMemberCap({
-					arguments: { cap: creatorMemberCap, creatorCap, recipient: creatorAddress },
+					arguments: { cap: creatorMemberCap, recipient: creatorAddress },
 				}),
 			);
 			if (memberCaps !== null) {
@@ -712,13 +711,10 @@ export class SuiStackMessagingClient {
 						arguments: {
 							memberAddresses: tx.pure.vector('address', uniqueAddresses),
 							memberCaps,
-							creatorCap,
 						},
 					}),
 				);
 			}
-
-			tx.add(transferCreatorCap({ arguments: { self: creatorCap } }));
 
 			return tx;
 		};
@@ -728,12 +724,11 @@ export class SuiStackMessagingClient {
 		};
 
 		const generateAndAttachEncryptionKey = async ({
-			creatorCap,
 			creatorMemberCap,
 		}: Awaited<ReturnType<typeof getGeneratedCaps>>) => {
 			// Generate the encrypted channel DEK
 			const encryptedKeyBytes = await this.#envelopeEncryption.generateEncryptedChannelDEK({
-				channelId: creatorCap.channel_id,
+				channelId: creatorMemberCap.channel_id,
 			});
 
 			const tx = new Transaction();
@@ -741,7 +736,7 @@ export class SuiStackMessagingClient {
 			tx.add(
 				addEncryptedKey({
 					arguments: {
-						self: tx.object(creatorCap.channel_id),
+						self: tx.object(creatorMemberCap.channel_id),
 						memberCap: tx.object(creatorMemberCap.id.id),
 						newEncryptionKeyBytes: tx.pure.vector('u8', encryptedKeyBytes),
 					},
@@ -750,16 +745,16 @@ export class SuiStackMessagingClient {
 
 			return {
 				transaction: tx,
-				creatorCap,
+				creatorMemberCap,
 				encryptedKeyBytes,
 			};
 		};
 
 		const getGeneratedEncryptionKey = ({
-			creatorCap,
+			creatorMemberCap,
 			encryptedKeyBytes,
 		}: Awaited<ReturnType<typeof generateAndAttachEncryptionKey>>) => {
-			return { channelId: creatorCap.channel_id, encryptedKeyBytes };
+			return { channelId: creatorMemberCap.channel_id, encryptedKeyBytes };
 		};
 
 		const stepResults: {
@@ -980,6 +975,64 @@ export class SuiStackMessagingClient {
 	}
 
 	/**
+	 * Promote a member by granting them a specific permission
+	 * @param channelId - The channel ID
+	 * @param granterMemberCapId - The member cap ID of the granter (must have ManagePermissions)
+	 * @param targetMemberCapId - The member cap ID of the member to promote
+	 * @param permission - The permission to grant
+	 * @returns Transaction builder function
+	 */
+	promoteMember(
+		channelId: string,
+		granterMemberCapId: string,
+		targetMemberCapId: string,
+		permission: Permission,
+	) {
+		return (tx: Transaction) => {
+			tx.add(
+				promoteMember({
+					package: this.#packageConfig.packageId,
+					arguments: {
+						self: tx.object(channelId),
+						granterCap: tx.object(granterMemberCapId),
+						memberCapId: tx.pure.id(targetMemberCapId),
+					},
+					typeArguments: [PermissionTypeMap[permission].replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId)],
+				}),
+			);
+		};
+	}
+
+	/**
+	 * Demote a member by revoking a specific permission
+	 * @param channelId - The channel ID
+	 * @param revokerMemberCapId - The member cap ID of the revoker (must have ManagePermissions)
+	 * @param targetMemberCapId - The member cap ID of the member to demote
+	 * @param permission - The permission to revoke
+	 * @returns Transaction builder function
+	 */
+	demoteMember(
+		channelId: string,
+		revokerMemberCapId: string,
+		targetMemberCapId: string,
+		permission: Permission,
+	) {
+		return (tx: Transaction) => {
+			tx.add(
+				demoteMember({
+					package: this.#packageConfig.packageId,
+					arguments: {
+						self: tx.object(channelId),
+						revokerCap: tx.object(revokerMemberCapId),
+						memberCapId: tx.pure.id(targetMemberCapId),
+					},
+					typeArguments: [PermissionTypeMap[permission].replace('@local-pkg/sui-stack-messaging', this.#packageConfig.packageId)],
+				}),
+			);
+		};
+	}
+
+	/**
 	 * Update the external SessionKey instance (useful for React context updates)
 	 * Only works when the client was configured with an external SessionKey
 	 */
@@ -998,7 +1051,7 @@ export class SuiStackMessagingClient {
 	/**
 	 * Execute a create channel transaction
 	 * @param params - Transaction parameters including signer and optional initial members
-	 * @returns Transaction digest, channel ID, creator cap ID, and encrypted key
+	 * @returns Transaction digest, channel ID, creator member cap ID, and encrypted key
 	 */
 	async executeCreateChannelTransaction({
 		signer,
@@ -1008,7 +1061,7 @@ export class SuiStackMessagingClient {
 	} & { signer: Signer }): Promise<{
 		digest: string;
 		channelId: string;
-		creatorCapId: string;
+		creatorMemberCapId: string;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	}> {
 		const flow = this.createChannelFlow({
@@ -1024,9 +1077,8 @@ export class SuiStackMessagingClient {
 			'create channel',
 		);
 
-		// Step 2: Get the creator cap from the transaction
+		// Step 2: Get the creator member cap from the transaction
 		const {
-			creatorCap,
 			creatorMemberCap,
 			additionalMemberCaps: _,
 		} = await flow.getGeneratedCaps({
@@ -1044,7 +1096,12 @@ export class SuiStackMessagingClient {
 		// Step 4: Get the encrypted key bytes
 		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 
-		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
+		return {
+			digest: keyDigest,
+			creatorMemberCapId: creatorMemberCap.id.id,
+			channelId,
+			encryptedKeyBytes,
+		};
 	}
 
 	// ===== Private Methods =====
@@ -1075,15 +1132,7 @@ export class SuiStackMessagingClient {
 	}
 
 	async #getGeneratedCaps(digest: string) {
-		const creatorCapType = CreatorCap.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-		const creatorMemberCapType = MemberCap.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-		const additionalMemberCapType = MemberCap.name.replace(
+		const memberCapType = MemberCap.name.replace(
 			'@local-pkg/sui-stack-messaging',
 			this.#packageConfig.packageId,
 		);
@@ -1102,55 +1151,34 @@ export class SuiStackMessagingClient {
 			objectIds: createdObjectIds,
 		});
 
-		const suiCreatorCapObject = createdObjects.objects.find(
-			(object) => !(object instanceof Error) && object.type === creatorCapType,
+		// Get all MemberCap objects
+		const suiMemberCapObjects = createdObjects.objects.filter(
+			(object) => !(object instanceof Error) && object.type === memberCapType,
 		);
 
-		if (suiCreatorCapObject instanceof Error || !suiCreatorCapObject) {
+		if (suiMemberCapObjects.length === 0) {
 			throw new MessagingClientError(
-				`CreatorCap object not found in transaction effects for transaction (${digest})`,
+				`No MemberCap objects found in transaction effects for transaction (${digest})`,
 			);
 		}
 
-		const creatorCapParsed = CreatorCap.parse(await suiCreatorCapObject.content);
-
-		const suiCreatorMemberCapObject = createdObjects.objects.find(
-			(object) =>
-				!(object instanceof Error) &&
-				object.type === creatorMemberCapType &&
-				// only get the creator's member cap
-				object.owner.$kind === 'AddressOwner' &&
-				suiCreatorCapObject.owner.$kind === 'AddressOwner' &&
-				object.owner.AddressOwner === suiCreatorCapObject.owner.AddressOwner,
-		);
-
-		if (suiCreatorMemberCapObject instanceof Error || !suiCreatorMemberCapObject) {
-			throw new MessagingClientError(
-				`CreatorMemberCap object not found in transaction effects for transaction (${digest})`,
-			);
-		}
-
-		const creatorMemberCapParsed = MemberCap.parse(await suiCreatorMemberCapObject.content);
-
-		const suiAdditionalMemberCapsObjects = createdObjects.objects.filter(
-			(object) => !(object instanceof Error) && object.type === additionalMemberCapType,
-		);
-
-		// exclude the creator's member cap from the additional member caps
-		const additionalMemberCapsParsed = await Promise.all(
-			suiAdditionalMemberCapsObjects.map(async (object) => {
+		// Parse all MemberCaps
+		const allMemberCapsParsed = await Promise.all(
+			suiMemberCapObjects.map(async (object) => {
 				if (object instanceof Error) {
 					throw new MessagingClientError(
-						`AdditionalMemberCap object not found in transaction effects for transaction (${digest})`,
+						`MemberCap object not found in transaction effects for transaction (${digest})`,
 					);
 				}
 				return MemberCap.parse(await object.content);
 			}),
 		);
-		additionalMemberCapsParsed.filter((cap) => cap.id.id !== creatorMemberCapParsed.id.id);
+
+		// First MemberCap created is the creator's (based on transaction order)
+		const creatorMemberCapParsed = allMemberCapsParsed[0];
+		const additionalMemberCapsParsed = allMemberCapsParsed.slice(1);
 
 		return {
-			creatorCap: creatorCapParsed,
 			creatorMemberCap: creatorMemberCapParsed,
 			additionalMemberCaps: additionalMemberCapsParsed,
 		};

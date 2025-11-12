@@ -14,7 +14,15 @@ export const Auth = new MoveStruct({
 		config: versioned.Versioned,
 	},
 });
-export const EditPermissions = new MoveTuple({
-	name: `${$moduleName}::EditPermissions`,
+export const AddMemberEntry = new MoveTuple({
+	name: `${$moduleName}::AddMemberEntry`,
+	fields: [bcs.bool()],
+});
+export const RemoveMemberEntry = new MoveTuple({
+	name: `${$moduleName}::RemoveMemberEntry`,
+	fields: [bcs.bool()],
+});
+export const ManagePermissions = new MoveTuple({
+	name: `${$moduleName}::ManagePermissions`,
 	fields: [bcs.bool()],
 });

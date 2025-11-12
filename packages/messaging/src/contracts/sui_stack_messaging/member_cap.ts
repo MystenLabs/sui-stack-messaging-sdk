@@ -15,31 +15,19 @@ export const MemberCap = new MoveStruct({
 });
 export interface TransferToRecipientArguments {
 	cap: RawTransactionArgument<string>;
-	creatorCap: RawTransactionArgument<string>;
 	recipient: RawTransactionArgument<string>;
 }
 export interface TransferToRecipientOptions {
 	package?: string;
 	arguments:
 		| TransferToRecipientArguments
-		| [
-				cap: RawTransactionArgument<string>,
-				creatorCap: RawTransactionArgument<string>,
-				recipient: RawTransactionArgument<string>,
-		  ];
+		| [cap: RawTransactionArgument<string>, recipient: RawTransactionArgument<string>];
 }
-/**
- * Transfer a MemberCap to the specified address. Should only be called by a
- * Channel Creator, after a Channel is created and shared.
- */
+/** Transfer a MemberCap to the specified address. */
 export function transferToRecipient(options: TransferToRecipientOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
-	const argumentsTypes = [
-		`${packageAddress}::member_cap::MemberCap`,
-		`${packageAddress}::creator_cap::CreatorCap`,
-		'address',
-	] satisfies string[];
-	const parameterNames = ['cap', 'creatorCap', 'recipient'];
+	const argumentsTypes = [`${packageAddress}::member_cap::MemberCap`, 'address'] satisfies string[];
+	const parameterNames = ['cap', 'recipient'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,
@@ -51,7 +39,6 @@ export function transferToRecipient(options: TransferToRecipientOptions) {
 export interface TransferMemberCapsArguments {
 	memberAddresses: RawTransactionArgument<string[]>;
 	memberCaps: RawTransactionArgument<string[]>;
-	creatorCap: RawTransactionArgument<string>;
 }
 export interface TransferMemberCapsOptions {
 	package?: string;
@@ -60,21 +47,16 @@ export interface TransferMemberCapsOptions {
 		| [
 				memberAddresses: RawTransactionArgument<string[]>,
 				memberCaps: RawTransactionArgument<string[]>,
-				creatorCap: RawTransactionArgument<string>,
 		  ];
 }
-/**
- * Transfer MemberCaps to the associated addresses Should only be called by a
- * Channel Creator, after a Channel is created and shared.
- */
+/** Transfer MemberCaps to the associated addresses. */
 export function transferMemberCaps(options: TransferMemberCapsOptions) {
 	const packageAddress = options.package ?? '@local-pkg/sui-stack-messaging';
 	const argumentsTypes = [
 		'vector<address>',
 		`vector<${packageAddress}::member_cap::MemberCap>`,
-		`${packageAddress}::creator_cap::CreatorCap`,
 	] satisfies string[];
-	const parameterNames = ['memberAddresses', 'memberCaps', 'creatorCap'];
+	const parameterNames = ['memberAddresses', 'memberCaps'];
 	return (tx: Transaction) =>
 		tx.moveCall({
 			package: packageAddress,

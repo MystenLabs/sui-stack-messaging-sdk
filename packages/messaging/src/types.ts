@@ -19,7 +19,6 @@ import type {
 } from './encryption/types.js';
 
 import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
-import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
 import type { StorageAdapter, StorageConfig } from './storage/adapters/storage.js';
 import type { Channel } from './contracts/sui_stack_messaging/channel.js';
 import type { Message } from './contracts/sui_stack_messaging/message.js';
@@ -74,7 +73,6 @@ export interface CreateChannelFlowGetGeneratedCapsOpts {
 export interface CreateChannelFlow {
 	build: () => Transaction;
 	getGeneratedCaps: (opts: CreateChannelFlowGetGeneratedCapsOpts) => Promise<{
-		creatorCap: (typeof CreatorCap)['$inferType'];
 		creatorMemberCap: (typeof MemberCap)['$inferType'];
 		additionalMemberCaps: (typeof MemberCap)['$inferType'][];
 	}>;
@@ -213,3 +211,30 @@ export interface DecryptedChannelObjectsByAddressResponse
 	extends Omit<ChannelObjectsByMembershipsResponse, 'channelObjects'> {
 	channelObjects: DecryptedChannelObject[];
 }
+
+// Permission types for fine-grained access control
+export enum Permission {
+	// Auth module permissions
+	AddMemberEntry = 'AddMemberEntry',
+	RemoveMemberEntry = 'RemoveMemberEntry',
+	ManagePermissions = 'ManagePermissions',
+	// Channel module permissions
+	ReadMessages = 'ReadMessages',
+	SendMessage = 'SendMessage',
+	// Encryption key history permissions
+	EditEncryptionKey = 'EditEncryptionKey',
+	// Config permissions
+	EditConfig = 'EditConfig',
+}
+
+// Map permission enum to Move type names
+export const PermissionTypeMap: Record<Permission, string> = {
+	[Permission.AddMemberEntry]: '@local-pkg/sui-stack-messaging::auth::AddMemberEntry',
+	[Permission.RemoveMemberEntry]: '@local-pkg/sui-stack-messaging::auth::RemoveMemberEntry',
+	[Permission.ManagePermissions]: '@local-pkg/sui-stack-messaging::auth::ManagePermissions',
+	[Permission.ReadMessages]: '@local-pkg/sui-stack-messaging::channel::ReadMessages',
+	[Permission.SendMessage]: '@local-pkg/sui-stack-messaging::channel::SendMessage',
+	[Permission.EditEncryptionKey]:
+		'@local-pkg/sui-stack-messaging::encryption_key_history::EditEncryptionKey',
+	[Permission.EditConfig]: '@local-pkg/sui-stack-messaging::config::EditConfig',
+};
