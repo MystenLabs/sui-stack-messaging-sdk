@@ -4,17 +4,15 @@ module sui_stack_messaging::sui_stack_messaging_tests;
 use sui_stack_messaging::attachment::Attachment;
 use sui_stack_messaging::channel::{Self, Channel};
 use sui_stack_messaging::config;
-use sui_stack_messaging::creator_cap::CreatorCap;
-use sui_stack_messaging::member_cap::MemberCap;
+use sui_stack_messaging::member_cap::{Self, MemberCap};
 
 // TODO: implement one2one flow test:
 // - create channel with default config
 // - add member
 // - send message with 2 attachments
 
-const ENotCreator: u64 = 0;
-const ENotMember: u64 = 1;
-const ENotEnoughMessages: u64 = 2;
+const ENotMember: u64 = 0;
+const ENotEnoughMessages: u64 = 1;
 
 // === Test Functions ===
 #[test_only]
@@ -41,18 +39,17 @@ fun test_new_with_defaults() {
     scenario.next_tx(sender_address);
     {
         // create new channel
-        let (mut channel, creator_cap, creator_member_cap) = channel::new(
+        let (mut channel, creator_member_cap) = channel::new(
             config::none(),
             &clock,
             scenario.ctx(),
         );
-        assert!(channel.is_creator(&creator_cap), ENotCreator);
         assert!(channel.is_member(&creator_member_cap), ENotMember);
 
         std::debug::print(&channel);
 
         // === Set initial members ===
-        let mut recipient_member_caps = channel.add_members(
+        let recipient_member_caps = channel.add_members(
             &creator_member_cap,
             1,
             &clock,
@@ -61,36 +58,27 @@ fun test_new_with_defaults() {
 
         std::debug::print(&channel);
 
-        channel.share(&creator_cap);
+        channel.share();
 
         // transfer creator's MemberCap to sender
-        creator_member_cap.transfer_to_recipient(&creator_cap, sender_address);
+        creator_member_cap.transfer_to_recipient(sender_address);
 
         // transfer MemberCaps to initial_member_addresses
-        while (!recipient_member_caps.is_empty()) {
-            let (member_cap) = recipient_member_caps.pop_back();
-            member_cap.transfer_to_recipient(&creator_cap, recipient_address);
-        };
-        // shoud be empty after the while loop
-        recipient_member_caps.destroy_empty();
-
-        // transfer CreatorCap to sender
-        creator_cap.transfer_to_sender(scenario.ctx());
+        let recipient_addresses = vector[recipient_address];
+        member_cap::transfer_member_caps(recipient_addresses, recipient_member_caps);
     };
 
     // === Add a wrapped KEK on the Channel ===
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();
-        let creator_cap = scenario.take_from_sender<CreatorCap>();
         let creator_member_cap = scenario.take_from_sender<MemberCap>();
 
         // At this stage we are supposed to use Seal
         let encrypted_key_bytes = channel.namespace();
         channel.add_encrypted_key(&creator_member_cap, encrypted_key_bytes);
 
-        channel.share(&creator_cap);
-        scenario.return_to_sender<CreatorCap>(creator_cap);
+        ts::return_shared(channel);
         scenario.return_to_sender<MemberCap>(creator_member_cap);
     };
 
@@ -98,7 +86,6 @@ fun test_new_with_defaults() {
     scenario.next_tx(sender_address);
     {
         let mut channel = scenario.take_shared<Channel>();
-        let creator_cap = scenario.take_from_sender<CreatorCap>();
         let member_cap = scenario.take_from_sender<MemberCap>();
         let ciphertext = b"Some text";
         let nonce = vector[9, 0, 9, 0];
@@ -128,8 +115,7 @@ fun test_new_with_defaults() {
         assert!(channel.messages_count() == 1, ENotEnoughMessages);
         std::debug::print(&channel);
 
-        channel.share(&creator_cap);
-        scenario.return_to_sender<CreatorCap>(creator_cap);
+        ts::return_shared(channel);
         scenario.return_to_sender<MemberCap>(member_cap);
     };
 
