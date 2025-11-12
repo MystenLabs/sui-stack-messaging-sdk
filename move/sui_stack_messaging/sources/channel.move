@@ -20,6 +20,7 @@ const ENoEncryptionKey: u64 = 2;
 const ETextTooLarge: u64 = 3;
 const ETooManyAttachments: u64 = 4;
 const ENonceTooLarge: u64 = 5;
+const ENotPermitted: u64 = 6;
 
 // === Structs ===
 
@@ -57,8 +58,12 @@ public struct Channel has key {
 
 // === Witnesses ===
 
-// The default, minimum Permission that is granted to initial members
-public struct SimpleMessenger() has drop;
+// The minimum Permission that is granted to all members.
+// Allows reading messages from the channel.
+public struct ReadMessages() has drop;
+
+// Permission to send messages to the channel.
+public struct SendMessage() has drop;
 
 // === Potatos ===
 
@@ -97,7 +102,8 @@ public fun new(
     // Grant all permissions to the creator
     auth.grant_permission<AddMemberEntry>(creator_member_cap_id, creator_member_cap_id);
     auth.grant_permission<RemoveMemberEntry>(creator_member_cap_id, creator_member_cap_id);
-    auth.grant_permission<SimpleMessenger>(creator_member_cap_id, creator_member_cap_id);
+    auth.grant_permission<ReadMessages>(creator_member_cap_id, creator_member_cap_id);
+    auth.grant_permission<SendMessage>(creator_member_cap_id, creator_member_cap_id);
     auth.grant_permission<EditEncryptionKey>(creator_member_cap_id, creator_member_cap_id);
     auth.grant_permission<EditConfig>(creator_member_cap_id, creator_member_cap_id);
 
@@ -138,7 +144,8 @@ public fun add_encrypted_key(
         .rotate_key(&self.auth, object::id(member_cap), new_encryption_key_bytes);
 }
 
-/// Add new members to the Channel with the default SimpleMessenger permission
+/// Add new members to the Channel with the default ReadMessages permission.
+/// ReadMessages is the minimum permission granted to all members.
 public fun add_members(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -155,8 +162,8 @@ public fun add_members(
     while (i < n) {
         let new_member_cap = member_cap::mint(object::id(self), ctx);
         let new_member_cap_id = object::id(&new_member_cap);
-        // Use add_member_entry to grant initial SimpleMessenger permission
-        self.auth.add_member_entry(member_cap_id, new_member_cap_id, SimpleMessenger());
+        // Use add_member_entry to grant initial ReadMessages permission
+        self.auth.add_member_entry(member_cap_id, new_member_cap_id, ReadMessages());
         new_member_caps.push_back(new_member_cap);
         i = i +1;
     };
@@ -184,7 +191,154 @@ public fun remove_members(
     self.updated_at_ms = clock.timestamp_ms();
 }
 
-/// Send a new message to the Channel
+// === Permission Management Functions ===
+
+/// Grant AddMemberEntry permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_add_member_entry(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<AddMemberEntry>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke AddMemberEntry permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_add_member_entry(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<AddMemberEntry>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Grant RemoveMemberEntry permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_remove_member_entry(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<RemoveMemberEntry>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke RemoveMemberEntry permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_remove_member_entry(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<RemoveMemberEntry>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Grant ManagePermissions permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_manage_permissions(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<auth::ManagePermissions>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke ManagePermissions permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_manage_permissions(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<auth::ManagePermissions>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Grant SendMessage permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_send_message(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<SendMessage>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke SendMessage permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_send_message(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<SendMessage>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Grant EditEncryptionKey permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_edit_encryption_key(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<EditEncryptionKey>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke EditEncryptionKey permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_edit_encryption_key(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<EditEncryptionKey>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Grant EditConfig permission to a member.
+/// Requires ManagePermissions permission.
+public fun grant_edit_config(
+    self: &mut Channel,
+    granter_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.grant_permission<EditConfig>(object::id(granter_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Revoke EditConfig permission from a member.
+/// Requires ManagePermissions permission.
+public fun revoke_edit_config(
+    self: &mut Channel,
+    revoker_cap: &MemberCap,
+    member_cap_id: ID,
+    clock: &Clock,
+) {
+    self.auth.revoke_permission<EditConfig>(object::id(revoker_cap), member_cap_id);
+    self.updated_at_ms = clock.timestamp_ms();
+}
+
+/// Send a new message to the Channel.
+/// Requires SendMessage permission.
 public fun send_message(
     self: &mut Channel,
     member_cap: &MemberCap,
@@ -195,6 +349,10 @@ public fun send_message(
     ctx: &TxContext,
 ) {
     assert!(self.is_member(member_cap), ENotMember);
+    assert!(
+        self.auth.has_permission<SendMessage>(object::id(member_cap)),
+        ENotPermitted
+    );
     assert!(self.encryption_key_history.has_encryption_key(), ENoEncryptionKey);
     assert!(ciphertext.length() <= self.auth.config().max_message_text_chars(), ETextTooLarge);
     assert!(nonce.length() <= MAX_NONCE_BYTES, ENonceTooLarge);
@@ -261,9 +419,10 @@ public(package) fun messages_count(self: &Channel): u64 {
 }
 
 /// Check if a `MemberCap` id is a member of this Channel.
+/// A member must have at least ReadMessages permission (the minimum permission).
 public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     object::id(self) == member_cap.channel_id() &&
-    self.auth.has_permission<SimpleMessenger>(object::id(member_cap))
+    self.auth.has_permission<ReadMessages>(object::id(member_cap))
 }
 
 // === Private Functions ===
