@@ -4,7 +4,7 @@ use sui::clock::Clock;
 use sui::table_vec::{Self, TableVec};
 use sui_stack_messaging::admin;
 use sui_stack_messaging::attachment::Attachment;
-use sui_stack_messaging::auth::{Self, Auth};
+use sui_stack_messaging::auth::{Self, Auth, AddMemberEntry, RemoveMemberEntry};
 use sui_stack_messaging::config::{Config, EditConfig};
 use sui_stack_messaging::creator_cap::{Self, CreatorCap};
 use sui_stack_messaging::encryption_key_history::{Self, EncryptionKeyHistory, EditEncryptionKey};
@@ -94,14 +94,14 @@ public fun new(
 
     // create the initial Auth struct
     // when calling new(), we automatically add the creator on the permissions map, granting them
-    // the EditPermissions() permission.
+    // the ManagePermissions() permission.
     // So at this point, the creator has the ability to grant permissions
     let mut auth = auth::new(object::id(&creator_member_cap), config, ctx);
-    // Grant the default SimpleMessenger permission to the creator
+    // Grant all permissions to the creator
+    auth.grant_permission<AddMemberEntry>(creator_member_cap_id, creator_member_cap_id);
+    auth.grant_permission<RemoveMemberEntry>(creator_member_cap_id, creator_member_cap_id);
     auth.grant_permission<SimpleMessenger>(creator_member_cap_id, creator_member_cap_id);
-    // Grant the EditEncryptionKey permission to the creator
     auth.grant_permission<EditEncryptionKey>(creator_member_cap_id, creator_member_cap_id);
-    // Grant the EditConfig permission to the creator
     auth.grant_permission<EditConfig>(creator_member_cap_id, creator_member_cap_id);
 
     // create the Channel object, with an empty encryption_key_history
@@ -159,7 +159,8 @@ public fun add_members(
     while (i < n) {
         let new_member_cap = member_cap::mint(object::id(self), ctx);
         let new_member_cap_id = object::id(&new_member_cap);
-        self.auth.grant_permission<SimpleMessenger>(member_cap_id, new_member_cap_id);
+        // Use add_member_entry to grant initial SimpleMessenger permission
+        self.auth.add_member_entry(member_cap_id, new_member_cap_id, SimpleMessenger());
         new_member_caps.push_back(new_member_cap);
         i = i +1;
     };
