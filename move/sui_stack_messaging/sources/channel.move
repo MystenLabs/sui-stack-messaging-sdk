@@ -163,7 +163,7 @@ public fun add_members(
         let new_member_cap = member_cap::mint(object::id(self), ctx);
         let new_member_cap_id = object::id(&new_member_cap);
         // Use add_member_entry to grant initial ReadMessages permission
-        self.auth.add_member_entry(member_cap_id, new_member_cap_id, ReadMessages());
+        self.auth.add_member_entry<ReadMessages>(member_cap_id, new_member_cap_id);
         new_member_caps.push_back(new_member_cap);
         i = i +1;
     };
@@ -193,147 +193,31 @@ public fun remove_members(
 
 // === Permission Management Functions ===
 
-/// Grant AddMemberEntry permission to a member.
+/// Grant a permission to a member.
 /// Requires ManagePermissions permission.
-public fun grant_add_member_entry(
+///
+/// Example: promote_member<SendMessage>(&mut channel, &admin_cap, member_id, &clock)
+public fun promote_member<Permission: drop>(
     self: &mut Channel,
     granter_cap: &MemberCap,
     member_cap_id: ID,
     clock: &Clock,
 ) {
-    self.auth.grant_permission<AddMemberEntry>(object::id(granter_cap), member_cap_id);
+    self.auth.grant_permission<Permission>(object::id(granter_cap), member_cap_id);
     self.updated_at_ms = clock.timestamp_ms();
 }
 
-/// Revoke AddMemberEntry permission from a member.
+/// Revoke a permission from a member.
 /// Requires ManagePermissions permission.
-public fun revoke_add_member_entry(
+///
+/// Example: demote_member<SendMessage>(&mut channel, &admin_cap, member_id, &clock)
+public fun demote_member<Permission: drop>(
     self: &mut Channel,
     revoker_cap: &MemberCap,
     member_cap_id: ID,
     clock: &Clock,
 ) {
-    self.auth.revoke_permission<AddMemberEntry>(object::id(revoker_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Grant RemoveMemberEntry permission to a member.
-/// Requires ManagePermissions permission.
-public fun grant_remove_member_entry(
-    self: &mut Channel,
-    granter_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.grant_permission<RemoveMemberEntry>(object::id(granter_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Revoke RemoveMemberEntry permission from a member.
-/// Requires ManagePermissions permission.
-public fun revoke_remove_member_entry(
-    self: &mut Channel,
-    revoker_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.revoke_permission<RemoveMemberEntry>(object::id(revoker_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Grant ManagePermissions permission to a member.
-/// Requires ManagePermissions permission.
-public fun grant_manage_permissions(
-    self: &mut Channel,
-    granter_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.grant_permission<auth::ManagePermissions>(object::id(granter_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Revoke ManagePermissions permission from a member.
-/// Requires ManagePermissions permission.
-public fun revoke_manage_permissions(
-    self: &mut Channel,
-    revoker_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.revoke_permission<auth::ManagePermissions>(object::id(revoker_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Grant SendMessage permission to a member.
-/// Requires ManagePermissions permission.
-public fun grant_send_message(
-    self: &mut Channel,
-    granter_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.grant_permission<SendMessage>(object::id(granter_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Revoke SendMessage permission from a member.
-/// Requires ManagePermissions permission.
-public fun revoke_send_message(
-    self: &mut Channel,
-    revoker_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.revoke_permission<SendMessage>(object::id(revoker_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Grant EditEncryptionKey permission to a member.
-/// Requires ManagePermissions permission.
-public fun grant_edit_encryption_key(
-    self: &mut Channel,
-    granter_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.grant_permission<EditEncryptionKey>(object::id(granter_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Revoke EditEncryptionKey permission from a member.
-/// Requires ManagePermissions permission.
-public fun revoke_edit_encryption_key(
-    self: &mut Channel,
-    revoker_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.revoke_permission<EditEncryptionKey>(object::id(revoker_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Grant EditConfig permission to a member.
-/// Requires ManagePermissions permission.
-public fun grant_edit_config(
-    self: &mut Channel,
-    granter_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.grant_permission<EditConfig>(object::id(granter_cap), member_cap_id);
-    self.updated_at_ms = clock.timestamp_ms();
-}
-
-/// Revoke EditConfig permission from a member.
-/// Requires ManagePermissions permission.
-public fun revoke_edit_config(
-    self: &mut Channel,
-    revoker_cap: &MemberCap,
-    member_cap_id: ID,
-    clock: &Clock,
-) {
-    self.auth.revoke_permission<EditConfig>(object::id(revoker_cap), member_cap_id);
+    self.auth.revoke_permission<Permission>(object::id(revoker_cap), member_cap_id);
     self.updated_at_ms = clock.timestamp_ms();
 }
 

@@ -54,7 +54,6 @@ public(package) fun add_member_entry<InitialPermission: drop>(
     self: &mut Auth,
     adder_member_cap_id: ID,
     member_cap_id: ID,
-    _initial_permission: InitialPermission,
 ) {
     // Check AddMemberEntry permission
     assert!(self.has_permission<AddMemberEntry>(adder_member_cap_id), ENotPermitted);
