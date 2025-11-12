@@ -6,7 +6,6 @@ use sui_stack_messaging::admin;
 use sui_stack_messaging::attachment::Attachment;
 use sui_stack_messaging::auth::{Self, Auth, AddMemberEntry, RemoveMemberEntry};
 use sui_stack_messaging::config::{Config, EditConfig};
-use sui_stack_messaging::creator_cap::{Self, CreatorCap};
 use sui_stack_messaging::encryption_key_history::{Self, EncryptionKeyHistory, EditEncryptionKey};
 use sui_stack_messaging::member_cap::{Self, MemberCap};
 use sui_stack_messaging::message::{Self, Message};
@@ -15,13 +14,12 @@ use sui_stack_messaging::message::{Self, Message};
 const MAX_NONCE_BYTES: u64 = 12;
 
 // === Errors ===
-const ENotCreator: u64 = 0;
-const ENotMember: u64 = 1;
-const ETooManyMembers: u64 = 2;
-const ENoEncryptionKey: u64 = 3;
-const ETextTooLarge: u64 = 4;
-const ETooManyAttachments: u64 = 5;
-const ENonceTooLarge: u64 = 6;
+const ENotMember: u64 = 0;
+const ETooManyMembers: u64 = 1;
+const ENoEncryptionKey: u64 = 2;
+const ETextTooLarge: u64 = 3;
+const ETooManyAttachments: u64 = 4;
+const ENonceTooLarge: u64 = 5;
 
 // === Structs ===
 
@@ -81,14 +79,13 @@ public struct SimpleMessenger() has drop;
 ///       -> (optionally set initial members)
 ///       -> share()
 ///       -> client generate a DEK and encrypt it with Seal using the ChannelID as identity bytes
-///       -> add_encrypted_key(CreatorCap)
+///       -> add_encrypted_key()
 public fun new(
     config: Option<Config>,
     clock: &Clock,
     ctx: &mut TxContext,
-): (Channel, CreatorCap, MemberCap) {
+): (Channel, MemberCap) {
     let channel_uid = object::new(ctx);
-    let creator_cap = creator_cap::mint(channel_uid.to_inner(), ctx);
     let creator_member_cap = member_cap::mint(channel_uid.to_inner(), ctx);
     let creator_member_cap_id = object::id(&creator_member_cap);
 
@@ -119,14 +116,13 @@ public fun new(
         encryption_key_history: encryption_key_history::empty(ctx),
     };
 
-    (channel, creator_cap, creator_member_cap)
+    (channel, creator_member_cap)
 }
 
-/// Share the Channel object
-/// Note: at this point the client needs to attach an encrypted DEK
-/// Otherwise, it is considered in an invalid state, and cannot be interacted with.
-public fun share(self: Channel, creator_cap: &CreatorCap) {
-    assert!(self.is_creator(creator_cap), ENotCreator);
+/// Share the Channel object, making it accessible to all members.
+/// Note: at this point the client needs to attach an encrypted DEK.
+/// Otherwise, the channel is considered in an invalid state.
+public fun share(self: Channel) {
     transfer::share_object(self);
 }
 
@@ -268,11 +264,6 @@ public(package) fun messages_count(self: &Channel): u64 {
 public(package) fun is_member(self: &Channel, member_cap: &MemberCap): bool {
     object::id(self) == member_cap.channel_id() &&
     self.auth.has_permission<SimpleMessenger>(object::id(member_cap))
-}
-
-/// Check if a `CreatorCap` is the creator of this Channel.
-public(package) fun is_creator(self: &Channel, creator_cap: &CreatorCap): bool {
-    self.id.to_inner() == creator_cap.channel_id()
 }
 
 // === Private Functions ===
