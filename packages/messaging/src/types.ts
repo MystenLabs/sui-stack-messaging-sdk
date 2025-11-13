@@ -9,6 +9,7 @@ import type {
 import type { SealClient, SessionKey } from '@mysten/seal';
 import type { WalrusClient } from '@mysten/walrus';
 import type { Transaction } from '@mysten/sui/transactions';
+import type { Signer } from '@mysten/sui/cryptography';
 
 import type {
 	AttachmentMetadata,
@@ -85,6 +86,28 @@ export interface CreateChannelFlow {
 		channelId: string;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	};
+}
+
+// Add Members interfaces
+export interface AddMembersOptions {
+	channelId: string;
+	memberCapId: string;
+	newMemberAddresses: string[];
+	creatorCapId: string;
+}
+
+export interface AddMembersTransactionOptions extends AddMembersOptions {
+	transaction?: Transaction;
+}
+
+export interface ExecuteAddMembersTransactionOptions extends AddMembersOptions {
+	transaction?: Transaction;
+	signer: Signer;
+}
+
+export interface AddedMemberCap {
+	memberCap: (typeof MemberCap)['$inferType'];
+	ownerAddress: string;
 }
 
 export interface MessagingPackageConfig {

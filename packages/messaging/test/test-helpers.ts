@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 import { SuiClient } from '@mysten/sui/client';
-import { SealClient } from '@mysten/seal';
+import { EncryptedObject, SealClient } from '@mysten/seal';
 import { bcs } from '@mysten/sui/bcs';
 import { Signer } from '@mysten/sui/cryptography';
 import { getFullnodeUrl } from '@mysten/sui/client';
@@ -16,6 +16,7 @@ import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
 
 import * as channelModule from '../src/contracts/sui_stack_messaging/channel';
 import * as memberCapModule from '../src/contracts/sui_stack_messaging/member_cap';
+import * as creatorCapModule from '../src/contracts/sui_stack_messaging/creator_cap';
 import * as messageModule from '../src/contracts/sui_stack_messaging/message';
 import { StorageAdapter, StorageOptions } from '../src/storage/adapters/storage';
 import { getTestConfig, validateTestEnvironment, TestConfig } from './test-config';
@@ -305,27 +306,68 @@ async function setupTestnetEnvironment(config: TestConfig): Promise<TestEnvironm
 /**
  * A mock SealClient for localnet testing.
  * SealClient officially supports only testnet and mainnet. This mock
- * bypasses actual encryption and acts as a pass-through for the DEK,
- * and mimics the static `asClientExtension` method for a consistent API.
+ * bypasses actual encryption but produces a valid EncryptedObject structure
+ * with the unencrypted data stored in the ciphertext.Aes256Gcm.blob field.
  */
 class MockSealClient {
-	async encrypt({ data }: { data: Uint8Array }): Promise<{
+	async encrypt({
+		data,
+		id,
+		packageId,
+		threshold,
+	}: {
+		data: Uint8Array;
+		id: string;
+		packageId: string;
+		threshold: number;
+	}): Promise<{
 		encryptedObject: Uint8Array;
 		key: Uint8Array;
 	}> {
-		// For local testing, we bypass Seal encryption.
-		// The "encrypted" object is simply the original data (the DEK).
-		// The returned `key` can be the same, as it's used for backup purposes.
+		// Create a valid EncryptedObject structure that can be parsed
+		// Store the unencrypted DEK in the ciphertext blob (mock only!)
+		const encryptedObjectData = {
+			version: 1,
+			packageId: packageId,
+			id: id,
+			services: [], // Empty services for mock
+			threshold: threshold,
+			encryptedShares: {
+				BonehFranklinBLS12381: {
+					nonce: new Uint8Array(96), // Mock nonce
+					encryptedShares: [],
+					encryptedRandomness: new Uint8Array(32), // Mock randomness
+				},
+			},
+			ciphertext: {
+				Aes256Gcm: {
+					blob: data, // Store unencrypted data here for mock
+					aad: null,
+				},
+			},
+		};
+
+		// Serialize the EncryptedObject structure
+		const encryptedObject = EncryptedObject.serialize(encryptedObjectData).toBytes();
+
 		return {
-			encryptedObject: data,
-			key: data,
+			encryptedObject: encryptedObject,
+			key: data, // Return original data as backup key
 		};
 	}
 
 	async decrypt({ data }: { data: Uint8Array }): Promise<Uint8Array> {
-		// The mock decrypt is an identity function.
-		// It returns the "encrypted object" as is, because for the mock, it's just the raw DEK.
-		return data;
+		// Parse the EncryptedObject and extract the unencrypted data from the blob
+		const parsed = EncryptedObject.parse(data);
+
+		// Extract the blob from the Aes256Gcm variant
+		if (parsed.ciphertext.Aes256Gcm && 'Aes256Gcm' in parsed.ciphertext) {
+			return parsed.ciphertext.Aes256Gcm.blob;
+		}
+
+		throw new Error(
+			'MockSealClient: Expected Aes256Gcm ciphertext variant in mock EncryptedObject',
+		);
 	}
 
 	/**
@@ -342,19 +384,34 @@ class MockSealClient {
 
 // Add a mock storage adapter for tests
 class MockStorageAdapter implements StorageAdapter {
+	// In-memory storage for mock blobs
+	private storage: Map<string, Uint8Array> = new Map();
+
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
 		// artificial delay
 		await new Promise((resolve) => setTimeout(resolve, 1000));
-		// Return mock blob IDs for testing
-		return { ids: data.map((_, i) => `mock-blob-${i}-${Date.now()}`) };
+		// Generate mock blob IDs and store the data
+		const ids = data.map((blob, i) => {
+			const id = `mock-blob-${i}-${Date.now()}`;
+			this.storage.set(id, blob);
+			return id;
+		});
+		return { ids };
 	}
 
-	// @ts-ignore
 	async download(ids: string[]): Promise<Uint8Array[]> {
-		return [];
+		// artificial delay
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		// Retrieve stored data
+		return ids.map((id) => {
+			const data = this.storage.get(id);
+			if (!data) {
+				throw new Error(`MockStorageAdapter: Blob ${id} not found`);
+			}
+			return data;
+		});
 	}
 }
-
 /**
  * Creates a fully extended SuiStackMessagingClient for tests.
  * @param suiRpcClient - The base SuiClient.
@@ -367,11 +424,15 @@ export function createTestClient(
 	config: TestConfig,
 	signer: Signer,
 ) {
+	// Create a single shared MockStorageAdapter instance for localnet
+	// This ensures uploaded data persists across operations
+	const mockStorage = new MockStorageAdapter();
+
 	return config.environment === 'localnet'
 		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
 				SuiStackMessagingClient.experimental_asClientExtension({
 					packageConfig: config.packageConfig,
-					storage: (_client) => new MockStorageAdapter(),
+					storage: (_client) => mockStorage,
 					sessionKeyConfig: {
 						address: signer.toSuiAddress(),
 						ttlMin: 30,
@@ -545,4 +606,71 @@ export async function getMessages(client: SuiClient, messagesTableVecId: string)
 		return { name: messageName, id: messageId, message: messageObj };
 	});
 	return Promise.all(messagesPromises);
+}
+
+/**
+ * Helper to find a specific membership for a channel through pagination
+ */
+export async function findChannelMembership(
+	client: ReturnType<typeof createTestClient>,
+	address: string,
+	channelId: string,
+): Promise<any | null> {
+	let membership: any | null = null;
+	let cursor: string | null = null;
+	let hasNextPage: boolean = true;
+
+	while (hasNextPage && !membership) {
+		const memberships = await client.messaging.getChannelMemberships({
+			address,
+			cursor,
+		});
+		membership = memberships.memberships.find((m: any) => m.channel_id === channelId);
+		hasNextPage = memberships.hasNextPage;
+		cursor = memberships.cursor;
+	}
+
+	return membership;
+}
+
+/**
+ * Helper to get CreatorCap for a specific channel
+ */
+export async function getCreatorCapId(
+	client: ReturnType<typeof createTestClient>,
+	ownerAddress: string,
+	channelId: string,
+	packageId: string,
+): Promise<string> {
+	const creatorCapType = creatorCapModule.CreatorCap.name.replace(
+		'@local-pkg/sui-stack-messaging',
+		packageId,
+	);
+
+	// Paginate through all CreatorCaps to find the one matching our channel
+	let cursor: string | null = null;
+	let hasNextPage = true;
+
+	while (hasNextPage) {
+		const creatorCapsRes = await client.core.getOwnedObjects({
+			address: ownerAddress,
+			type: creatorCapType,
+			cursor,
+		});
+
+		for (const obj of creatorCapsRes.objects) {
+			if (obj instanceof Error || !obj.content) {
+				continue;
+			}
+			const parsedCap = creatorCapModule.CreatorCap.parse(await obj.content);
+			if (parsedCap.channel_id === channelId) {
+				return obj.id;
+			}
+		}
+
+		hasNextPage = creatorCapsRes.hasNextPage;
+		cursor = creatorCapsRes.cursor;
+	}
+
+	throw new Error(`CreatorCap not found for channel ${channelId}`);
 }
