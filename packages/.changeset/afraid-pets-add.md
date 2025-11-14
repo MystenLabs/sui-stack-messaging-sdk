@@ -9,5 +9,3 @@ Expose three new methods following the SDK pattern:
 - addMembers(): Transaction builder
 - addMembersTransaction(): Returns Transaction object
 - executeAddMembersTransaction(): Execute and return results with member details
-
-This allows channel admins to add new members without requiring them to go through an invitation process.
