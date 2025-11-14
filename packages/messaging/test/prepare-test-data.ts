@@ -14,10 +14,10 @@ import { Membership } from '../src/types';
 // Test data structure
 interface TestChannelData {
 	channelId: string;
+	encryptedKey: EncryptedSymmetricKey;
 	members: {
 		address: string;
 		memberCapId: string;
-		encryptedKey: EncryptedSymmetricKey;
 	}[];
 	messageCount: number;
 	messages: {
@@ -61,6 +61,7 @@ async function prepareTestData(): Promise<void> {
 	const emptyChannel = await createTestChannel(client, testSetup.signer, [testUserAddresses[0]]);
 	channels.push({
 		channelId: emptyChannel.channelId,
+		encryptedKey: emptyChannel.encryptedKey,
 		members: emptyChannel.members,
 		messageCount: 0,
 		messages: [],
@@ -77,6 +78,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: smallChannel.channelId,
+		encryptedKey: smallChannel.encryptedKey,
 		members: smallChannel.members,
 		messageCount: 3,
 		messages: [
@@ -113,6 +115,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: mediumChannel.channelId,
+		encryptedKey: mediumChannel.encryptedKey,
 		members: mediumChannel.members,
 		messageCount: 10,
 		messages: mediumMessages,
@@ -145,6 +148,7 @@ async function prepareTestData(): Promise<void> {
 
 	channels.push({
 		channelId: attachmentChannel.channelId,
+		encryptedKey: attachmentChannel.encryptedKey,
 		members: attachmentChannel.members,
 		messageCount: 2,
 		messages: [
@@ -181,10 +185,10 @@ async function prepareTestData(): Promise<void> {
 
 interface TestChannel {
 	channelId: string;
+	encryptedKey: EncryptedSymmetricKey;
 	members: {
 		address: string;
 		memberCapId: string;
-		encryptedKey: EncryptedSymmetricKey;
 	}[];
 }
 
@@ -194,7 +198,7 @@ async function createTestChannel(
 	initialMembers: string[],
 ): Promise<TestChannel> {
 	// Create channel
-	const { channelId } = await client.messaging.executeCreateChannelTransaction({
+	const { channelId, encryptedKeyBytes } = await client.messaging.executeCreateChannelTransaction({
 		signer: creator,
 		initialMembers,
 	});
@@ -205,6 +209,12 @@ async function createTestChannel(
 		userAddress: creator.toSuiAddress(),
 	});
 	const channelObj = channelObjects[0];
+
+	const channelEncryptedKey: EncryptedSymmetricKey = {
+		$kind: 'Encrypted',
+		encryptedBytes: encryptedKeyBytes,
+		version: channelObj.encryption_key_history.latest_version,
+	};
 
 	// Get creator's member cap
 	let creatorMembership: Membership | null | undefined = null;
@@ -234,17 +244,11 @@ async function createTestChannel(
 
 	// Parse creator member cap (not used but kept for completeness)
 	await creatorMemberCapObject.content;
-	const creatorEncryptedKey: EncryptedSymmetricKey = {
-		$kind: 'Encrypted',
-		encryptedBytes: new Uint8Array(channelObj.encryption_key_history.latest),
-		version: channelObj.encryption_key_history.latest_version,
-	};
 
 	const members = [
 		{
 			address: creator.toSuiAddress(),
 			memberCapId: creatorMembership.member_cap_id,
-			encryptedKey: creatorEncryptedKey,
 		},
 	];
 
@@ -261,7 +265,6 @@ async function createTestChannel(
 			members.push({
 				address: memberAddress,
 				memberCapId: memberMembership.member_cap_id,
-				encryptedKey: creatorEncryptedKey, // Same encryption key for all members
 			});
 		}
 	}
@@ -269,6 +272,7 @@ async function createTestChannel(
 	return {
 		channelId,
 		members,
+		encryptedKey: channelEncryptedKey,
 	};
 }
 
@@ -320,7 +324,7 @@ async function sendTestMessages(
 			channelId: channel.channelId,
 			memberCapId: senderMember.memberCapId,
 			message: message.text,
-			encryptedKey: senderMember.encryptedKey,
+			encryptedKey: channel.encryptedKey,
 			attachments: messageAttachments,
 		});
 

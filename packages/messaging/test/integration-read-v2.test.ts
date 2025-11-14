@@ -178,7 +178,7 @@ describe('Integration tests - Read Path v2', () => {
 			expect(result.direction).toBe('backward');
 			expect(result.cursor).toBeDefined();
 			expect(typeof result.hasNextPage).toBe('boolean');
-		});
+		}, 10000);
 
 		it('should fetch messages in forward direction (oldest first)', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
@@ -201,7 +201,7 @@ describe('Integration tests - Read Path v2', () => {
 			expect(result.direction).toBe('forward');
 			expect(result.cursor).toBeDefined();
 			expect(typeof result.hasNextPage).toBe('boolean');
-		});
+		}, 10000);
 
 		it('should handle pagination with cursor', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
@@ -238,7 +238,7 @@ describe('Integration tests - Read Path v2', () => {
 			const firstPageIds = firstPage.messages.map((m) => m.sender + m.createdAtMs);
 			const secondPageIds = secondPage.messages.map((m) => m.sender + m.createdAtMs);
 			expect(firstPageIds).not.toEqual(secondPageIds);
-		});
+		}, 10000);
 
 		it('should handle empty channels gracefully', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
@@ -293,7 +293,7 @@ describe('Integration tests - Read Path v2', () => {
 
 			expect(result.messages.length).toBe(0);
 			expect(result.cursor).toBe(pollingState.lastCursor);
-		});
+		}, 10000);
 
 		it('should handle cursor out of bounds', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
@@ -342,7 +342,7 @@ describe('Integration tests - Read Path v2', () => {
 			expect(decryptedMessage.text).toBeDefined();
 			expect(decryptedMessage.sender).toBeDefined();
 			expect(decryptedMessage.createdAtMs).toBeDefined();
-		});
+		}, 10000);
 
 		it('should handle messages with attachments', async () => {
 			const client = createTestClient(testSetup.suiClient, testSetup.config, testSetup.signer);
