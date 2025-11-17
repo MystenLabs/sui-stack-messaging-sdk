@@ -193,6 +193,118 @@ const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 
 ---
 
+### Add members to channel
+
+**Method:** `addMembers(channelId: string, creatorCapId: string, newMemberAddresses: string[]): Promise<(tx: Transaction) => void>`
+
+**Purpose:** Builds a transaction for adding new members to an existing channel. Only the channel creator can add members.
+
+**Parameters:**
+
+```typescript
+channelId: string;
+creatorCapId: string;
+newMemberAddresses: string[];
+```
+
+**Returns:** A transaction builder function
+
+**Example:**
+
+```typescript
+const tx = new Transaction();
+const addMembersBuilder = await client.messaging.addMembers(
+  channelId,
+  creatorCapId,
+  ["0xabc...", "0xdef..."]
+);
+
+await addMembersBuilder(tx);
+await signer.signAndExecuteTransaction({ transaction: tx });
+```
+
+> [!NOTE]
+> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+
+---
+
+### Add members transaction
+
+**Method:** `addMembersTransaction(channelId: string, creatorCapId: string, newMemberAddresses: string[]): Promise<Transaction>`
+
+**Purpose:** Creates a transaction for adding new members to a channel. Only the channel creator can add members.
+
+**Parameters:**
+
+```typescript
+channelId: string;
+creatorCapId: string;
+newMemberAddresses: string[];
+```
+
+**Returns:** A `Transaction` object ready to be signed and executed
+
+**Example:**
+
+```typescript
+const tx = await client.messaging.addMembersTransaction(
+  channelId,
+  creatorCapId,
+  ["0xabc...", "0xdef..."]
+);
+
+await signer.signAndExecuteTransaction({ transaction: tx });
+```
+
+> [!NOTE]
+> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+
+---
+
+### Execute add members transaction
+
+**Method:** `executeAddMembersTransaction(params): Promise<{ digest: string; memberCapIds: string[] }>`
+
+**Purpose:** Adds new members to a channel in a single call. Only the channel creator can add members.
+
+**Parameters:**
+
+```typescript
+{
+  signer: Signer;
+  channelId: string;
+  creatorCapId: string;
+  newMemberAddresses: string[];
+}
+```
+
+**Returns:**
+
+```typescript
+{
+  digest: string;
+  memberCapIds: string[];
+}
+```
+
+**Example:**
+
+```typescript
+const result = await client.messaging.executeAddMembersTransaction({
+  signer,
+  channelId,
+  creatorCapId,
+  newMemberAddresses: ["0xabc...", "0xdef..."]
+});
+
+console.log(`Added ${result.memberCapIds.length} members`);
+```
+
+> [!NOTE]
+> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+
+---
+
 ## Message management
 
 ### Get channel messages
