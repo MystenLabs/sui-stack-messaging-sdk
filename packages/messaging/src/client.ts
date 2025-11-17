@@ -20,6 +20,9 @@ import {
 import { _new as newAttachment, Attachment } from './contracts/sui_stack_messaging/attachment.js';
 
 import type {
+	AddedMemberCap,
+	AddMembersOptions,
+	AddMembersTransactionOptions,
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
 	ChannelMembersResponse,
@@ -27,20 +30,21 @@ import type {
 	CreateChannelFlow,
 	CreateChannelFlowGetGeneratedCapsOpts,
 	CreateChannelFlowOpts,
+	DecryptedChannelObject,
+	DecryptedChannelObjectsByAddressResponse,
+	DecryptedMessagesResponse,
+	DecryptMessageResult,
+	ExecuteAddMembersTransactionOptions,
+	GetChannelMessagesRequest,
+	GetChannelObjectsByChannelIdsRequest,
 	GetLatestMessagesRequest,
+	LazyDecryptAttachmentResult,
 	MessagingClientExtensionOptions,
 	MessagingClientOptions,
 	MessagingCompatibleClient,
 	MessagingPackageConfig,
 	ParsedChannelObject,
 	ParsedMessageObject,
-	DecryptMessageResult,
-	LazyDecryptAttachmentResult,
-	GetChannelMessagesRequest,
-	DecryptedChannelObject,
-	DecryptedMessagesResponse,
-	DecryptedChannelObjectsByAddressResponse,
-	GetChannelObjectsByChannelIdsRequest,
 } from './types.js';
 import {
 	MAINNET_MESSAGING_PACKAGE_CONFIG,
@@ -677,7 +681,7 @@ export class SuiStackMessagingClient {
 			// Deduplicate addresses and filter out creator (who already gets a MemberCap automatically)
 			const uniqueAddresses =
 				initialMemberAddresses && initialMemberAddresses.length > 0
-					? [...new Set(initialMemberAddresses)].filter((addr) => addr !== creatorAddress)
+					? this.#deduplicateAddresses(initialMemberAddresses, creatorAddress)
 					: [];
 			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
 				console.warn(
@@ -971,12 +975,152 @@ export class SuiStackMessagingClient {
 		await sendMessageTxBuilder(tx);
 		const { digest, effects } = await this.#executeTransaction(tx, signer, 'send message', true);
 
+		// Get the created Message object ID
 		const messageId = effects.changedObjects.find((obj) => obj.idOperation === 'Created')?.id;
 		if (messageId === undefined) {
 			throw new MessagingClientError('Message id not found on the transaction effects');
 		}
 
 		return { digest, messageId };
+	}
+
+	/**
+	 * Add members to a channel
+	 *
+	 * @example
+	 * ```ts
+	 * tx.add(client.addMembers({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   creatorCapId
+	 * }));
+	 * ```
+	 */
+	addMembers({ channelId, memberCapId, newMemberAddresses, creatorCapId }: AddMembersOptions) {
+		return async (tx: Transaction) => {
+			// Deduplicate addresses
+			const uniqueAddresses = this.#deduplicateAddresses(newMemberAddresses);
+
+			if (uniqueAddresses.length !== newMemberAddresses.length) {
+				console.warn(
+					'Duplicate addresses detected in newMemberAddresses. Using unique addresses only.',
+				);
+			}
+
+			if (uniqueAddresses.length === 0) {
+				console.warn('No members to add after deduplication.');
+				return;
+			}
+
+			const channel = tx.object(channelId);
+			const memberCap = tx.object(memberCapId);
+			const creatorCap = tx.object(creatorCapId);
+
+			// Create new member caps
+			const memberCaps = tx.add(
+				addMembers({
+					package: this.#packageConfig.packageId,
+					arguments: {
+						self: channel,
+						memberCap,
+						n: uniqueAddresses.length,
+					},
+				}),
+			);
+
+			// Transfer member caps to the new members
+			tx.add(
+				transferMemberCaps({
+					package: this.#packageConfig.packageId,
+					arguments: {
+						memberAddresses: tx.pure.vector('address', uniqueAddresses),
+						memberCaps,
+						creatorCap,
+					},
+				}),
+			);
+		};
+	}
+
+	/**
+	 * Create a transaction that adds members to a channel
+	 *
+	 * @example
+	 * ```ts
+	 * const tx = client.addMembersTransaction({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   creatorCapId
+	 * });
+	 * ```
+	 */
+	addMembersTransaction({
+		transaction = new Transaction(),
+		...options
+	}: AddMembersTransactionOptions) {
+		transaction.add(this.addMembers(options));
+		return transaction;
+	}
+
+	/**
+	 * Execute a transaction that adds members to a channel
+	 *
+	 * @example
+	 * ```ts
+	 * const { digest, addedMembers } = await client.executeAddMembersTransaction({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   creatorCapId,
+	 *   signer
+	 * });
+	 * // addedMembers contains { memberCap, ownerAddress } for each added member
+	 * ```
+	 */
+	async executeAddMembersTransaction({
+		signer,
+		transaction,
+		...options
+	}: ExecuteAddMembersTransactionOptions): Promise<{
+		digest: string;
+		addedMembers: AddedMemberCap[];
+	}> {
+		const tx = transaction ?? new Transaction();
+		const addMembersTxBuilder = this.addMembers(options);
+		await addMembersTxBuilder(tx);
+
+		const { digest, effects } = await this.#executeTransaction(tx, signer, 'add members', true);
+
+		// Get the created MemberCap objects with owner info
+		const memberCapsWithOwner = await this.#getCreatedObjectsByType({
+			effects,
+			objectTypeName: MemberCap.name,
+			parseFunction: (content) => MemberCap.parse(content),
+			errorMessage: `MemberCap objects not found in transaction effects for transaction (${digest})`,
+		});
+
+		// Extract owner addresses
+		const addedMembers: AddedMemberCap[] = memberCapsWithOwner.map(({ object, owner }) => {
+			let ownerAddress: string;
+			if (owner.$kind === 'AddressOwner') {
+				ownerAddress = owner.AddressOwner;
+			} else if (owner.$kind === 'ObjectOwner') {
+				ownerAddress = owner.ObjectOwner;
+			} else if (owner.$kind === 'Shared') {
+				ownerAddress = 'Shared';
+			} else {
+				ownerAddress = 'Immutable';
+			}
+
+			return {
+				memberCap: object,
+				ownerAddress,
+			};
+		});
+
+		return { digest, addedMembers };
 	}
 
 	/**
@@ -1075,85 +1219,123 @@ export class SuiStackMessagingClient {
 	}
 
 	async #getGeneratedCaps(digest: string) {
-		const creatorCapType = CreatorCap.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-		const creatorMemberCapType = MemberCap.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-		const additionalMemberCapType = MemberCap.name.replace(
-			'@local-pkg/sui-stack-messaging',
-			this.#packageConfig.packageId,
-		);
-
 		const {
 			transaction: { effects },
 		} = await this.#suiClient.core.waitForTransaction({
 			digest,
 		});
 
-		const createdObjectIds = effects?.changedObjects
-			.filter((object) => object.idOperation === 'Created')
+		// Get CreatorCap
+		const creatorCapsWithOwner = await this.#getCreatedObjectsByType({
+			effects,
+			objectTypeName: CreatorCap.name,
+			parseFunction: (content) => CreatorCap.parse(content),
+			errorMessage: `CreatorCap object not found in transaction effects for transaction (${digest})`,
+		});
+
+		if (creatorCapsWithOwner.length === 0) {
+			throw new MessagingClientError(
+				`CreatorCap object not found in transaction effects for transaction (${digest})`,
+			);
+		}
+
+		const { object: creatorCap, owner: creatorCapOwner } = creatorCapsWithOwner[0];
+
+		// Get all MemberCaps with owner info
+		const allMemberCapsWithOwner = await this.#getCreatedObjectsByType({
+			effects,
+			objectTypeName: MemberCap.name,
+			parseFunction: (content) => MemberCap.parse(content),
+			errorMessage: `MemberCap objects not found in transaction effects for transaction (${digest})`,
+		});
+
+		// Find the creator's member cap (same owner as CreatorCap)
+		const creatorMemberCapWithOwner = allMemberCapsWithOwner.find(
+			({ owner }) =>
+				owner.$kind === 'AddressOwner' &&
+				creatorCapOwner.$kind === 'AddressOwner' &&
+				owner.AddressOwner === creatorCapOwner.AddressOwner,
+		);
+
+		if (!creatorMemberCapWithOwner) {
+			throw new MessagingClientError(
+				`CreatorMemberCap object not found in transaction effects for transaction (${digest})`,
+			);
+		}
+
+		const creatorMemberCap = creatorMemberCapWithOwner.object;
+
+		// Filter out the creator's member cap from additional member caps
+		const additionalMemberCaps = allMemberCapsWithOwner
+			.filter((item) => item.object.id.id !== creatorMemberCap.id.id)
+			.map((item) => item.object);
+
+		return {
+			creatorCap,
+			creatorMemberCap,
+			additionalMemberCaps,
+		};
+	}
+
+	/**
+	 * Get created objects of a specific type from transaction effects
+	 * @param effects - Transaction effects
+	 * @param objectTypeName - The object type name (e.g., MemberCap.name)
+	 * @param parseFunction - Function to parse the object content
+	 * @param errorMessage - Error message if objects not found
+	 * @returns Array of parsed objects with owner information
+	 */
+	async #getCreatedObjectsByType<T>({
+		effects,
+		objectTypeName,
+		parseFunction,
+		errorMessage,
+	}: {
+		effects: Experimental_SuiClientTypes.TransactionEffects;
+		objectTypeName: string;
+		parseFunction: (content: Uint8Array) => T;
+		errorMessage: string;
+	}): Promise<Array<{ object: T; owner: Experimental_SuiClientTypes.ObjectOwner }>> {
+		const objectType = objectTypeName.replace(
+			'@local-pkg/sui-stack-messaging',
+			this.#packageConfig.packageId,
+		);
+
+		const createdObjectIds = effects.changedObjects
+			.filter((object) => object.idOperation === 'Created' && object.outputState !== 'DoesNotExist')
 			.map((object) => object.id);
 
 		const createdObjects = await this.#suiClient.core.getObjects({
 			objectIds: createdObjectIds,
 		});
 
-		const suiCreatorCapObject = createdObjects.objects.find(
-			(object) => !(object instanceof Error) && object.type === creatorCapType,
+		const matchingObjects = createdObjects.objects.filter(
+			(object) => !(object instanceof Error) && object.type === objectType,
 		);
 
-		if (suiCreatorCapObject instanceof Error || !suiCreatorCapObject) {
-			throw new MessagingClientError(
-				`CreatorCap object not found in transaction effects for transaction (${digest})`,
-			);
-		}
-
-		const creatorCapParsed = CreatorCap.parse(await suiCreatorCapObject.content);
-
-		const suiCreatorMemberCapObject = createdObjects.objects.find(
-			(object) =>
-				!(object instanceof Error) &&
-				object.type === creatorMemberCapType &&
-				// only get the creator's member cap
-				object.owner.$kind === 'AddressOwner' &&
-				suiCreatorCapObject.owner.$kind === 'AddressOwner' &&
-				object.owner.AddressOwner === suiCreatorCapObject.owner.AddressOwner,
-		);
-
-		if (suiCreatorMemberCapObject instanceof Error || !suiCreatorMemberCapObject) {
-			throw new MessagingClientError(
-				`CreatorMemberCap object not found in transaction effects for transaction (${digest})`,
-			);
-		}
-
-		const creatorMemberCapParsed = MemberCap.parse(await suiCreatorMemberCapObject.content);
-
-		const suiAdditionalMemberCapsObjects = createdObjects.objects.filter(
-			(object) => !(object instanceof Error) && object.type === additionalMemberCapType,
-		);
-
-		// exclude the creator's member cap from the additional member caps
-		const additionalMemberCapsParsed = await Promise.all(
-			suiAdditionalMemberCapsObjects.map(async (object) => {
-				if (object instanceof Error) {
-					throw new MessagingClientError(
-						`AdditionalMemberCap object not found in transaction effects for transaction (${digest})`,
-					);
+		const parsedObjectsWithOwner = await Promise.all(
+			matchingObjects.map(async (objectResponse) => {
+				if (objectResponse instanceof Error || !objectResponse.content) {
+					throw new MessagingClientError(errorMessage);
 				}
-				return MemberCap.parse(await object.content);
+				const parsedObject = parseFunction(await objectResponse.content);
+				return { object: parsedObject, owner: objectResponse.owner! };
 			}),
 		);
-		additionalMemberCapsParsed.filter((cap) => cap.id.id !== creatorMemberCapParsed.id.id);
+		return parsedObjectsWithOwner;
+	}
 
-		return {
-			creatorCap: creatorCapParsed,
-			creatorMemberCap: creatorMemberCapParsed,
-			additionalMemberCaps: additionalMemberCapsParsed,
-		};
+	/**
+	 * Deduplicate addresses and optionally filter out an excluded address
+	 * @param addresses - Array of addresses to deduplicate
+	 * @param excludeAddress - Optional address to filter out
+	 * @returns Array of unique addresses, excluding the excluded address if provided
+	 */
+	#deduplicateAddresses(addresses: string[], excludeAddress?: string): string[] {
+		const uniqueAddresses = [...new Set(addresses)];
+		return excludeAddress
+			? uniqueAddresses.filter((addr) => addr !== excludeAddress)
+			: uniqueAddresses;
 	}
 
 	// Derive the message IDs from the given range

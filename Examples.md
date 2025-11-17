@@ -188,6 +188,123 @@ for (const msg of messages.messages) {
 
 The AI agent can then engage in the same two-way conversation loop as a human support operator.
 
+## Adding new members to an existing channel
+
+This example shows how a channel creator can add new members to an existing channel. This is useful when you need to expand access to a conversation after the channel has been created.
+
+> [!NOTE]
+> Only the channel creator (the account that has the `CreatorCap`) can add new members to a channel.
+
+### 1. Adding members using the simplified method
+
+The easiest way to add members is using `executeAddMembersTransaction`, which handles the entire process in a single call.
+
+```typescript
+// Assume you have already created a channel and have the channelId and creatorCapId
+const channelId = "0xCHANNEL...";
+const creatorCapId = "0xCREATORCAP...";
+
+// Add two new members to the channel
+const newMemberAddresses = [
+  "0xNEWMEMBER1...",
+  "0xNEWMEMBER2...",
+];
+
+const { digest, memberCapIds } = await messaging.executeAddMembersTransaction({
+  signer: creatorSigner, // Must be the channel creator
+  channelId,
+  creatorCapId,
+  newMemberAddresses,
+});
+
+console.log(`Added ${memberCapIds.length} new members in tx ${digest}`);
+console.log(`New member cap IDs:`, memberCapIds);
+```
+
+### 2. Adding members with transaction builder pattern
+
+For more control over transaction composition, use the transaction builder pattern:
+
+```typescript
+import { Transaction } from "@mysten/sui/transactions";
+
+const tx = new Transaction();
+
+// Build the add members transaction
+const addMembersBuilder = await messaging.addMembers(
+  channelId,
+  creatorCapId,
+  newMemberAddresses
+);
+
+// Add to the transaction
+await addMembersBuilder(tx);
+
+// Sign and execute
+const result = await creatorSigner.signAndExecuteTransaction({
+  transaction: tx,
+});
+
+console.log(`Transaction digest: ${result.digest}`);
+```
+
+### 3. Adding members using direct transaction method
+
+You can also use `addMembersTransaction` which returns a `Transaction` object directly:
+
+```typescript
+const tx = await messaging.addMembersTransaction(
+  channelId,
+  creatorCapId,
+  newMemberAddresses
+);
+
+const result = await creatorSigner.signAndExecuteTransaction({
+  transaction: tx,
+});
+```
+
+### 4. Verifying the new members were added
+
+After adding members, you can verify they were successfully added by fetching the channel members:
+
+```typescript
+const channelMembers = await messaging.getChannelMembers(channelId);
+
+console.log(`Total members: ${channelMembers.members.length}`);
+channelMembers.members.forEach((member) => {
+  console.log(`Member: ${member.memberAddress}`);
+  console.log(`MemberCapId: ${member.memberCapId}`);
+});
+```
+
+### Example: Expanding a support team
+
+Building on the in-app product support example, you might want to add additional support agents to a channel:
+
+```typescript
+// Original support channel with one user
+const { channelId, creatorCapId } = await messaging.executeCreateChannelTransaction({
+  signer: supportSigner,
+  initialMembers: [topUserAddress],
+});
+
+// Later, add more support agents to help with the conversation
+const additionalAgents = [
+  "0xSUPPORT_AGENT_2...",
+  "0xSUPPORT_AGENT_3...",
+];
+
+await messaging.executeAddMembersTransaction({
+  signer: supportSigner,
+  channelId,
+  creatorCapId,
+  newMemberAddresses: additionalAgents,
+});
+
+console.log("Support team expanded successfully");
+```
+
 ## Cross-App Identity & Reputation Updates
 
 This example shows how an identity app (e.g., proof-of-humanity or reputation scoring) can publish updates about a user’s status. Multiple consuming apps, such as DeFi protocols, games, or social platforms, subscribe to those updates via secure messaging channels.
@@ -247,7 +364,7 @@ console.log(`Created reputation updates channel: ${channelId}`);
 ```
 
 > [!NOTE]
-> The SDK does not yet support adding/removing members after creation. Be sure to include all intended subscribers in `initialMembers`.
+> If you need to add more subscribers later, you can use the `addMembers` functionality (see the "Adding new members to an existing channel" example above). Only the channel creator can add new members.
 
 ### 3. Publish an identity/reputation update
 
