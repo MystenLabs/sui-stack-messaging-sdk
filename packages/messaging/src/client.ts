@@ -8,6 +8,8 @@ import { bcs } from '@mysten/sui/bcs';
 import type { Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import type { SessionKey } from '@mysten/seal';
 
+import { getLogger, CATEGORIES } from './logging/index.js';
+
 import {
 	_new as newChannel,
 	addEncryptedKey,
@@ -388,7 +390,10 @@ export class SuiStackMessagingClient {
 	async getChannelObjectsByChannelIds(
 		request: GetChannelObjectsByChannelIdsRequest,
 	): Promise<DecryptedChannelObject[]> {
+		const logger = getLogger(CATEGORIES.CLIENT_READS);
 		const { channelIds, userAddress, memberCapIds } = request;
+
+		logger.debug('Fetching channel objects by IDs', { channelCount: channelIds.length, userAddress });
 
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
@@ -436,6 +441,12 @@ export class SuiStackMessagingClient {
 			}),
 		);
 
+		logger.info('Retrieved channel objects', {
+			channelCount: decryptedChannels.length,
+			channelIds: decryptedChannels.map((c) => c.id.id),
+			userAddress,
+		});
+
 		return decryptedChannels;
 	}
 
@@ -445,6 +456,9 @@ export class SuiStackMessagingClient {
 	 * @returns Channel members with addresses and member cap IDs
 	 */
 	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+		const logger = getLogger(CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching channel members', { channelId });
+
 		// 1. Get the channel object to access the auth structure
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: [channelId],
@@ -503,6 +517,12 @@ export class SuiStackMessagingClient {
 			}
 		}
 
+		logger.info('Retrieved channel members', {
+			channelId,
+			memberCount: members.length,
+			memberCapIds: members.map((m) => m.memberCapId),
+		});
+
 		return { members };
 	}
 
@@ -518,6 +538,9 @@ export class SuiStackMessagingClient {
 		limit = 50,
 		direction = 'backward',
 	}: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse> {
+		const logger = getLogger(CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching channel messages', { channelId, userAddress, cursor, limit, direction });
+
 		// 1. Get channel metadata (we need the raw channel object for metadata, not decrypted)
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: [channelId],
@@ -587,6 +610,16 @@ export class SuiStackMessagingClient {
 		});
 
 		// 8. Create response
+		logger.info('Retrieved channel messages', {
+			channelId,
+			messagesTableId,
+			messageCount: decryptedMessages.length,
+			fetchRange: `${fetchRange.startIndex}-${fetchRange.endIndex}`,
+			cursor: nextPagination.cursor,
+			hasNextPage: nextPagination.hasNextPage,
+			direction,
+		});
+
 		return {
 			messages: decryptedMessages,
 			cursor: nextPagination.cursor,
@@ -963,11 +996,21 @@ export class SuiStackMessagingClient {
 		encryptedKey: EncryptedSymmetricKey;
 		attachments?: File[];
 	} & { signer: Signer }): Promise<{ digest: string; messageId: string }> {
+		const logger = getLogger(CATEGORIES.CLIENT_WRITES);
+		const senderAddress = signer.toSuiAddress();
+		logger.debug('Sending message', {
+			channelId,
+			memberCapId,
+			senderAddress,
+			messageLength: message.length,
+			attachmentCount: attachments?.length ?? 0,
+		});
+
 		const tx = new Transaction();
 		const sendMessageTxBuilder = await this.sendMessage(
 			channelId,
 			memberCapId,
-			signer.toSuiAddress(),
+			senderAddress,
 			message,
 			encryptedKey,
 			attachments,
@@ -980,6 +1023,14 @@ export class SuiStackMessagingClient {
 		if (messageId === undefined) {
 			throw new MessagingClientError('Message id not found on the transaction effects');
 		}
+
+		logger.info('Message sent', {
+			channelId,
+			messageId,
+			senderAddress,
+			hasAttachments: (attachments?.length ?? 0) > 0,
+			digest,
+		});
 
 		return { digest, messageId };
 	}
@@ -1087,6 +1138,12 @@ export class SuiStackMessagingClient {
 		digest: string;
 		addedMembers: AddedMemberCap[];
 	}> {
+		const logger = getLogger(CATEGORIES.CLIENT_WRITES);
+		logger.debug('Adding members to channel', {
+			channelId: options.channelId,
+			newMemberAddresses: options.newMemberAddresses,
+		});
+
 		const tx = transaction ?? new Transaction();
 		const addMembersTxBuilder = this.addMembers(options);
 		await addMembersTxBuilder(tx);
@@ -1118,6 +1175,13 @@ export class SuiStackMessagingClient {
 				memberCap: object,
 				ownerAddress,
 			};
+		});
+
+		logger.info('Members added to channel', {
+			channelId: options.channelId,
+			addedMemberCount: addedMembers.length,
+			memberCapIds: addedMembers.map((m) => m.memberCap.id.id),
+			digest,
 		});
 
 		return { digest, addedMembers };
@@ -1155,8 +1219,15 @@ export class SuiStackMessagingClient {
 		creatorCapId: string;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	}> {
+		const logger = getLogger(CATEGORIES.CLIENT_WRITES);
+		const creatorAddress = signer.toSuiAddress();
+		logger.debug('Creating channel', {
+			creatorAddress,
+			initialMemberCount: initialMembers?.length ?? 0,
+		});
+
 		const flow = this.createChannelFlow({
-			creatorAddress: signer.toSuiAddress(),
+			creatorAddress,
 			initialMemberAddresses: initialMembers,
 		});
 
@@ -1187,6 +1258,14 @@ export class SuiStackMessagingClient {
 
 		// Step 4: Get the encrypted key bytes
 		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
+
+		logger.info('Channel created', {
+			channelId,
+			creatorCapId: creatorCap.id.id,
+			creatorAddress,
+			memberCount: (initialMembers?.length ?? 0) + 1, // Including creator
+			digest: keyDigest,
+		});
 
 		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
 	}
