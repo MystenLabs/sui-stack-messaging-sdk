@@ -195,16 +195,19 @@ const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 
 ### Add members to channel
 
-**Method:** `addMembers(channelId: string, creatorCapId: string, newMemberAddresses: string[]): Promise<(tx: Transaction) => void>`
+**Method:** `addMembers(options: AddMembersOptions): (tx: Transaction) => Promise<void>`
 
 **Purpose:** Builds a transaction for adding new members to an existing channel. Only the channel creator can add members.
 
 **Parameters:**
 
 ```typescript
-channelId: string;
-creatorCapId: string;
-newMemberAddresses: string[];
+{
+  channelId: string;
+  memberCapId: string;        // The creator's MemberCap ID
+  newMemberAddresses: string[];
+  creatorCapId: string;       // The creator's CreatorCap ID
+}
 ```
 
 **Returns:** A transaction builder function
@@ -213,33 +216,38 @@ newMemberAddresses: string[];
 
 ```typescript
 const tx = new Transaction();
-const addMembersBuilder = await client.messaging.addMembers(
+const addMembersBuilder = client.messaging.addMembers({
   channelId,
-  creatorCapId,
-  ["0xabc...", "0xdef..."]
-);
+  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  newMemberAddresses: ["0xabc...", "0xdef..."],
+  creatorCapId
+});
 
 await addMembersBuilder(tx);
 await signer.signAndExecuteTransaction({ transaction: tx });
 ```
 
 > [!NOTE]
-> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`.
 
 ---
 
 ### Add members transaction
 
-**Method:** `addMembersTransaction(channelId: string, creatorCapId: string, newMemberAddresses: string[]): Promise<Transaction>`
+**Method:** `addMembersTransaction(options: AddMembersTransactionOptions): Transaction`
 
 **Purpose:** Creates a transaction for adding new members to a channel. Only the channel creator can add members.
 
 **Parameters:**
 
 ```typescript
-channelId: string;
-creatorCapId: string;
-newMemberAddresses: string[];
+{
+  channelId: string;
+  memberCapId: string;        // The creator's MemberCap ID
+  newMemberAddresses: string[];
+  creatorCapId: string;       // The creator's CreatorCap ID
+  transaction?: Transaction;  // Optional: provide existing transaction to build on
+}
 ```
 
 **Returns:** A `Transaction` object ready to be signed and executed
@@ -247,23 +255,24 @@ newMemberAddresses: string[];
 **Example:**
 
 ```typescript
-const tx = await client.messaging.addMembersTransaction(
+const tx = client.messaging.addMembersTransaction({
   channelId,
-  creatorCapId,
-  ["0xabc...", "0xdef..."]
-);
+  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  newMemberAddresses: ["0xabc...", "0xdef..."],
+  creatorCapId
+});
 
 await signer.signAndExecuteTransaction({ transaction: tx });
 ```
 
 > [!NOTE]
-> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`.
 
 ---
 
 ### Execute add members transaction
 
-**Method:** `executeAddMembersTransaction(params): Promise<{ digest: string; memberCapIds: string[] }>`
+**Method:** `executeAddMembersTransaction(params): Promise<{ digest: string; addedMembers: AddedMemberCap[] }>`
 
 **Purpose:** Adds new members to a channel in a single call. Only the channel creator can add members.
 
@@ -273,8 +282,10 @@ await signer.signAndExecuteTransaction({ transaction: tx });
 {
   signer: Signer;
   channelId: string;
-  creatorCapId: string;
+  memberCapId: string;        // The creator's MemberCap ID
   newMemberAddresses: string[];
+  creatorCapId: string;       // The creator's CreatorCap ID
+  transaction?: Transaction;  // Optional: provide existing transaction to build on
 }
 ```
 
@@ -283,25 +294,37 @@ await signer.signAndExecuteTransaction({ transaction: tx });
 ```typescript
 {
   digest: string;
-  memberCapIds: string[];
+  addedMembers: AddedMemberCap[];  // Array of { memberCap, ownerAddress }
+}
+```
+
+Where `AddedMemberCap` has the structure:
+```typescript
+{
+  memberCap: MemberCap;     // Full MemberCap object
+  ownerAddress: string;     // Address of the new member
 }
 ```
 
 **Example:**
 
 ```typescript
-const result = await client.messaging.executeAddMembersTransaction({
+const { digest, addedMembers } = await client.messaging.executeAddMembersTransaction({
   signer,
   channelId,
-  creatorCapId,
-  newMemberAddresses: ["0xabc...", "0xdef..."]
+  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  newMemberAddresses: ["0xabc...", "0xdef..."],
+  creatorCapId
 });
 
-console.log(`Added ${result.memberCapIds.length} members`);
+console.log(`Added ${addedMembers.length} members`);
+addedMembers.forEach(({ memberCap, ownerAddress }) => {
+  console.log(`Member ${ownerAddress} received MemberCap ${memberCap.id.id}`);
+});
 ```
 
 > [!NOTE]
-> This operation requires the `CreatorCap` for the channel. Only the channel creator can add new members.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`.
 
 ---
 
