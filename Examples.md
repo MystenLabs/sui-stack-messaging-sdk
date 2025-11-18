@@ -200,8 +200,9 @@ This example shows how a channel creator can add new members to an existing chan
 The easiest way to add members is using `executeAddMembersTransaction`, which handles the entire process in a single call.
 
 ```typescript
-// Assume you have already created a channel and have the channelId and creatorCapId
+// Assume you have already created a channel and have the channelId, creatorMemberCapId, and creatorCapId
 const channelId = "0xCHANNEL...";
+const creatorMemberCapId = "0xCREATORMEMBERCAP..."; // Creator's MemberCap ID
 const creatorCapId = "0xCREATORCAP...";
 
 // Add two new members to the channel
@@ -210,15 +211,18 @@ const newMemberAddresses = [
   "0xNEWMEMBER2...",
 ];
 
-const { digest, memberCapIds } = await messaging.executeAddMembersTransaction({
+const { digest, addedMembers } = await messaging.executeAddMembersTransaction({
   signer: creatorSigner, // Must be the channel creator
   channelId,
+  memberCapId: creatorMemberCapId,
   creatorCapId,
   newMemberAddresses,
 });
 
-console.log(`Added ${memberCapIds.length} new members in tx ${digest}`);
-console.log(`New member cap IDs:`, memberCapIds);
+console.log(`Added ${addedMembers.length} new members in tx ${digest}`);
+addedMembers.forEach(({ memberCap, ownerAddress }) => {
+  console.log(`Member ${ownerAddress} received MemberCap ${memberCap.id.id}`);
+});
 ```
 
 ### 2. Adding members with transaction builder pattern
@@ -231,11 +235,12 @@ import { Transaction } from "@mysten/sui/transactions";
 const tx = new Transaction();
 
 // Build the add members transaction
-const addMembersBuilder = await messaging.addMembers(
+const addMembersBuilder = messaging.addMembers({
   channelId,
+  memberCapId: creatorMemberCapId,
   creatorCapId,
-  newMemberAddresses
-);
+  newMemberAddresses,
+});
 
 // Add to the transaction
 await addMembersBuilder(tx);
@@ -253,11 +258,12 @@ console.log(`Transaction digest: ${result.digest}`);
 You can also use `addMembersTransaction` which returns a `Transaction` object directly:
 
 ```typescript
-const tx = await messaging.addMembersTransaction(
+const tx = messaging.addMembersTransaction({
   channelId,
+  memberCapId: creatorMemberCapId,
   creatorCapId,
-  newMemberAddresses
-);
+  newMemberAddresses,
+});
 
 const result = await creatorSigner.signAndExecuteTransaction({
   transaction: tx,
@@ -289,6 +295,14 @@ const { channelId, creatorCapId } = await messaging.executeCreateChannelTransact
   initialMembers: [topUserAddress],
 });
 
+// Get the creator's MemberCap ID (see step 3 in the support example above)
+const creatorMembership = await messaging.getChannelMemberships({
+  address: supportSigner.toSuiAddress(),
+});
+const supportMemberCapId = creatorMembership.memberships.find(
+  (m) => m.channel_id === channelId
+).member_cap_id;
+
 // Later, add more support agents to help with the conversation
 const additionalAgents = [
   "0xSUPPORT_AGENT_2...",
@@ -298,6 +312,7 @@ const additionalAgents = [
 await messaging.executeAddMembersTransaction({
   signer: supportSigner,
   channelId,
+  memberCapId: supportMemberCapId,
   creatorCapId,
   newMemberAddresses: additionalAgents,
 });
