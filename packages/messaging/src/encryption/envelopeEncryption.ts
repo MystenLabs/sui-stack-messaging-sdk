@@ -562,6 +562,8 @@ export class EnvelopeEncryption {
 		channelId,
 		memberCapId,
 	}: DecryptChannelDEKOpts): Promise<SymmetricKey> {
+		const logger = getLogger(CATEGORIES.ENCRYPTION);
+
 		if (!isValidSuiObjectId(channelId)) {
 			throw new Error('The channelId provided is not a valid Sui Object ID');
 		}
@@ -601,7 +603,7 @@ export class EnvelopeEncryption {
 				checkLEEncoding: true, // Support legacy LE-encoded ciphertexts
 			});
 		} catch (error) {
-			console.error('Error decrypting channel DEK', error);
+			logger.error('Error decrypting channel DEK', { channelId, memberCapId, error });
 			throw error;
 		}
 		// const dekBytes = await this.#suiClient.seal.decrypt({

@@ -393,7 +393,10 @@ export class SuiStackMessagingClient {
 		const logger = getLogger(CATEGORIES.CLIENT_READS);
 		const { channelIds, userAddress, memberCapIds } = request;
 
-		logger.debug('Fetching channel objects by IDs', { channelCount: channelIds.length, userAddress });
+		logger.debug('Fetching channel objects by IDs', {
+			channelCount: channelIds.length,
+			userAddress,
+		});
 
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
@@ -706,6 +709,7 @@ export class SuiStackMessagingClient {
 		initialMemberAddresses,
 	}: CreateChannelFlowOpts): CreateChannelFlow {
 		const build = () => {
+			const logger = getLogger(CATEGORIES.CLIENT_WRITES);
 			const tx = new Transaction();
 			const config = tx.add(noneConfig());
 			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
@@ -717,8 +721,13 @@ export class SuiStackMessagingClient {
 					? this.#deduplicateAddresses(initialMemberAddresses, creatorAddress)
 					: [];
 			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
-				console.warn(
+				logger.warn(
 					'Duplicate addresses or creator address detected in initialMemberAddresses. Creator automatically receives a MemberCap. Using unique non-creator addresses only.',
+					{
+						originalCount: initialMemberAddresses?.length,
+						uniqueCount: uniqueAddresses.length,
+						creatorAddress,
+					},
 				);
 			}
 
@@ -1050,17 +1059,24 @@ export class SuiStackMessagingClient {
 	 */
 	addMembers({ channelId, memberCapId, newMemberAddresses, creatorCapId }: AddMembersOptions) {
 		return async (tx: Transaction) => {
+			const logger = getLogger(CATEGORIES.CLIENT_WRITES);
+
 			// Deduplicate addresses
 			const uniqueAddresses = this.#deduplicateAddresses(newMemberAddresses);
 
 			if (uniqueAddresses.length !== newMemberAddresses.length) {
-				console.warn(
+				logger.warn(
 					'Duplicate addresses detected in newMemberAddresses. Using unique addresses only.',
+					{
+						channelId,
+						originalCount: newMemberAddresses.length,
+						uniqueCount: uniqueAddresses.length,
+					},
 				);
 			}
 
 			if (uniqueAddresses.length === 0) {
-				console.warn('No members to add after deduplication.');
+				logger.warn('No members to add after deduplication.', { channelId });
 				return;
 			}
 
