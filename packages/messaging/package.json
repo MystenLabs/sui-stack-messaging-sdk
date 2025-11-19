@@ -52,21 +52,13 @@
 	},
 	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
+		"@logtape/logtape": "^1.2.0",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/seal": "^0.9.6",
 		"@mysten/sui": "^1.45.2",
 		"@mysten/walrus": "^0.8.6"
 	},
-	"peerDependencies": {
-		"@logtape/logtape": "^1.2.0"
-	},
-	"peerDependenciesMeta": {
-		"@logtape/logtape": {
-			"optional": true
-		}
-	},
 	"devDependencies": {
-		"@logtape/logtape": "^1.2.0",
 		"@changesets/cli": "^2.29.6",
 		"@ianvs/prettier-plugin-sort-imports": "^4.7.0",
 		"@manypkg/cli": "^0.25.1",

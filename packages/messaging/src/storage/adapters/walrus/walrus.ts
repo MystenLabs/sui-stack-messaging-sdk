@@ -107,10 +107,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		}
 
 		const result = await response.json();
-		// const blobId = this.#extractBlobId(result as WalrusResponse);
 		// TODO: figure out the Types, so we avoid the use of any
-		//  // @ts-ignore
-		// console.log((await this.client.walrus.getBlob({blobId})));
 		return { ids: this.#extractQuiltsPatchIds(result as WalrusResponse) };
 	}
 

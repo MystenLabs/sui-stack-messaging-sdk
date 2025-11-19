@@ -435,7 +435,10 @@ export class SuiStackMessagingClient {
 						decryptedChannel.last_message = decryptedMessage;
 					} catch (error) {
 						// If decryption fails, set last_message to null
-						console.warn(`Failed to decrypt last message for channel ${channel.id.id}:`, error);
+						logger.warn('Failed to decrypt last message for channel', {
+							channelId: channel.id.id,
+							error: error instanceof Error ? error.message : String(error),
+						});
 						decryptedChannel.last_message = null;
 					}
 				}
@@ -488,7 +491,10 @@ export class SuiStackMessagingClient {
 		const members: ChannelMember[] = [];
 		for (const obj of memberCapObjects.objects) {
 			if (obj instanceof Error || !obj.content) {
-				console.warn('Failed to fetch MemberCap object:', obj);
+				logger.warn('Failed to fetch MemberCap object', {
+					channelId,
+					error: obj instanceof Error ? obj.message : 'No content in object',
+				});
 				continue;
 			}
 
@@ -503,10 +509,16 @@ export class SuiStackMessagingClient {
 					} else if (obj.owner.$kind === 'ObjectOwner') {
 						// For object-owned MemberCaps, we can't easily get the address
 						// This is a limitation of the current approach
-						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
+						logger.warn('MemberCap is object-owned, skipping', {
+							channelId,
+							memberCapId: memberCap.id.id,
+						});
 						continue;
 					} else {
-						console.warn('MemberCap has unknown ownership type:', obj.owner);
+						logger.warn('MemberCap has unknown ownership type', {
+							channelId,
+							ownerKind: obj.owner.$kind,
+						});
 						continue;
 					}
 
@@ -516,7 +528,10 @@ export class SuiStackMessagingClient {
 					});
 				}
 			} catch (error) {
-				console.warn('Failed to parse MemberCap object:', error);
+				logger.warn('Failed to parse MemberCap object', {
+					channelId,
+					error: error instanceof Error ? error.message : String(error),
+				});
 			}
 		}
 
@@ -593,7 +608,11 @@ export class SuiStackMessagingClient {
 				try {
 					return await this.#decryptMessage(message, channelId, memberCapId, encryptedKey);
 				} catch (error) {
-					console.warn(`Failed to decrypt message in channel ${channelId}:`, error);
+					logger.warn('Failed to decrypt message in channel', {
+						channelId,
+						sender: message.sender,
+						error: error instanceof Error ? error.message : String(error),
+					});
 					// Return a placeholder for failed decryption
 					return {
 						text: '[Failed to decrypt message]',

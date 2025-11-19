@@ -2,17 +2,9 @@
 
 The Messaging SDK uses [LogTape](https://github.com/dahlia/logtape) for structured logging. Logging is completely optional - the SDK works perfectly without it.
 
-## Overview
-
-LogTape integration follows a library-first design:
-- **Zero configuration required** in the SDK
-- **Optional peer dependency** - install only if you want logging
-- **Full user control** over what gets logged and where
-- **Structured logging** with rich context for debugging
-
 ## Installation
 
-Install LogTape as a dependency in your application:
+If you want logging, install LogTape:
 
 ```bash
 npm install @logtape/logtape
@@ -22,43 +14,55 @@ pnpm add @logtape/logtape
 yarn add @logtape/logtape
 ```
 
-**Note**: LogTape is an optional peer dependency. The Messaging SDK works without it.
-
 ## Quick Start
 
 Configure LogTape once at application startup:
 
 ```typescript
 import { configure, getConsoleSink } from "@logtape/logtape";
+import { CATEGORIES } from "@mysten/messaging";
 
 // Configure LogTape before using the Messaging SDK
 await configure({
   sinks: {
     console: getConsoleSink(),
   },
+  filters: {},
   loggers: [
     // Enable all messaging SDK logs at info level
     {
-      category: ["@mysten/messaging"],
-      level: "info",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "info",
       sinks: ["console"],
     },
   ],
 });
 ```
 
+**Tips**:
+- **Use `CATEGORIES` constants**: Import and use the `CATEGORIES` constants instead of manually writing category arrays (e.g., `["@mysten/messaging"]`). This prevents typos and provides better IDE autocomplete.
+- **Production logging**: For production environments, consider using the JSON Lines formatter for machine-readable structured logs:
+  ```typescript
+  import { getConsoleSink, getJsonLinesFormatter } from "@logtape/logtape";
+
+  const console = getConsoleSink({ formatter: getJsonLinesFormatter() });
+  ```
+  This outputs one JSON object per line, making it easy to integrate with log aggregation systems like ELK, Datadog, or CloudWatch.
+
 ## Logging Categories
 
 The SDK uses a hierarchical category structure for fine-grained control:
 
-| Category | Description | Typical Operations |
-|----------|-------------|-------------------|
-| `["@mysten/messaging"]` | Root - captures all SDK logs | All operations |
-| `["@mysten/messaging", "client", "reads"]` | Read operations | `getChannelObjects`, `getChannelMessages`, `getChannelMembers` |
-| `["@mysten/messaging", "client", "writes"]` | Write operations | `executeCreateChannel`, `executeSendMessage`, `executeAddMembers` |
-| `["@mysten/messaging", "encryption"]` | Encryption operations | Key generation, encrypt/decrypt operations |
-| `["@mysten/messaging", "storage"]` | All storage operations | Upload/download to storage adapters |
-| `["@mysten/messaging", "storage", "walrus"]` | Walrus-specific operations | Walrus uploads, downloads, errors |
+| Constant | Category | Description | Typical Operations |
+|----------|----------|-------------|-------------------|
+| `CATEGORIES.ROOT` | `["@mysten/messaging"]` | Root - captures all SDK logs | All operations |
+| `CATEGORIES.CLIENT_READS` | `["@mysten/messaging", "client", "reads"]` | Read operations | `getChannelObjects`, `getChannelMessages`, `getChannelMembers` |
+| `CATEGORIES.CLIENT_WRITES` | `["@mysten/messaging", "client", "writes"]` | Write operations | `executeCreateChannel`, `executeSendMessage`, `executeAddMembers` |
+| `CATEGORIES.ENCRYPTION` | `["@mysten/messaging", "encryption"]` | Encryption operations | Key generation, encrypt/decrypt operations |
+| `CATEGORIES.STORAGE` | `["@mysten/messaging", "storage"]` | All storage operations | Upload/download to storage adapters |
+| `CATEGORIES.STORAGE_WALRUS` | `["@mysten/messaging", "storage", "walrus"]` | Walrus-specific operations | Walrus uploads, downloads, errors |
+
+**Recommended**: Use the `CATEGORIES` constants (imported from `"@mysten/messaging"`) in your configuration for type safety and autocompletion.
 
 ## Log Levels
 
@@ -76,14 +80,17 @@ The SDK uses four log levels:
 Log everything at debug level for maximum visibility:
 
 ```typescript
+import { CATEGORIES } from "@mysten/messaging";
+
 await configure({
   sinks: {
     console: getConsoleSink(),
   },
+  filters: {},
   loggers: [
     {
-      category: ["@mysten/messaging"],
-      level: "debug",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "debug",
       sinks: ["console"],
     },
   ],
@@ -95,14 +102,17 @@ await configure({
 Log only errors to minimize noise:
 
 ```typescript
+import { CATEGORIES } from "@mysten/messaging";
+
 await configure({
   sinks: {
     console: getConsoleSink(),
   },
+  filters: {},
   loggers: [
     {
-      category: ["@mysten/messaging"],
-      level: "error",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "error",
       sinks: ["console"],
     },
   ],
@@ -114,27 +124,30 @@ await configure({
 Enable debug logging for specific modules:
 
 ```typescript
+import { CATEGORIES } from "@mysten/messaging";
+
 await configure({
   sinks: {
     console: getConsoleSink(),
   },
+  filters: {},
   loggers: [
     // Info for all SDK operations
     {
-      category: ["@mysten/messaging"],
-      level: "info",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "info",
       sinks: ["console"],
     },
     // Debug for encryption troubleshooting
     {
-      category: ["@mysten/messaging", "encryption"],
-      level: "debug",
+      category: CATEGORIES.ENCRYPTION,
+      lowestLevel: "debug",
       sinks: ["console"],
     },
     // Debug for storage troubleshooting
     {
-      category: ["@mysten/messaging", "storage", "walrus"],
-      level: "debug",
+      category: CATEGORIES.STORAGE_WALRUS,
+      lowestLevel: "debug",
       sinks: ["console"],
     },
   ],
@@ -147,23 +160,25 @@ Send different log levels to different destinations:
 
 ```typescript
 import { configure, getConsoleSink, getFileSink } from "@logtape/logtape";
+import { CATEGORIES } from "@mysten/messaging";
 
 await configure({
   sinks: {
     console: getConsoleSink(),
     errorFile: getFileSink("errors.log"),
   },
+  filters: {},
   loggers: [
     // All logs to console
     {
-      category: ["@mysten/messaging"],
-      level: "info",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "info",
       sinks: ["console"],
     },
     // Errors to file
     {
-      category: ["@mysten/messaging"],
-      level: "error",
+      category: CATEGORIES.ROOT,
+      lowestLevel: "error",
       sinks: ["errorFile"],
     },
   ],
@@ -277,11 +292,11 @@ The SDK **does log**:
    Call this before using the Messaging SDK.
 
 2. **Check log level**:
-   Ensure the category's `level` is low enough to capture logs.
+   Ensure the category's `lowestLevel` is low enough to capture logs.
    Example: `"debug"` captures everything, `"error"` only errors.
 
 3. **Verify category matches**:
-   Use `["@mysten/messaging"]` to capture all SDK logs.
+   Use `CATEGORIES.ROOT` (or `["@mysten/messaging"]`) to capture all SDK logs.
 
 ### Too Many Logs
 

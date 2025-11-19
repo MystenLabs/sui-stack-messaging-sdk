@@ -11,6 +11,19 @@
  *
  * Users can configure logging at any level in the hierarchy.
  *
+ * @example
+ * ```typescript
+ * import { configure, getConsoleSink } from "@logtape/logtape";
+ * import { CATEGORIES } from "@mysten/messaging";
+ *
+ * await configure({
+ *   sinks: { console: getConsoleSink() },
+ *   loggers: [
+ *     { category: CATEGORIES.ROOT, level: "info", sinks: ["console"] },
+ *   ],
+ * });
+ * ```
+ *
  * @see https://jsr.io/@logtape/logtape for LogTape documentation
  */
 export const CATEGORIES = {
@@ -18,30 +31,30 @@ export const CATEGORIES = {
 	 * Root category for all Messaging SDK logs.
 	 * Configure this to enable/disable all SDK logging.
 	 */
-	ROOT: ['@mysten/messaging'] as const,
+	ROOT: ['@mysten/messaging'],
 
 	/**
 	 * Client read operations: fetching channels, messages, members, etc.
 	 */
-	CLIENT_READS: ['@mysten/messaging', 'client', 'reads'] as const,
+	CLIENT_READS: ['@mysten/messaging', 'client', 'reads'],
 
 	/**
 	 * Client write operations: creating channels, sending messages, adding members, etc.
 	 */
-	CLIENT_WRITES: ['@mysten/messaging', 'client', 'writes'] as const,
+	CLIENT_WRITES: ['@mysten/messaging', 'client', 'writes'],
 
 	/**
 	 * Encryption operations: envelope encryption, key generation, decryption.
 	 */
-	ENCRYPTION: ['@mysten/messaging', 'encryption'] as const,
+	ENCRYPTION: ['@mysten/messaging', 'encryption'],
 
 	/**
 	 * All storage adapter operations.
 	 */
-	STORAGE: ['@mysten/messaging', 'storage'] as const,
+	STORAGE: ['@mysten/messaging', 'storage'],
 
 	/**
 	 * Walrus-specific storage operations.
 	 */
-	STORAGE_WALRUS: ['@mysten/messaging', 'storage', 'walrus'] as const,
-} as const;
+	STORAGE_WALRUS: ['@mysten/messaging', 'storage', 'walrus'],
+};
