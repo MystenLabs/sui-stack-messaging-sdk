@@ -14,9 +14,9 @@ import { getLogger as getLogTapeLogger } from '@logtape/logtape';
  *
  * @example
  * ```typescript
- * import { getLogger, CATEGORIES } from './logging/index.js';
+ * import { getLogger, LOG_CATEGORIES } from './logging/index.js';
  *
- * const logger = getLogger(CATEGORIES.CLIENT_READS);
+ * const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
  * logger.info("Fetching channels", { count: 10 });
  * ```
  */
@@ -24,4 +24,4 @@ export function getLogger(category: readonly string[]) {
 	return getLogTapeLogger(category);
 }
 
-export { CATEGORIES } from './categories.js';
+export { LOG_CATEGORIES } from './categories.js';

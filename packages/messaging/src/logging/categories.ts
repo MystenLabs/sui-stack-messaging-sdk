@@ -14,19 +14,19 @@
  * @example
  * ```typescript
  * import { configure, getConsoleSink } from "@logtape/logtape";
- * import { CATEGORIES } from "@mysten/messaging";
+ * import { LOG_CATEGORIES } from "@mysten/messaging";
  *
  * await configure({
  *   sinks: { console: getConsoleSink() },
  *   loggers: [
- *     { category: CATEGORIES.ROOT, level: "info", sinks: ["console"] },
+ *     { category: LOG_CATEGORIES.ROOT, level: "info", sinks: ["console"] },
  *   ],
  * });
  * ```
  *
- * @see https://jsr.io/@logtape/logtape for LogTape documentation
+ * @see https://www.npmjs.com/package/@logtape/logtape for LogTape documentation
  */
-export const CATEGORIES = {
+export const LOG_CATEGORIES = {
 	/**
 	 * Root category for all Messaging SDK logs.
 	 * Configure this to enable/disable all SDK logging.

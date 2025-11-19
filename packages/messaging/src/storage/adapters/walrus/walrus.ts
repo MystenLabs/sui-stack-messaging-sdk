@@ -5,7 +5,7 @@ import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.j
 import type { WalrusClient } from '@mysten/walrus';
 import type { WalrusResponse } from './types.js';
 
-import { getLogger, CATEGORIES } from '../../../logging/index.js';
+import { getLogger, LOG_CATEGORIES } from '../../../logging/index.js';
 
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
@@ -22,7 +22,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	 * @returns Upload result with blob IDs
 	 */
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
-		const logger = getLogger(CATEGORIES.STORAGE_WALRUS);
+		const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
 		const totalBytes = data.reduce((sum, d) => sum + d.length, 0);
 
 		logger.debug('Uploading to Walrus', {
@@ -49,7 +49,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	 * @returns Array of downloaded data
 	 */
 	async download(ids: string[]): Promise<Uint8Array[]> {
-		const logger = getLogger(CATEGORIES.STORAGE_WALRUS);
+		const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
 		logger.debug('Downloading from Walrus', {
 			count: ids.length,
 			ids,
@@ -94,7 +94,7 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		if (!response.ok) {
 			// Read the error response body to get the actual error message
 			const errorText = await response.text();
-			const logger = getLogger(CATEGORIES.STORAGE_WALRUS);
+			const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
 			logger.error('Walrus upload failed', {
 				status: response.status,
 				statusText: response.statusText,

@@ -34,4 +34,4 @@ export { WalrusStorageAdapter } from './storage/adapters/walrus/walrus.js';
 export type * from './storage/adapters/walrus/types.js';
 
 // Logging utilities (optional - requires @logtape/logtape peer dependency)
-export { getLogger, CATEGORIES } from './logging/index.js';
+export { getLogger, LOG_CATEGORIES } from './logging/index.js';

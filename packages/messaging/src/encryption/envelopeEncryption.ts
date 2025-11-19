@@ -5,7 +5,7 @@ import type { SessionKey } from '@mysten/seal';
 import { EncryptedObject } from '@mysten/seal';
 import { fromHex, isValidSuiObjectId, toHex } from '@mysten/sui/utils';
 
-import { getLogger, CATEGORIES } from '../logging/index.js';
+import { getLogger, LOG_CATEGORIES } from '../logging/index.js';
 import type {
 	AttachmentMetadata,
 	DecryptAttachmentDataOpts,
@@ -85,7 +85,7 @@ export class EnvelopeEncryption {
 	async generateEncryptedChannelDEK({
 		channelId,
 	}: GenerateEncryptedChannelDEKopts): Promise<Uint8Array<ArrayBuffer>> {
-		const logger = getLogger(CATEGORIES.ENCRYPTION);
+		const logger = getLogger(LOG_CATEGORIES.ENCRYPTION);
 		logger.debug('Generating encrypted channel DEK', { channelId });
 
 		if (!isValidSuiObjectId(channelId)) {
@@ -136,7 +136,7 @@ export class EnvelopeEncryption {
 		encryptedKey,
 		memberCapId,
 	}: EncryptTextOpts): Promise<EncryptedPayload> {
-		const logger = getLogger(CATEGORIES.ENCRYPTION);
+		const logger = getLogger(LOG_CATEGORIES.ENCRYPTION);
 		logger.debug('Encrypting text message', {
 			channelId,
 			textLength: text.length,
@@ -180,7 +180,7 @@ export class EnvelopeEncryption {
 		sender,
 		memberCapId,
 	}: DecryptTextOpts): Promise<string> {
-		const logger = getLogger(CATEGORIES.ENCRYPTION);
+		const logger = getLogger(LOG_CATEGORIES.ENCRYPTION);
 		logger.debug('Decrypting text message', {
 			channelId,
 			ciphertextLength: ciphertext.length,
@@ -562,7 +562,7 @@ export class EnvelopeEncryption {
 		channelId,
 		memberCapId,
 	}: DecryptChannelDEKOpts): Promise<SymmetricKey> {
-		const logger = getLogger(CATEGORIES.ENCRYPTION);
+		const logger = getLogger(LOG_CATEGORIES.ENCRYPTION);
 
 		if (!isValidSuiObjectId(channelId)) {
 			throw new Error('The channelId provided is not a valid Sui Object ID');
