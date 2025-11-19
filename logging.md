@@ -273,13 +273,13 @@ The SDK **never logs**:
 - Private key material
 
 The SDK **does log**:
-- Object IDs (channels, messages, caps) - these are public on-chain
-- Payload lengths (not content)
-- Public keys
-- Operation metadata (counts, timestamps)
-- Error messages (from `Error.message` - may contain sensitive info in stack traces)
+- **Object IDs** (channels, messages, member caps) - these are public on-chain
+- **Sender and member addresses** - these are public on-chain
+- **Payload lengths** (not the actual content)
+- **Operation metadata** (counts, timestamps, blob IDs)
+- **Error messages** (from `Error.message`) - may contain sensitive information in stack traces
 
-**Important**: Error messages are logged as-is from exceptions. Review your error logs to ensure no sensitive data is exposed. Consider using LogTape's [redaction features](https://www.npmjs.com/package/@logtape/logtape/doc/redaction/~) if needed.
+**Important**: Error messages are logged as-is from caught exceptions. Review your error logs to ensure no sensitive data is inadvertently exposed through error messages. Consider using LogTape's [redaction features](https://www.npmjs.com/package/@logtape/logtape) if you need to sanitize logs before sending to external systems.
 
 ## Troubleshooting
 
