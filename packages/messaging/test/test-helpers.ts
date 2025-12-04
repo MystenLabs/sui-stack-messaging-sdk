@@ -11,7 +11,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { GenericContainer, Network } from 'testcontainers';
 import path from 'path';
 
-import { SuiStackMessagingClient } from '../src/client';
+import { messaging } from '../src/client';
 import { WalrusStorageAdapter } from '../src/storage/adapters/walrus/walrus';
 
 import * as channelModule from '../src/contracts/sui_stack_messaging/channel';
@@ -430,7 +430,7 @@ export function createTestClient(
 
 	return config.environment === 'localnet'
 		? suiRpcClient.$extend(MockSealClient.asClientExtension()).$extend(
-				SuiStackMessagingClient.experimental_asClientExtension({
+				messaging({
 					packageConfig: config.packageConfig,
 					storage: (_client) => mockStorage,
 					sessionKeyConfig: {
@@ -450,7 +450,7 @@ export function createTestClient(
 					}),
 				)
 				.$extend(
-					SuiStackMessagingClient.experimental_asClientExtension({
+					messaging({
 						packageConfig: config.packageConfig,
 						storage: (client) => {
 							if (!config.walrusConfig) {

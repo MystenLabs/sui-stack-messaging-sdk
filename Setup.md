@@ -28,7 +28,7 @@ Before extending your client, ensure you have:
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
 import { SealClient } from "@mysten/seal";
-import { SuiStackMessagingClient } from "@mysten/sui-messaging";
+import { messaging } from "@mysten/messaging";
 ```
 
 ### Step-by-Step extension
@@ -74,11 +74,11 @@ const clientWithSeal = baseClient.$extend(
 
 Refer to [verified key servers](https://seal-docs.wal.app/Pricing/#verified-key-servers) for the list of verified key servers on Testnet and Mainnet.
 
-**Step 3: Extend with SuiStackMessagingClient**
+**Step 3: Extend with messaging**
 
 ```typescript
 const messagingClient = clientWithSeal.$extend(
-  SuiStackMessagingClient.experimental_asClientExtension({
+  messaging({
     // Session key configuration (choose one of the available approaches - see below)
     sessionKeyConfig: {
       address: "0x...", // User's Sui address
@@ -104,7 +104,7 @@ const messagingClient = clientWithSeal.$extend(
 );
 
 // Access messaging functionality
-const messaging = messagingClient.messaging;
+const msg = messagingClient.messaging;
 ```
 
 ### Complete extension example
@@ -137,7 +137,7 @@ const client = new SuiClient({
     })
   )
   .$extend(
-    SuiStackMessagingClient.experimental_asClientExtension({
+    messaging({
       sessionKeyConfig: {
         address: "0x...",
         ttlMin: 30,
@@ -188,7 +188,7 @@ import { SessionKey } from "@mysten/seal";
 
 const mySessionKey = await SessionKey.create(/* ... */);
 
-SuiStackMessagingClient.experimental_asClientExtension({
+messaging({
   sessionKey: mySessionKey,
   // ... other config
 });
@@ -268,7 +268,7 @@ class MyCustomStorage implements StorageAdapter {
   }
 }
 
-SuiStackMessagingClient.experimental_asClientExtension({
+messaging({
   storage: (client) => new MyCustomStorage(client),
   // ... other config
 });
@@ -304,7 +304,7 @@ SealClient.asClientExtension({
 });
 
 // MessagingClient: Configure threshold (how many servers must participate)
-SuiStackMessagingClient.experimental_asClientExtension({
+messaging({
   sealConfig: {
     threshold: 2, // Require 2 out of 3 key servers
   },
@@ -332,7 +332,7 @@ packageConfig: {
 **Example:**
 
 ```typescript
-SuiStackMessagingClient.experimental_asClientExtension({
+messaging({
   packageConfig: {
     packageId: "0xabc123...",
     sealApproveContract: {

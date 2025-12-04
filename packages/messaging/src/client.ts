@@ -80,7 +80,7 @@ export class SuiStackMessagingClient {
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
 
-	private constructor(public options: MessagingClientOptions) {
+	constructor(public options: MessagingClientOptions) {
 		this.#suiClient = options.suiClient;
 		this.#storage = options.storage;
 
@@ -124,7 +124,7 @@ export class SuiStackMessagingClient {
 		});
 	}
 
-	// TODO: Move to standalone function (pattern used in other Mysten TypeScript SDKs)
+	/** @deprecated use `messaging()` instead */
 	static experimental_asClientExtension(options: MessagingClientExtensionOptions) {
 		return {
 			name: 'messaging' as const,
@@ -1584,4 +1584,77 @@ export class SuiStackMessagingClient {
 		// Filter out null values and return
 		return contents.filter((content): content is Uint8Array => content !== null);
 	}
+}
+
+/**
+ * Creates a client extension for Sui Stack Messaging.
+ *
+ * @example
+ * ```typescript
+ * const client = new SuiClient({ url: '...' })
+ *   .$extend(SealClient.asClientExtension({ serverConfigs: [...] }))
+ *   .$extend(messaging({
+ *     walrusStorageConfig: { publisher: '...', aggregator: '...', epochs: 1 },
+ *     sessionKeyConfig: { address: '...', ttlMin: 30 },
+ *   }));
+ *
+ * // Access messaging functionality
+ * const { channelId } = await client.messaging.executeCreateChannelTransaction({ signer });
+ * ```
+ */
+export function messaging(options: MessagingClientExtensionOptions) {
+	return {
+		name: 'messaging' as const,
+		register: (client: MessagingCompatibleClient) => {
+			const sealClient = client.seal;
+
+			if (!sealClient) {
+				throw new MessagingClientError('SealClient extension is required for MessagingClient');
+			}
+
+			// Check if storage configuration is provided
+			if (!('storage' in options) && !('walrusStorageConfig' in options)) {
+				throw new MessagingClientError(
+					'Either a custom storage adapter via "storage" option or explicit Walrus storage configuration via "walrusStorageConfig" option must be provided. Fallback to default Walrus endpoints is not supported.',
+				);
+			}
+
+			// Auto-detect network from the client or use default package config
+			let packageConfig = options.packageConfig;
+			if (!packageConfig) {
+				const network = client.network;
+				switch (network) {
+					case 'testnet':
+						packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+						break;
+					case 'mainnet':
+						packageConfig = MAINNET_MESSAGING_PACKAGE_CONFIG;
+						break;
+					default:
+						// Fallback to testnet if network is not recognized
+						packageConfig = TESTNET_MESSAGING_PACKAGE_CONFIG;
+						break;
+				}
+			}
+
+			// Handle storage configuration
+			const storage =
+				'storage' in options
+					? (c: MessagingCompatibleClient) => options.storage(c)
+					: (c: MessagingCompatibleClient) => {
+							// WalrusClient is optional - we can use WalrusStorageAdapter without it
+							// In the future, when WalrusClient SDK is used, we can check for its presence and use different logic
+							return new WalrusStorageAdapter(c, options.walrusStorageConfig);
+						};
+
+			return new SuiStackMessagingClient({
+				suiClient: client,
+				storage,
+				packageConfig,
+				sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
+				sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
+				sealConfig: options.sealConfig,
+			});
+		},
+	};
 }
