@@ -19,7 +19,7 @@ The app initiates a messaging client, extended with Seal and the Messaging SDK. 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
 import { SealClient } from "@mysten/seal";
-import { SuiStackMessagingClient } from "@mysten/messaging";
+import { messaging } from "@mysten/messaging";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 const supportSigner = Ed25519Keypair.generate(); // Support handle/team account
@@ -42,7 +42,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
     })
   )
   .$extend(
-    SuiStackMessagingClient.experimental_asClientExtension({
+    messaging({
       walrusStorageConfig: {
         aggregator: "https://aggregator.walrus-testnet.walrus.space",
         publisher: "https://publisher.walrus-testnet.walrus.space",
@@ -56,7 +56,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
     })
   );
 
-const messaging = client.messaging;
+const messagingClient = client.messaging;
 ```
 
 ### 2. Create a 1:1 support channel for a user
@@ -67,7 +67,7 @@ When a user becomes eligible for support, the app creates a dedicated channel be
 const topUserAddress = "0xUSER..."; // Replace with the user's Sui address
 
 const { channelId, encryptedKeyBytes } =
-  await messaging.executeCreateChannelTransaction({
+  await messagingClient.executeCreateChannelTransaction({
     signer: supportSigner,
     initialMembers: [topUserAddress],
   });
@@ -86,7 +86,7 @@ let cursor = null;
 let hasNextPage = true;
 
 while (hasNextPage && !supportMembership) {
-  const memberships = await messaging.getChannelMemberships({
+  const memberships = await messagingClient.getChannelMemberships({
     address: supportSigner.toSuiAddress(),
     cursor,
   });
@@ -100,7 +100,7 @@ while (hasNextPage && !supportMembership) {
 const supportMemberCapId = supportMembership.member_cap_id;
 
 // Get the channel object with encryption key info
-const channelObjects = await messaging.getChannelObjectsByChannelIds({
+const channelObjects = await messagingClient.getChannelObjectsByChannelIds({
   channelIds: [channelId],
   userAddress: supportSigner.toSuiAddress(),
 });
@@ -123,7 +123,7 @@ First, the user needs to retrieve their `memberCapId` and encryption key:
 // Get the encryption key info for the channel - as showcased above
 
 // Send the support query
-const { digest, messageId } = await messaging.executeSendMessageTransaction({
+const { digest, messageId } = await messagingClient.executeSendMessageTransaction({
   signer: userSigner,
   channelId,
   memberCapId: userMemberCapId,
@@ -140,7 +140,7 @@ On the support side, the team reads new messages from the user and sends a respo
 
 ```typescript
 // Support fetches recent user messages
-const messages = await messaging.getChannelMessages({
+const messages = await messagingClient.getChannelMessages({
   channelId,
   userAddress: supportSigner.toSuiAddress(),
   limit: 5,
@@ -150,7 +150,7 @@ const messages = await messaging.getChannelMessages({
 messages.messages.forEach((m) => console.log(`${m.sender}: ${m.text}`));
 
 // Send a reply
-await messaging.executeSendMessageTransaction({
+await messagingClient.executeSendMessageTransaction({
   signer: supportSigner,
   channelId,
   memberCapId: supportMemberCapId,
@@ -167,7 +167,7 @@ You can replace or augment the support team with an AI agent that programmatical
 
 ```typescript
 // Fetch recent user messages (returns paginated response with cursor for subsequent calls)
-const messages = await messaging.getChannelMessages({
+const messages = await messagingClient.getChannelMessages({
   channelId,
   userAddress: supportSigner.toSuiAddress(),
   limit: 5,
@@ -176,7 +176,7 @@ const messages = await messaging.getChannelMessages({
 
 for (const msg of messages.messages) {
   const aiResponse = await callAIService(msg.text); // Custom agent workflow
-  await messaging.executeSendMessageTransaction({
+  await messagingClient.executeSendMessageTransaction({
     signer: supportSigner,
     channelId,
     memberCapId: supportMemberCapId,
@@ -211,7 +211,7 @@ const newMemberAddresses = [
   "0xNEWMEMBER2...",
 ];
 
-const { digest, addedMembers } = await messaging.executeAddMembersTransaction({
+const { digest, addedMembers } = await messagingClient.executeAddMembersTransaction({
   signer: creatorSigner, // Must be the channel creator
   channelId,
   memberCapId: creatorMemberCapId,
@@ -235,7 +235,7 @@ import { Transaction } from "@mysten/sui/transactions";
 const tx = new Transaction();
 
 // Build the add members transaction
-const addMembersBuilder = messaging.addMembers({
+const addMembersBuilder = messagingClient.addMembers({
   channelId,
   memberCapId: creatorMemberCapId,
   creatorCapId,
@@ -258,7 +258,7 @@ console.log(`Transaction digest: ${result.digest}`);
 You can also use `addMembersTransaction` which returns a `Transaction` object directly:
 
 ```typescript
-const tx = messaging.addMembersTransaction({
+const tx = messagingClient.addMembersTransaction({
   channelId,
   memberCapId: creatorMemberCapId,
   creatorCapId,
@@ -275,7 +275,7 @@ const result = await creatorSigner.signAndExecuteTransaction({
 After adding members, you can verify they were successfully added by fetching the channel members:
 
 ```typescript
-const channelMembers = await messaging.getChannelMembers(channelId);
+const channelMembers = await messagingClient.getChannelMembers(channelId);
 
 console.log(`Total members: ${channelMembers.members.length}`);
 channelMembers.members.forEach((member) => {
@@ -290,13 +290,13 @@ Building on the in-app product support example, you might want to add additional
 
 ```typescript
 // Original support channel with one user
-const { channelId, creatorCapId } = await messaging.executeCreateChannelTransaction({
+const { channelId, creatorCapId } = await messagingClient.executeCreateChannelTransaction({
   signer: supportSigner,
   initialMembers: [topUserAddress],
 });
 
 // Get the creator's MemberCap ID (see step 3 in the support example above)
-const creatorMembership = await messaging.getChannelMemberships({
+const creatorMembership = await messagingClient.getChannelMemberships({
   address: supportSigner.toSuiAddress(),
 });
 const supportMemberCapId = creatorMembership.memberships.find(
@@ -309,7 +309,7 @@ const additionalAgents = [
   "0xSUPPORT_AGENT_3...",
 ];
 
-await messaging.executeAddMembersTransaction({
+await messagingClient.executeAddMembersTransaction({
   signer: supportSigner,
   channelId,
   memberCapId: supportMemberCapId,
@@ -331,7 +331,7 @@ This pattern emulates a Pub/Sub workflow, but by using on-chain & decentralized 
 ```typescript
 import { SuiClient } from "@mysten/sui/client";
 import { SealClient } from "@mysten/seal";
-import { SuiStackMessagingClient } from "@mysten/messaging";
+import { messaging } from "@mysten/messaging";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 
 const publisherSigner = Ed25519Keypair.generate(); // Identity app's account
@@ -339,7 +339,7 @@ const publisherSigner = Ed25519Keypair.generate(); // Identity app's account
 const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
   .$extend(SealClient.asClientExtension({ serverConfigs: [] }))
   .$extend(
-    SuiStackMessagingClient.experimental_asClientExtension({
+    messaging({
       walrusStorageConfig: {
         aggregator: "https://aggregator.walrus-testnet.walrus.space",
         publisher: "https://publisher.walrus-testnet.walrus.space",
@@ -352,7 +352,7 @@ const client = new SuiClient({ url: "https://fullnode.testnet.sui.io:443" })
     })
   );
 
-const messaging = client.messaging;
+const messagingClient = client.messaging;
 ```
 
 ### 2. Create a `Reputation Updates` channel
@@ -365,7 +365,7 @@ const defiAppAddress = "0xDEFI..."; // DeFi protocol
 const gameAppAddress = "0xGAME..."; // Gaming app
 const socialAppAddress = "0xSOCIAL..."; // Social app
 
-const { channelId } = await messaging.executeCreateChannelTransaction({
+const { channelId } = await messagingClient.executeCreateChannelTransaction({
   signer: publisherSigner,
   initialMembers: [
     userAddress,
@@ -386,7 +386,7 @@ console.log(`Created reputation updates channel: ${channelId}`);
 Whenever the user’s reputation score changes, the identity app publishes an update to the channel.
 
 ```typescript
-await messaging.executeSendMessageTransaction({
+await messagingClient.executeSendMessageTransaction({
   signer: publisherSigner,
   channelId,
   memberCapId: publisherMemberCapId, // Publisher’s MemberCap for this channel
@@ -408,7 +408,7 @@ Each subscriber app (e.g., DeFi, game, social) sets up its own client and checks
 
 ```typescript
 // Example: DeFi app consuming updates (returns paginated response with cursor for subsequent calls)
-const messages = await messaging.getChannelMessages({
+const messages = await messagingClient.getChannelMessages({
   channelId,
   userAddress: defiAppAddress,
   limit: 5,

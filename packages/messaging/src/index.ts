@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Main client class
-export { SuiStackMessagingClient } from './client.js';
+export { SuiStackMessagingClient, messaging } from './client.js';
 
 // Types
 export type * from './types.js';
