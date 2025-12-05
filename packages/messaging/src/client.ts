@@ -8,6 +8,8 @@ import { bcs } from '@mysten/sui/bcs';
 import type { Experimental_SuiClientTypes } from '@mysten/sui/experimental';
 import type { SessionKey } from '@mysten/seal';
 
+import { getLogger, LOG_CATEGORIES } from './logging/index.js';
+
 import {
 	_new as newChannel,
 	addEncryptedKey,
@@ -388,7 +390,13 @@ export class SuiStackMessagingClient {
 	async getChannelObjectsByChannelIds(
 		request: GetChannelObjectsByChannelIdsRequest,
 	): Promise<DecryptedChannelObject[]> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
 		const { channelIds, userAddress, memberCapIds } = request;
+
+		logger.debug('Fetching channel objects by IDs', {
+			channelCount: channelIds.length,
+			userAddress,
+		});
 
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: channelIds,
@@ -427,7 +435,10 @@ export class SuiStackMessagingClient {
 						decryptedChannel.last_message = decryptedMessage;
 					} catch (error) {
 						// If decryption fails, set last_message to null
-						console.warn(`Failed to decrypt last message for channel ${channel.id.id}:`, error);
+						logger.warn('Failed to decrypt last message for channel', {
+							channelId: channel.id.id,
+							error: error instanceof Error ? error.message : String(error),
+						});
 						decryptedChannel.last_message = null;
 					}
 				}
@@ -435,6 +446,12 @@ export class SuiStackMessagingClient {
 				return decryptedChannel;
 			}),
 		);
+
+		logger.info('Retrieved channel objects', {
+			channelCount: decryptedChannels.length,
+			channelIds: decryptedChannels.map((c) => c.id.id),
+			userAddress,
+		});
 
 		return decryptedChannels;
 	}
@@ -445,6 +462,9 @@ export class SuiStackMessagingClient {
 	 * @returns Channel members with addresses and member cap IDs
 	 */
 	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching channel members', { channelId });
+
 		// 1. Get the channel object to access the auth structure
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: [channelId],
@@ -471,7 +491,10 @@ export class SuiStackMessagingClient {
 		const members: ChannelMember[] = [];
 		for (const obj of memberCapObjects.objects) {
 			if (obj instanceof Error || !obj.content) {
-				console.warn('Failed to fetch MemberCap object:', obj);
+				logger.warn('Failed to fetch MemberCap object', {
+					channelId,
+					error: obj instanceof Error ? obj.message : 'No content in object',
+				});
 				continue;
 			}
 
@@ -486,10 +509,16 @@ export class SuiStackMessagingClient {
 					} else if (obj.owner.$kind === 'ObjectOwner') {
 						// For object-owned MemberCaps, we can't easily get the address
 						// This is a limitation of the current approach
-						console.warn('MemberCap is object-owned, skipping:', memberCap.id.id);
+						logger.warn('MemberCap is object-owned, skipping', {
+							channelId,
+							memberCapId: memberCap.id.id,
+						});
 						continue;
 					} else {
-						console.warn('MemberCap has unknown ownership type:', obj.owner);
+						logger.warn('MemberCap has unknown ownership type', {
+							channelId,
+							ownerKind: obj.owner.$kind,
+						});
 						continue;
 					}
 
@@ -499,9 +528,18 @@ export class SuiStackMessagingClient {
 					});
 				}
 			} catch (error) {
-				console.warn('Failed to parse MemberCap object:', error);
+				logger.warn('Failed to parse MemberCap object', {
+					channelId,
+					error: error instanceof Error ? error.message : String(error),
+				});
 			}
 		}
+
+		logger.info('Retrieved channel members', {
+			channelId,
+			memberCount: members.length,
+			memberCapIds: members.map((m) => m.memberCapId),
+		});
 
 		return { members };
 	}
@@ -518,6 +556,9 @@ export class SuiStackMessagingClient {
 		limit = 50,
 		direction = 'backward',
 	}: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching channel messages', { channelId, userAddress, cursor, limit, direction });
+
 		// 1. Get channel metadata (we need the raw channel object for metadata, not decrypted)
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: [channelId],
@@ -567,7 +608,11 @@ export class SuiStackMessagingClient {
 				try {
 					return await this.#decryptMessage(message, channelId, memberCapId, encryptedKey);
 				} catch (error) {
-					console.warn(`Failed to decrypt message in channel ${channelId}:`, error);
+					logger.warn('Failed to decrypt message in channel', {
+						channelId,
+						sender: message.sender,
+						error: error instanceof Error ? error.message : String(error),
+					});
 					// Return a placeholder for failed decryption
 					return {
 						text: '[Failed to decrypt message]',
@@ -587,6 +632,16 @@ export class SuiStackMessagingClient {
 		});
 
 		// 8. Create response
+		logger.info('Retrieved channel messages', {
+			channelId,
+			messagesTableId,
+			messageCount: decryptedMessages.length,
+			fetchRange: `${fetchRange.startIndex}-${fetchRange.endIndex}`,
+			cursor: nextPagination.cursor,
+			hasNextPage: nextPagination.hasNextPage,
+			direction,
+		});
+
 		return {
 			messages: decryptedMessages,
 			cursor: nextPagination.cursor,
@@ -673,6 +728,7 @@ export class SuiStackMessagingClient {
 		initialMemberAddresses,
 	}: CreateChannelFlowOpts): CreateChannelFlow {
 		const build = () => {
+			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 			const tx = new Transaction();
 			const config = tx.add(noneConfig());
 			const [channel, creatorCap, creatorMemberCap] = tx.add(newChannel({ arguments: { config } }));
@@ -684,8 +740,13 @@ export class SuiStackMessagingClient {
 					? this.#deduplicateAddresses(initialMemberAddresses, creatorAddress)
 					: [];
 			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
-				console.warn(
+				logger.warn(
 					'Duplicate addresses or creator address detected in initialMemberAddresses. Creator automatically receives a MemberCap. Using unique non-creator addresses only.',
+					{
+						originalCount: initialMemberAddresses?.length,
+						uniqueCount: uniqueAddresses.length,
+						creatorAddress,
+					},
 				);
 			}
 
@@ -963,11 +1024,21 @@ export class SuiStackMessagingClient {
 		encryptedKey: EncryptedSymmetricKey;
 		attachments?: File[];
 	} & { signer: Signer }): Promise<{ digest: string; messageId: string }> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
+		const senderAddress = signer.toSuiAddress();
+		logger.debug('Sending message', {
+			channelId,
+			memberCapId,
+			senderAddress,
+			messageLength: message.length,
+			attachmentCount: attachments?.length ?? 0,
+		});
+
 		const tx = new Transaction();
 		const sendMessageTxBuilder = await this.sendMessage(
 			channelId,
 			memberCapId,
-			signer.toSuiAddress(),
+			senderAddress,
 			message,
 			encryptedKey,
 			attachments,
@@ -980,6 +1051,14 @@ export class SuiStackMessagingClient {
 		if (messageId === undefined) {
 			throw new MessagingClientError('Message id not found on the transaction effects');
 		}
+
+		logger.info('Message sent', {
+			channelId,
+			messageId,
+			senderAddress,
+			hasAttachments: (attachments?.length ?? 0) > 0,
+			digest,
+		});
 
 		return { digest, messageId };
 	}
@@ -999,17 +1078,24 @@ export class SuiStackMessagingClient {
 	 */
 	addMembers({ channelId, memberCapId, newMemberAddresses, creatorCapId }: AddMembersOptions) {
 		return async (tx: Transaction) => {
+			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
+
 			// Deduplicate addresses
 			const uniqueAddresses = this.#deduplicateAddresses(newMemberAddresses);
 
 			if (uniqueAddresses.length !== newMemberAddresses.length) {
-				console.warn(
+				logger.warn(
 					'Duplicate addresses detected in newMemberAddresses. Using unique addresses only.',
+					{
+						channelId,
+						originalCount: newMemberAddresses.length,
+						uniqueCount: uniqueAddresses.length,
+					},
 				);
 			}
 
 			if (uniqueAddresses.length === 0) {
-				console.warn('No members to add after deduplication.');
+				logger.warn('No members to add after deduplication.', { channelId });
 				return;
 			}
 
@@ -1087,6 +1173,12 @@ export class SuiStackMessagingClient {
 		digest: string;
 		addedMembers: AddedMemberCap[];
 	}> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
+		logger.debug('Adding members to channel', {
+			channelId: options.channelId,
+			newMemberAddresses: options.newMemberAddresses,
+		});
+
 		const tx = transaction ?? new Transaction();
 		const addMembersTxBuilder = this.addMembers(options);
 		await addMembersTxBuilder(tx);
@@ -1118,6 +1210,13 @@ export class SuiStackMessagingClient {
 				memberCap: object,
 				ownerAddress,
 			};
+		});
+
+		logger.info('Members added to channel', {
+			channelId: options.channelId,
+			addedMemberCount: addedMembers.length,
+			memberCapIds: addedMembers.map((m) => m.memberCap.id.id),
+			digest,
 		});
 
 		return { digest, addedMembers };
@@ -1155,8 +1254,15 @@ export class SuiStackMessagingClient {
 		creatorCapId: string;
 		encryptedKeyBytes: Uint8Array<ArrayBuffer>;
 	}> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
+		const creatorAddress = signer.toSuiAddress();
+		logger.debug('Creating channel', {
+			creatorAddress,
+			initialMemberCount: initialMembers?.length ?? 0,
+		});
+
 		const flow = this.createChannelFlow({
-			creatorAddress: signer.toSuiAddress(),
+			creatorAddress,
 			initialMemberAddresses: initialMembers,
 		});
 
@@ -1187,6 +1293,14 @@ export class SuiStackMessagingClient {
 
 		// Step 4: Get the encrypted key bytes
 		const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
+
+		logger.info('Channel created', {
+			channelId,
+			creatorCapId: creatorCap.id.id,
+			creatorAddress,
+			memberCount: (initialMembers?.length ?? 0) + 1, // Including creator
+			digest: keyDigest,
+		});
 
 		return { digest: keyDigest, creatorCapId: creatorCap.id.id, channelId, encryptedKeyBytes };
 	}

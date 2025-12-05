@@ -53,3 +53,4 @@ For questions about the SDK, use case discussions, or integration support, conta
 - [SDK API Reference](./APIRef.md)
 - [Integration Testing](./Testing.md)
 - [Example patterns](./Examples.md)
+- [Logging](./logging.md)

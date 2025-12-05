@@ -52,6 +52,7 @@
 	},
 	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
+		"@logtape/logtape": "^1.2.0",
 		"@mysten/bcs": "^1.9.2",
 		"@mysten/seal": "^0.9.6",
 		"@mysten/sui": "^1.45.2",

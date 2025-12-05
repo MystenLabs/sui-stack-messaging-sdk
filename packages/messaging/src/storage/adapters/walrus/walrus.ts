@@ -5,6 +5,8 @@ import type { StorageAdapter, StorageConfig, StorageOptions } from '../storage.j
 import type { WalrusClient } from '@mysten/walrus';
 import type { WalrusResponse } from './types.js';
 
+import { getLogger, LOG_CATEGORIES } from '../../../logging/index.js';
+
 export class WalrusStorageAdapter implements StorageAdapter {
 	constructor(
 		// Client parameter kept for future implementation - currently unused
@@ -20,7 +22,25 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	 * @returns Upload result with blob IDs
 	 */
 	async upload(data: Uint8Array[], _options: StorageOptions): Promise<{ ids: string[] }> {
-		return await this.#uploadQuilts(data); // todo: option handling for blobs vs quilts
+		const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
+		const totalBytes = data.reduce((sum, d) => sum + d.length, 0);
+
+		logger.debug('Uploading to Walrus', {
+			count: data.length,
+			totalBytes,
+			publisherUrl: this.config.publisher,
+			epochs: this.config.epochs,
+		});
+
+		const result = await this.#uploadQuilts(data); // todo: option handling for blobs vs quilts
+
+		logger.info('Uploaded to Walrus', {
+			count: result.ids.length,
+			blobIds: result.ids,
+			totalBytes,
+		});
+
+		return result;
 	}
 
 	/**
@@ -29,10 +49,25 @@ export class WalrusStorageAdapter implements StorageAdapter {
 	 * @returns Array of downloaded data
 	 */
 	async download(ids: string[]): Promise<Uint8Array[]> {
+		const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
+		logger.debug('Downloading from Walrus', {
+			count: ids.length,
+			ids,
+			aggregatorUrl: this.config.aggregator,
+		});
+
 		if (ids.length === 0) {
 			return [];
 		}
-		return await this.#downloadQuilts(ids);
+
+		const result = await this.#downloadQuilts(ids);
+
+		logger.info('Downloaded from Walrus', {
+			count: result.length,
+			totalBytes: result.reduce((sum, d) => sum + d.length, 0),
+		});
+
+		return result;
 	}
 
 	/**
@@ -59,17 +94,20 @@ export class WalrusStorageAdapter implements StorageAdapter {
 		if (!response.ok) {
 			// Read the error response body to get the actual error message
 			const errorText = await response.text();
-			console.error('Error response body:', errorText);
+			const logger = getLogger(LOG_CATEGORIES.STORAGE_WALRUS);
+			logger.error('Walrus upload failed', {
+				status: response.status,
+				statusText: response.statusText,
+				errorText,
+				publisherUrl: this.config.publisher,
+			});
 			throw new Error(
 				`Walrus upload failed: ${response.status} ${response.statusText} - ${errorText}`,
 			);
 		}
 
 		const result = await response.json();
-		// const blobId = this.#extractBlobId(result as WalrusResponse);
 		// TODO: figure out the Types, so we avoid the use of any
-		//  // @ts-ignore
-		// console.log((await this.client.walrus.getBlob({blobId})));
 		return { ids: this.#extractQuiltsPatchIds(result as WalrusResponse) };
 	}
 
