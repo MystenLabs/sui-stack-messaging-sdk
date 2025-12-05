@@ -1,5 +1,32 @@
 # @mysten/messaging
 
+## 0.2.0
+
+### Minor Changes
+
+- 2fd6844: Add standalone `messaging()` function as the recommended way to create client extensions.
+  The `SuiStackMessagingClient.experimental_asClientExtension()` static method is now soft-deprecated.
+
+### Patch Changes
+
+- b5866a4: Add optional LogTape structured logging support
+
+  The Messaging SDK now includes structured logging using LogTape.
+  This is completely optional - install and configure LogTape in your application to enable logging.
+
+  Key features:
+  - Optional peer dependency
+  - Hierarchical logging categories
+  - Four log levels: debug, info, warning, error
+
+  For setup and configuration, see [loggin.md](./logging.md).
+
+- 0bb45fe: Updated dependencies
+  - @mysten/bcs@1.9.2
+  - @mysten/seal@0.9.6
+  - @mysten/sui@1.45.2
+  - @mysten/walrus@0.8.6
+
 ## 0.1.0
 
 ### Minor Changes
