@@ -14,12 +14,7 @@
   The Messaging SDK now includes structured logging using LogTape.
   This is completely optional - install and configure LogTape in your application to enable logging.
 
-  Key features:
-  - Optional peer dependency
-  - Hierarchical logging categories
-  - Four log levels: debug, info, warning, error
-
-  For setup and configuration, see [loggin.md](./logging.md).
+  For setup and configuration, see [logging.md](./logging.md).
 
 - 0bb45fe: Updated dependencies
   - @mysten/bcs@1.9.2
