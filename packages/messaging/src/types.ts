@@ -88,21 +88,45 @@ export interface CreateChannelFlow {
 	};
 }
 
-// Add Members interfaces
-export interface AddMembersOptions {
+// Add Members interfaces - base options shared by all variants
+interface AddMembersBaseOptions {
 	channelId: string;
 	memberCapId: string;
 	newMemberAddresses: string[];
+}
+
+// Variant 1: User provides the creatorCapId directly
+export interface AddMembersWithCreatorCapId extends AddMembersBaseOptions {
 	creatorCapId: string;
+	address?: never;
 }
 
-export interface AddMembersTransactionOptions extends AddMembersOptions {
+// Variant 2: User provides their address to auto-fetch the CreatorCap
+export interface AddMembersWithAddress extends AddMembersBaseOptions {
+	creatorCapId?: never;
+	/**
+	 * The address to use for fetching the CreatorCap.
+	 * Required when creatorCapId is not provided.
+	 */
+	address: string;
+}
+
+/**
+ * Options for adding members to a channel.
+ * Either provide `creatorCapId` directly, or provide `address` to auto-fetch the CreatorCap.
+ */
+export type AddMembersOptions = AddMembersWithCreatorCapId | AddMembersWithAddress;
+
+export interface AddMembersTransactionOptions extends AddMembersBaseOptions {
 	transaction?: Transaction;
+	creatorCapId?: string;
+	address?: string;
 }
 
-export interface ExecuteAddMembersTransactionOptions extends AddMembersOptions {
+export interface ExecuteAddMembersTransactionOptions extends AddMembersBaseOptions {
 	transaction?: Transaction;
 	signer: Signer;
+	creatorCapId?: string;
 }
 
 export interface AddedMemberCap {
