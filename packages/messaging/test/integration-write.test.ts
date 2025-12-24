@@ -6,16 +6,9 @@ import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { GrpcWebFetchTransport } from '@protobuf-ts/grpcweb-transport';
 import { Signer } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import {
-	createTestClient,
-	findChannelMembership,
-	getCreatorCapId,
-	setupTestEnvironment,
-	TestEnvironmentSetup,
-} from './test-helpers';
+import { createTestClient, setupTestEnvironment, TestEnvironmentSetup } from './test-helpers';
 import { EncryptedSymmetricKey } from '../src/encryption/types';
 import { MemberCap } from '../src/contracts/sui_stack_messaging/member_cap';
-import { Membership } from '../src/types';
 
 // Type alias for our fully extended client
 type TestClient = ReturnType<typeof createTestClient>;
@@ -91,33 +84,13 @@ describe('Integration tests - Write Path', () => {
 			expect(channel.auth).toBeDefined();
 			expect(channel.auth.member_permissions).toBeDefined();
 
-			// Assert members - get the creator's MemberCap
-			let creatorMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-
-			while (hasNextPage && !creatorMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
-				});
-				creatorMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(creatorMembership).toBeDefined();
-
-			// Get the actual MemberCap object
-			const creatorMemberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
-			});
-			const creatorMemberCapObject = creatorMemberCapObjects.objects[0];
-			if (creatorMemberCapObject instanceof Error || !creatorMemberCapObject.content) {
-				throw new Error('Failed to fetch creator MemberCap object');
-			}
-			const creatorMemberCap = MemberCap.parse(await creatorMemberCapObject.content);
+			// Assert members - get the creator's MemberCap using the new getUserMemberCap method
+			const creatorMemberCap = await client.messaging.getUserMemberCap(
+				signer.toSuiAddress(),
+				channelId,
+			);
 			expect(creatorMemberCap).toBeDefined();
-			expect(creatorMemberCap.channel_id).toBe(channelId);
+			expect(creatorMemberCap!.channel_id).toBe(channelId);
 
 			// Get all MemberCaps for this channel using the new auth system
 			// We'll get the channel's auth structure and extract member cap IDs
@@ -149,36 +122,21 @@ describe('Integration tests - Write Path', () => {
 
 			// Verify the creator's MemberCap is in the list
 			const foundCreatorMemberCap = channelMemberCaps.find(
-				(cap) => cap.id.id === creatorMemberCap.id.id,
+				(cap) => cap.id.id === creatorMemberCap!.id.id,
 			);
 			expect(foundCreatorMemberCap).toBeDefined();
 			expect(foundCreatorMemberCap?.channel_id).toBe(channelId);
 
 			// If we have an initial member, verify their MemberCap is also in the list
 			if (initialMember) {
-				const initialMemberMemberships = await client.messaging.getChannelMemberships({
-					address: initialMember,
-				});
-				const initialMemberMembership = initialMemberMemberships.memberships.find(
-					(m) => m.channel_id === channelId,
-				);
-				expect(initialMemberMembership).toBeDefined();
-
-				// Get the actual MemberCap object
-				const initialMemberCapObjects = await client.core.getObjects({
-					objectIds: [initialMemberMembership!.member_cap_id],
-				});
-				const initialMemberCapObject = initialMemberCapObjects.objects[0];
-				if (initialMemberCapObject instanceof Error || !initialMemberCapObject.content) {
-					throw new Error('Failed to fetch initial member MemberCap object');
-				}
-				const initialMemberCap = MemberCap.parse(await initialMemberCapObject.content);
+				// Use getUserMemberCap to get the initial member's MemberCap
+				const initialMemberCap = await client.messaging.getUserMemberCap(initialMember, channelId);
 				expect(initialMemberCap).toBeDefined();
-				expect(initialMemberCap.channel_id).toBe(channelId);
+				expect(initialMemberCap!.channel_id).toBe(channelId);
 
 				// Verify the initial member's MemberCap is in the channel's member list
 				const foundInitialMemberCap = channelMemberCaps.find(
-					(cap) => cap.id.id === initialMemberCap.id.id,
+					(cap) => cap.id.id === initialMemberCap!.id.id,
 				);
 				expect(foundInitialMemberCap).toBeDefined();
 			}
@@ -295,32 +253,22 @@ describe('Integration tests - Write Path', () => {
 				signer,
 			});
 
-			// Use helper to get creator's membership
-			const creatorMembership = await findChannelMembership(
-				client,
+			// Use getUserMemberCap to get creator's MemberCap
+			const creatorMemberCap = await client.messaging.getUserMemberCap(
 				signer.toSuiAddress(),
 				channelId,
 			);
-			expect(creatorMembership).toBeDefined();
+			expect(creatorMemberCap).toBeDefined();
 
-			// Use helper to get creator cap
-			const creatorCapId = await getCreatorCapId(
-				client,
-				signer.toSuiAddress(),
-				channelId,
-				testSetup.packageId,
-			);
-
-			// Add 3 new members
+			// Add 3 new members - CreatorCap is auto-fetched using signer's address
 			const newMember1 = Ed25519Keypair.generate().toSuiAddress();
 			const newMember2 = Ed25519Keypair.generate().toSuiAddress();
 			const newMember3 = Ed25519Keypair.generate().toSuiAddress();
 
 			const { digest, addedMembers } = await client.messaging.executeAddMembersTransaction({
 				channelId,
-				memberCapId: creatorMembership!.member_cap_id,
+				memberCapId: creatorMemberCap!.id.id,
 				newMemberAddresses: [newMember1, newMember2, newMember3],
-				creatorCapId,
 				signer,
 			});
 
@@ -357,29 +305,20 @@ describe('Integration tests - Write Path', () => {
 				signer,
 			});
 
-			// Use helpers
-			const creatorMembership = await findChannelMembership(
-				client,
+			// Use getUserMemberCap to get creator's MemberCap
+			const creatorMemberCap = await client.messaging.getUserMemberCap(
 				signer.toSuiAddress(),
 				channelId,
 			);
-			expect(creatorMembership).toBeDefined();
+			expect(creatorMemberCap).toBeDefined();
 
-			const creatorCapId = await getCreatorCapId(
-				client,
-				signer.toSuiAddress(),
-				channelId,
-				testSetup.packageId,
-			);
-
-			// Try adding members with duplicate addresses
+			// Try adding members with duplicate addresses - CreatorCap auto-fetched
 			const newMember = Ed25519Keypair.generate().toSuiAddress();
 
 			const { digest, addedMembers } = await client.messaging.executeAddMembersTransaction({
 				channelId,
-				memberCapId: creatorMembership!.member_cap_id,
+				memberCapId: creatorMemberCap!.id.id,
 				newMemberAddresses: [newMember, newMember, newMember],
-				creatorCapId,
 				signer,
 			});
 
@@ -401,29 +340,21 @@ describe('Integration tests - Write Path', () => {
 				signer,
 			});
 
-			// Use helpers
-			const creatorMembership = await findChannelMembership(
-				client,
+			// Use getUserMemberCap to get creator's MemberCap
+			const creatorMemberCap = await client.messaging.getUserMemberCap(
 				signer.toSuiAddress(),
 				channelId,
 			);
-			expect(creatorMembership).toBeDefined();
-
-			const creatorCapId = await getCreatorCapId(
-				client,
-				signer.toSuiAddress(),
-				channelId,
-				testSetup.packageId,
-			);
+			expect(creatorMemberCap).toBeDefined();
 
 			const newMember = Ed25519Keypair.generate().toSuiAddress();
 
-			// Use addMembersTransaction to get a transaction object
-			const tx = client.messaging.addMembersTransaction({
+			// Use addMembersTransaction to get a transaction object - CreatorCap auto-fetched via address
+			const tx = await client.messaging.addMembersTransaction({
 				channelId,
-				memberCapId: creatorMembership!.member_cap_id,
+				memberCapId: creatorMemberCap!.id.id,
 				newMemberAddresses: [newMember],
-				creatorCapId,
+				address: signer.toSuiAddress(),
 			});
 
 			expect(tx).toBeDefined();
@@ -470,31 +401,13 @@ describe('Integration tests - Write Path', () => {
 			});
 			channelObj = channelObjects[0];
 
-			// Get the creator's MemberCap (taking pagination into account)
-			let creatorMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-			while (hasNextPage && !creatorMembership) {
-				const memberships = await client.messaging.getChannelMemberships({
-					address: signer.toSuiAddress(),
-					cursor,
-				});
-				creatorMembership = memberships.memberships.find((m) => m.channel_id === newChannelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(creatorMembership).toBeDefined();
-
-			// Get the actual MemberCap object
-			const memberCapObjects = await client.core.getObjects({
-				objectIds: [creatorMembership!.member_cap_id],
-			});
-			const memberCapObject = memberCapObjects.objects[0];
-			if (memberCapObject instanceof Error || !memberCapObject.content) {
-				throw new Error('Failed to fetch MemberCap object');
-			}
-			memberCap = MemberCap.parse(await memberCapObject.content);
-			// console.log('channelObj', JSON.stringify(channelObj, null, 2));
+			// Get the creator's MemberCap using getUserMemberCap
+			const creatorMemberCap = await client.messaging.getUserMemberCap(
+				signer.toSuiAddress(),
+				newChannelId,
+			);
+			expect(creatorMemberCap).toBeDefined();
+			memberCap = creatorMemberCap!;
 			console.log('memberCap', JSON.stringify(memberCap, null, 2));
 
 			const encryptionKeyVersion = channelObj.encryption_key_history.latest_version;
@@ -608,22 +521,13 @@ describe('Integration tests - Write Path', () => {
 			expect(channelId).toBeDefined();
 			expect(encryptedKeyBytes).toBeDefined();
 
-			// Step 3: Fetch the memberCapId and encryptionKey (support handle)
-			let supportMembership: Membership | null | undefined = null;
-			let cursor: string | null = null;
-			let hasNextPage: boolean = true;
-
-			while (hasNextPage && !supportMembership) {
-				const memberships = await messaging.getChannelMemberships({
-					address: supportSigner.toSuiAddress(),
-					cursor,
-				});
-				supportMembership = memberships.memberships.find((m) => m.channel_id === channelId);
-				hasNextPage = memberships.hasNextPage;
-				cursor = memberships.cursor;
-			}
-			expect(supportMembership).toBeDefined();
-			const supportMemberCapId = supportMembership!.member_cap_id;
+			// Step 3: Fetch the memberCapId and encryptionKey (support handle) using getUserMemberCap
+			const supportMemberCap = await messaging.getUserMemberCap(
+				supportSigner.toSuiAddress(),
+				channelId,
+			);
+			expect(supportMemberCap).toBeDefined();
+			const supportMemberCapId = supportMemberCap!.id.id;
 
 			// Get the channel object with encryption key info
 			const channelObjects = await messaging.getChannelObjectsByChannelIds({
@@ -637,22 +541,10 @@ describe('Integration tests - Write Path', () => {
 				version: channelObj.encryption_key_history.latest_version,
 			};
 
-			// Step 3b: Get user's memberCapId
-			let userMembership: Membership | null | undefined = null;
-			let userCursor: string | null = null;
-			let userHasNextPage: boolean = true;
-
-			while (userHasNextPage && !userMembership) {
-				const userMemberships = await messaging.getChannelMemberships({
-					address: topUserAddress,
-					cursor: userCursor,
-				});
-				userMembership = userMemberships.memberships.find((m) => m.channel_id === channelId);
-				userHasNextPage = userMemberships.hasNextPage;
-				userCursor = userMemberships.cursor;
-			}
-			expect(userMembership).toBeDefined();
-			const userMemberCapId = userMembership!.member_cap_id;
+			// Step 3b: Get user's memberCapId using getUserMemberCap
+			const userMemberCap = await messaging.getUserMemberCap(topUserAddress, channelId);
+			expect(userMemberCap).toBeDefined();
+			const userMemberCapId = userMemberCap!.id.id;
 
 			// Get user's channel object with encryption key
 			const userChannelObjects = await messaging.getChannelObjectsByChannelIds({

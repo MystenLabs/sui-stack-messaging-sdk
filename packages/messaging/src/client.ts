@@ -25,6 +25,7 @@ import type {
 	AddedMemberCap,
 	AddMembersOptions,
 	AddMembersTransactionOptions,
+	AddMembersWithAddress,
 	ChannelMembershipsRequest,
 	ChannelMembershipsResponse,
 	ChannelMembersResponse,
@@ -193,26 +194,11 @@ export class SuiStackMessagingClient {
 	 * @returns Member cap ID or throws if not found
 	 */
 	async #getUserMemberCapId(userAddress: string, channelId: string): Promise<string> {
-		let cursor: string | null = null;
-		let hasNextPage = true;
-
-		while (hasNextPage) {
-			const memberships = await this.getChannelMemberships({
-				address: userAddress,
-				cursor,
-			});
-
-			const membership = memberships.memberships.find((m) => m.channel_id === channelId);
-
-			if (membership) {
-				return membership.member_cap_id;
-			}
-
-			cursor = memberships.cursor;
-			hasNextPage = memberships.hasNextPage;
+		const memberCap = await this.getUserMemberCap(userAddress, channelId);
+		if (!memberCap) {
+			throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
 		}
-
-		throw new MessagingClientError(`User ${userAddress} is not a member of channel ${channelId}`);
+		return memberCap.id.id;
 	}
 
 	/**
@@ -454,6 +440,66 @@ export class SuiStackMessagingClient {
 		});
 
 		return decryptedChannels;
+	}
+
+	/**
+	 * Get the CreatorCap for a specific user and channel.
+	 * Returns the CreatorCap if the user owns one for the specified channel, null otherwise.
+	 *
+	 * @param userAddress - The user's address
+	 * @param channelId - The channel ID
+	 * @returns CreatorCap object or null if not found
+	 */
+	async getCreatorCap(
+		userAddress: string,
+		channelId: string,
+	): Promise<(typeof CreatorCap)['$inferType'] | null> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching CreatorCap', { userAddress, channelId });
+
+		const creatorCap = await this.#findOwnedObjectByChannelId(CreatorCap, userAddress, channelId);
+
+		if (creatorCap) {
+			logger.info('Found CreatorCap', {
+				userAddress,
+				channelId,
+				creatorCapId: creatorCap.id.id,
+			});
+		} else {
+			logger.debug('CreatorCap not found', { userAddress, channelId });
+		}
+
+		return creatorCap;
+	}
+
+	/**
+	 * Get the MemberCap for a specific user and channel.
+	 * Returns the MemberCap if the user owns one for the specified channel, null otherwise.
+	 *
+	 * @param userAddress - The user's address
+	 * @param channelId - The channel ID
+	 * @returns MemberCap object or null if not found
+	 */
+	async getUserMemberCap(
+		userAddress: string,
+		channelId: string,
+	): Promise<(typeof MemberCap)['$inferType'] | null> {
+		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
+		logger.debug('Fetching MemberCap', { userAddress, channelId });
+
+		const memberCap = await this.#findOwnedObjectByChannelId(MemberCap, userAddress, channelId);
+
+		if (memberCap) {
+			logger.info('Found MemberCap', {
+				userAddress,
+				channelId,
+				memberCapId: memberCap.id.id,
+			});
+		} else {
+			logger.debug('MemberCap not found', { userAddress, channelId });
+		}
+
+		return memberCap;
 	}
 
 	/**
@@ -1068,61 +1114,61 @@ export class SuiStackMessagingClient {
 	 *
 	 * @example
 	 * ```ts
+	 * // With creatorCapId
 	 * tx.add(client.addMembers({
 	 *   channelId,
 	 *   memberCapId,
 	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
 	 *   creatorCapId
 	 * }));
+	 *
+	 * // With address (auto-fetches CreatorCap)
+	 * tx.add(client.addMembers({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   address: signer.toSuiAddress()
+	 * }));
 	 * ```
 	 */
-	addMembers({ channelId, memberCapId, newMemberAddresses, creatorCapId }: AddMembersOptions) {
+	addMembers(options: AddMembersOptions) {
 		return async (tx: Transaction) => {
+			const { channelId, memberCapId, newMemberAddresses } = options;
 			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 
-			// Deduplicate addresses
 			const uniqueAddresses = this.#deduplicateAddresses(newMemberAddresses);
-
 			if (uniqueAddresses.length !== newMemberAddresses.length) {
-				logger.warn(
-					'Duplicate addresses detected in newMemberAddresses. Using unique addresses only.',
-					{
-						channelId,
-						originalCount: newMemberAddresses.length,
-						uniqueCount: uniqueAddresses.length,
-					},
-				);
+				logger.warn('Duplicate addresses removed from newMemberAddresses.', {
+					channelId,
+					originalCount: newMemberAddresses.length,
+					uniqueCount: uniqueAddresses.length,
+				});
 			}
-
 			if (uniqueAddresses.length === 0) {
 				logger.warn('No members to add after deduplication.', { channelId });
 				return;
 			}
 
-			const channel = tx.object(channelId);
-			const memberCap = tx.object(memberCapId);
-			const creatorCap = tx.object(creatorCapId);
+			const creatorCapId = await this.#resolveCreatorCapId(options);
 
-			// Create new member caps
 			const memberCaps = tx.add(
 				addMembers({
 					package: this.#packageConfig.packageId,
 					arguments: {
-						self: channel,
-						memberCap,
+						self: tx.object(channelId),
+						memberCap: tx.object(memberCapId),
 						n: uniqueAddresses.length,
 					},
 				}),
 			);
 
-			// Transfer member caps to the new members
 			tx.add(
 				transferMemberCaps({
 					package: this.#packageConfig.packageId,
 					arguments: {
 						memberAddresses: tx.pure.vector('address', uniqueAddresses),
 						memberCaps,
-						creatorCap,
+						creatorCap: tx.object(creatorCapId),
 					},
 				}),
 			);
@@ -1130,36 +1176,76 @@ export class SuiStackMessagingClient {
 	}
 
 	/**
+	 * Resolve creatorCapId from options - either use provided value or fetch it by address.
+	 */
+	async #resolveCreatorCapId(options: AddMembersOptions): Promise<string> {
+		if (options.creatorCapId) {
+			return options.creatorCapId;
+		}
+
+		const { address, channelId } = options as AddMembersWithAddress;
+		const creatorCap = await this.getCreatorCap(address, channelId);
+		if (!creatorCap) {
+			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
+			logger.warn('CreatorCap not found for user', { address, channelId });
+			throw new MessagingClientError(
+				`User ${address} does not own a CreatorCap for channel ${channelId}`,
+			);
+		}
+		return creatorCap.id.id;
+	}
+
+	/**
 	 * Create a transaction that adds members to a channel
 	 *
 	 * @example
 	 * ```ts
-	 * const tx = client.addMembersTransaction({
+	 * // With creatorCapId
+	 * const tx = await client.addMembersTransaction({
 	 *   channelId,
 	 *   memberCapId,
 	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
 	 *   creatorCapId
 	 * });
+	 *
+	 * // With address (auto-fetches CreatorCap)
+	 * const tx = await client.addMembersTransaction({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   address: '0x...'
+	 * });
 	 * ```
 	 */
-	addMembersTransaction({
+	async addMembersTransaction({
 		transaction = new Transaction(),
 		...options
-	}: AddMembersTransactionOptions) {
-		transaction.add(this.addMembers(options));
+	}: AddMembersTransactionOptions): Promise<Transaction> {
+		const addMembersTxBuilder = this.addMembers(options as AddMembersOptions);
+		await addMembersTxBuilder(transaction);
 		return transaction;
 	}
 
 	/**
-	 * Execute a transaction that adds members to a channel
+	 * Execute a transaction that adds members to a channel.
+	 * If `creatorCapId` is not provided, it will be auto-fetched using the signer's address.
 	 *
 	 * @example
 	 * ```ts
+	 * // With creatorCapId
 	 * const { digest, addedMembers } = await client.executeAddMembersTransaction({
 	 *   channelId,
 	 *   memberCapId,
 	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
 	 *   creatorCapId,
+	 *   signer
+	 * });
+	 *
+	 * // Without creatorCapId (auto-fetches using signer's address)
+	 * const { digest, addedMembers } = await client.executeAddMembersTransaction({
+	 *   channelId,
+	 *   memberCapId,
+	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
 	 *   signer
 	 * });
 	 * // addedMembers contains { memberCap, ownerAddress } for each added member
@@ -1179,8 +1265,14 @@ export class SuiStackMessagingClient {
 			newMemberAddresses: options.newMemberAddresses,
 		});
 
+		// If creatorCapId is not provided, use signer's address to fetch it
+		const { channelId, memberCapId, newMemberAddresses, creatorCapId } = options;
+		const addMembersOptions: AddMembersOptions = creatorCapId
+			? { channelId, memberCapId, newMemberAddresses, creatorCapId }
+			: { channelId, memberCapId, newMemberAddresses, address: signer.toSuiAddress() };
+
 		const tx = transaction ?? new Transaction();
-		const addMembersTxBuilder = this.addMembers(options);
+		const addMembersTxBuilder = this.addMembers(addMembersOptions);
 		await addMembersTxBuilder(tx);
 
 		const { digest, effects } = await this.#executeTransaction(tx, signer, 'add members', true);
@@ -1650,6 +1742,55 @@ export class SuiStackMessagingClient {
 			direction,
 		};
 	}
+	/**
+	 * Find an owned object by channel ID.
+	 * Paginates through all owned objects of the given type until finding one with matching channel_id.
+	 *
+	 * @param struct - A MoveStruct with `name`, `parse`, and `$inferType` where the parsed type has `channel_id`
+	 * @param ownerAddress - The address that owns the object
+	 * @param channelId - The channel ID to match
+	 * @returns The parsed object or null if not found
+	 */
+	async #findOwnedObjectByChannelId<
+		T extends { channel_id: string; id: { id: string } },
+		S extends { name: string; parse: (data: Uint8Array) => T },
+	>(struct: S, ownerAddress: string, channelId: string): Promise<T | null> {
+		const objectType = struct.name.replace(
+			'@local-pkg/sui-stack-messaging',
+			this.#packageConfig.packageId,
+		);
+
+		let cursor: string | null = null;
+		let hasNextPage = true;
+
+		while (hasNextPage) {
+			const response = await this.#suiClient.core.getOwnedObjects({
+				address: ownerAddress,
+				cursor,
+				type: objectType,
+			});
+
+			const validObjects = response.objects.filter(
+				(obj): obj is Experimental_SuiClientTypes.ObjectResponse => !(obj instanceof Error),
+			);
+
+			if (validObjects.length > 0) {
+				const contents = await this.#getObjectContents(validObjects);
+				for (const content of contents) {
+					const parsed = struct.parse(content);
+					if (parsed.channel_id === channelId) {
+						return parsed;
+					}
+				}
+			}
+
+			cursor = response.cursor;
+			hasNextPage = response.hasNextPage;
+		}
+
+		return null;
+	}
+
 	/**
 	 * Helper method to get object contents, handling both SuiClient and SuiGrpcClient
 	 */

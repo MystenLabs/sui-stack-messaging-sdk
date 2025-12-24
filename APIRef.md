@@ -113,6 +113,86 @@ DecryptedChannelObject[]
 
 ---
 
+### Get user's MemberCap
+
+**Method:** `getUserMemberCap(userAddress: string, channelId: string): Promise<MemberCap | null>`
+
+**Purpose:** Returns the MemberCap for a specific user and channel.
+
+**Parameters:**
+
+- `userAddress` - The user's Sui address
+- `channelId` - The channel ID
+
+**Returns:**
+
+```typescript
+{
+  id: { id: string };
+  channel_id: string;
+} | null
+```
+
+**Example:**
+
+```typescript
+const memberCap = await messagingClient.getUserMemberCap(
+  userAddress,
+  channelId
+);
+
+if (memberCap) {
+  console.log(`User has MemberCap: ${memberCap.id.id}`);
+} else {
+  console.log("User is not a member of this channel");
+}
+```
+
+> [!NOTE]
+> This method paginates through all owned MemberCap objects to find the one matching the channel. For users with many channel memberships, consider caching the result.
+
+---
+
+### Get user's CreatorCap
+
+**Method:** `getCreatorCap(userAddress: string, channelId: string): Promise<CreatorCap | null>`
+
+**Purpose:** Returns the CreatorCap for a specific user and channel. Only the channel creator will have a CreatorCap.
+
+**Parameters:**
+
+- `userAddress` - The user's Sui address
+- `channelId` - The channel ID
+
+**Returns:**
+
+```typescript
+{
+  id: { id: string };
+  channel_id: string;
+} | null
+```
+
+**Example:**
+
+```typescript
+const creatorCap = await messagingClient.getCreatorCap(
+  userAddress,
+  channelId
+);
+
+if (creatorCap) {
+  console.log(`User is the creator with CreatorCap: ${creatorCap.id.id}`);
+} else {
+  console.log("User is not the creator of this channel");
+}
+```
+
+> [!NOTE]
+> This method paginates through all owned CreatorCap objects to find the one matching the channel. For users who have created many channels, consider caching the result.
+
+---
+
 ### Create channel flow (multi-step flow)
 
 **Method:** `createChannelFlow(opts: CreateChannelFlowOpts): CreateChannelFlow`
@@ -202,11 +282,20 @@ const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 **Parameters:**
 
 ```typescript
+// Option 1: Provide creatorCapId directly
 {
   channelId: string;
-  memberCapId: string;        // The creator's MemberCap ID
+  memberCapId: string;          // The creator's MemberCap ID
   newMemberAddresses: string[];
-  creatorCapId: string;       // The creator's CreatorCap ID
+  creatorCapId: string;         // The creator's CreatorCap ID
+}
+
+// Option 2: Provide address to auto-fetch CreatorCap
+{
+  channelId: string;
+  memberCapId: string;          // The creator's MemberCap ID
+  newMemberAddresses: string[];
+  address: string;              // The creator's address (CreatorCap will be fetched automatically)
 }
 ```
 
@@ -216,11 +305,21 @@ const { channelId, encryptedKeyBytes } = flow.getGeneratedEncryptionKey();
 
 ```typescript
 const tx = new Transaction();
+
+// Option 1: With creatorCapId
 const addMembersBuilder = client.messaging.addMembers({
   channelId,
-  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  memberCapId: creatorMemberCapId,
   newMemberAddresses: ["0xabc...", "0xdef..."],
   creatorCapId
+});
+
+// Option 2: With address (auto-fetches CreatorCap)
+const addMembersBuilder = client.messaging.addMembers({
+  channelId,
+  memberCapId: creatorMemberCapId,
+  newMemberAddresses: ["0xabc...", "0xdef..."],
+  address: signer.toSuiAddress()
 });
 
 await addMembersBuilder(tx);
@@ -228,13 +327,13 @@ await signer.signAndExecuteTransaction({ transaction: tx });
 ```
 
 > [!NOTE]
-> This operation requires both the creator's `MemberCap` and `CreatorCap`.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`. If you provide `address` instead of `creatorCapId`, the SDK will automatically fetch the CreatorCap for you.
 
 ---
 
 ### Add members transaction
 
-**Method:** `addMembersTransaction(options: AddMembersTransactionOptions): Transaction`
+**Method:** `addMembersTransaction(options: AddMembersTransactionOptions): Promise<Transaction>`
 
 **Purpose:** Creates a transaction for adding new members to a channel. Only the channel creator can add members.
 
@@ -245,28 +344,38 @@ await signer.signAndExecuteTransaction({ transaction: tx });
   channelId: string;
   memberCapId: string;        // The creator's MemberCap ID
   newMemberAddresses: string[];
-  creatorCapId: string;       // The creator's CreatorCap ID
+  creatorCapId?: string;      // The creator's CreatorCap ID (optional if address is provided)
+  address?: string;           // The creator's address (optional if creatorCapId is provided)
   transaction?: Transaction;  // Optional: provide existing transaction to build on
 }
 ```
 
-**Returns:** A `Transaction` object ready to be signed and executed
+**Returns:** A `Promise<Transaction>` object ready to be signed and executed
 
 **Example:**
 
 ```typescript
-const tx = client.messaging.addMembersTransaction({
+// With creatorCapId
+const tx = await client.messaging.addMembersTransaction({
   channelId,
-  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  memberCapId: creatorMemberCapId,
   newMemberAddresses: ["0xabc...", "0xdef..."],
   creatorCapId
+});
+
+// With address (auto-fetches CreatorCap)
+const tx = await client.messaging.addMembersTransaction({
+  channelId,
+  memberCapId: creatorMemberCapId,
+  newMemberAddresses: ["0xabc...", "0xdef..."],
+  address: signer.toSuiAddress()
 });
 
 await signer.signAndExecuteTransaction({ transaction: tx });
 ```
 
 > [!NOTE]
-> This operation requires both the creator's `MemberCap` and `CreatorCap`.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`. If you provide `address` instead of `creatorCapId`, the SDK will automatically fetch the CreatorCap for you.
 
 ---
 
@@ -274,7 +383,7 @@ await signer.signAndExecuteTransaction({ transaction: tx });
 
 **Method:** `executeAddMembersTransaction(params): Promise<{ digest: string; addedMembers: AddedMemberCap[] }>`
 
-**Purpose:** Adds new members to a channel in a single call. Only the channel creator can add members.
+**Purpose:** Adds new members to a channel in a single call. Only the channel creator can add members. If `creatorCapId` is not provided, it will be auto-fetched using the signer's address.
 
 **Parameters:**
 
@@ -284,7 +393,7 @@ await signer.signAndExecuteTransaction({ transaction: tx });
   channelId: string;
   memberCapId: string;        // The creator's MemberCap ID
   newMemberAddresses: string[];
-  creatorCapId: string;       // The creator's CreatorCap ID
+  creatorCapId?: string;      // Optional: The creator's CreatorCap ID (auto-fetched if not provided)
   transaction?: Transaction;  // Optional: provide existing transaction to build on
 }
 ```
@@ -309,12 +418,21 @@ Where `AddedMemberCap` has the structure:
 **Example:**
 
 ```typescript
+// With creatorCapId
 const { digest, addedMembers } = await client.messaging.executeAddMembersTransaction({
   signer,
   channelId,
-  memberCapId: creatorMemberCapId,  // Creator's MemberCap
+  memberCapId: creatorMemberCapId,
   newMemberAddresses: ["0xabc...", "0xdef..."],
   creatorCapId
+});
+
+// Without creatorCapId (auto-fetches using signer's address)
+const { digest, addedMembers } = await client.messaging.executeAddMembersTransaction({
+  signer,
+  channelId,
+  memberCapId: creatorMemberCapId,
+  newMemberAddresses: ["0xabc...", "0xdef..."]
 });
 
 console.log(`Added ${addedMembers.length} members`);
@@ -324,7 +442,7 @@ addedMembers.forEach(({ memberCap, ownerAddress }) => {
 ```
 
 > [!NOTE]
-> This operation requires both the creator's `MemberCap` and `CreatorCap`.
+> This operation requires both the creator's `MemberCap` and `CreatorCap`. If you don't provide `creatorCapId`, the SDK will automatically fetch it using the signer's address.
 
 ---
 

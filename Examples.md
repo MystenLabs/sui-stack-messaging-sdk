@@ -77,27 +77,15 @@ console.log(`Support channel created for user: ${channelId}`);
 
 ### 3. Fetch the memberCapId and encryptionKey
 
-Both user and support participants need their `memberCapId` (for authorization) and the channel’s `encryptionKey` (to encrypt/decrypt messages).
+Both user and support participants need their `memberCapId` (for authorization) and the channel's `encryptionKey` (to encrypt/decrypt messages).
 
 ```typescript
-// Get support handle's MemberCap for this channel (with pagination)
-let supportMembership = null;
-let cursor = null;
-let hasNextPage = true;
-
-while (hasNextPage && !supportMembership) {
-  const memberships = await messagingClient.getChannelMemberships({
-    address: supportSigner.toSuiAddress(),
-    cursor,
-  });
-  supportMembership = memberships.memberships.find(
-    (m) => m.channel_id === channelId
-  );
-  hasNextPage = memberships.hasNextPage;
-  cursor = memberships.cursor;
-}
-
-const supportMemberCapId = supportMembership.member_cap_id;
+// Get support handle's MemberCap for this channel
+const supportMemberCap = await messagingClient.getUserMemberCap(
+  supportSigner.toSuiAddress(),
+  channelId
+);
+const supportMemberCapId = supportMemberCap.id.id;
 
 // Get the channel object with encryption key info
 const channelObjects = await messagingClient.getChannelObjectsByChannelIds({
@@ -119,7 +107,9 @@ From the user's end of the app, the user can open the support channel and send a
 First, the user needs to retrieve their `memberCapId` and encryption key:
 
 ```typescript
-// Get the user's MemberCap for this channel (with pagination) - as showcased above
+// Get the user's MemberCap for this channel
+const userMemberCap = await messagingClient.getUserMemberCap(userAddress, channelId);
+const userMemberCapId = userMemberCap.id.id;
 // Get the encryption key info for the channel - as showcased above
 
 // Send the support query
@@ -197,13 +187,12 @@ This example shows how a channel creator can add new members to an existing chan
 
 ### 1. Adding members using the simplified method
 
-The easiest way to add members is using `executeAddMembersTransaction`, which handles the entire process in a single call.
+The easiest way to add members is using `executeAddMembersTransaction`, which handles the entire process in a single call. If you don't provide `creatorCapId`, the SDK will automatically fetch it using the signer's address.
 
 ```typescript
-// Assume you have already created a channel and have the channelId, creatorMemberCapId, and creatorCapId
+// Assume you have already created a channel and have the channelId and creatorMemberCapId
 const channelId = "0xCHANNEL...";
 const creatorMemberCapId = "0xCREATORMEMBERCAP..."; // Creator's MemberCap ID
-const creatorCapId = "0xCREATORCAP...";
 
 // Add two new members to the channel
 const newMemberAddresses = [
@@ -211,11 +200,20 @@ const newMemberAddresses = [
   "0xNEWMEMBER2...",
 ];
 
+// Option 1: Let the SDK auto-fetch the CreatorCap
 const { digest, addedMembers } = await messagingClient.executeAddMembersTransaction({
   signer: creatorSigner, // Must be the channel creator
   channelId,
   memberCapId: creatorMemberCapId,
-  creatorCapId,
+  newMemberAddresses,
+});
+
+// Option 2: Provide creatorCapId explicitly (faster if you already have it)
+const { digest, addedMembers } = await messagingClient.executeAddMembersTransaction({
+  signer: creatorSigner,
+  channelId,
+  memberCapId: creatorMemberCapId,
+  creatorCapId: "0xCREATORCAP...",
   newMemberAddresses,
 });
 
@@ -234,12 +232,12 @@ import { Transaction } from "@mysten/sui/transactions";
 
 const tx = new Transaction();
 
-// Build the add members transaction
+// Build the add members transaction (can use address instead of creatorCapId)
 const addMembersBuilder = messagingClient.addMembers({
   channelId,
   memberCapId: creatorMemberCapId,
-  creatorCapId,
   newMemberAddresses,
+  address: creatorSigner.toSuiAddress(), // Auto-fetches CreatorCap
 });
 
 // Add to the transaction
@@ -255,14 +253,14 @@ console.log(`Transaction digest: ${result.digest}`);
 
 ### 3. Adding members using direct transaction method
 
-You can also use `addMembersTransaction` which returns a `Transaction` object directly:
+You can also use `addMembersTransaction` which returns a `Promise<Transaction>` directly:
 
 ```typescript
-const tx = messagingClient.addMembersTransaction({
+const tx = await messagingClient.addMembersTransaction({
   channelId,
   memberCapId: creatorMemberCapId,
-  creatorCapId,
   newMemberAddresses,
+  address: creatorSigner.toSuiAddress(), // Auto-fetches CreatorCap
 });
 
 const result = await creatorSigner.signAndExecuteTransaction({
@@ -290,18 +288,17 @@ Building on the in-app product support example, you might want to add additional
 
 ```typescript
 // Original support channel with one user
-const { channelId, creatorCapId } = await messagingClient.executeCreateChannelTransaction({
+const { channelId } = await messagingClient.executeCreateChannelTransaction({
   signer: supportSigner,
   initialMembers: [topUserAddress],
 });
 
-// Get the creator's MemberCap ID (see step 3 in the support example above)
-const creatorMembership = await messagingClient.getChannelMemberships({
-  address: supportSigner.toSuiAddress(),
-});
-const supportMemberCapId = creatorMembership.memberships.find(
-  (m) => m.channel_id === channelId
-).member_cap_id;
+// Get the creator's MemberCap using the new getUserMemberCap method
+const creatorMemberCap = await messagingClient.getUserMemberCap(
+  supportSigner.toSuiAddress(),
+  channelId
+);
+const supportMemberCapId = creatorMemberCap.id.id;
 
 // Later, add more support agents to help with the conversation
 const additionalAgents = [
@@ -309,11 +306,11 @@ const additionalAgents = [
   "0xSUPPORT_AGENT_3...",
 ];
 
+// CreatorCap is auto-fetched using signer's address
 await messagingClient.executeAddMembersTransaction({
   signer: supportSigner,
   channelId,
   memberCapId: supportMemberCapId,
-  creatorCapId,
   newMemberAddresses: additionalAgents,
 });
 
