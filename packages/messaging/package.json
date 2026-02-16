@@ -1,6 +1,6 @@
 {
 	"name": "@mysten/messaging",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"description": "Messaging SDK (Alpha - Experimental)",
 	"license": "Apache-2.0",
 	"author": "Mysten Labs <build@mystenlabs.com>",
@@ -53,11 +53,11 @@
 	"homepage": "https://github.com/MystenLabs/sui-stack-messaging-sdk#readme",
 	"dependencies": {
 		"@logtape/logtape": "^1.2.0",
-		"@mysten/bcs": "^1.9.2",
-		"@mysten/seal": "^0.9.6",
-		"@mysten/sui": "^1.45.2",
-		"@mysten/suins": "^0.9.13",
-		"@mysten/walrus": "^0.8.6"
+		"@mysten/bcs": "^2.0.2",
+		"@mysten/seal": "^1.0.1",
+		"@mysten/sui": "^2.4.0",
+		"@mysten/suins": "^1.0.2",
+		"@mysten/walrus": "^1.0.3"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.29.6",
@@ -94,6 +94,7 @@
 		"vitest": "^3.2.4"
 	},
 	"engines": {
+		"node": ">=22",
 		"pnpm": ">=10.17.0"
 	},
 	"manypkg": {
