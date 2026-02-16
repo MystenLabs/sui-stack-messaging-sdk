@@ -1,0 +1,11 @@
+{
+  "network": "mainnet",
+  "date": "2026-02-16",
+  "activeAddress": "0x3db42086e9271787046859d60af7933fa7ea70148df37c9fd693195533eabb57",
+  "status": "Success",
+  "txDigest": "E551CSSGWQsXChSCFQPR7BNMWWQv7TB7KYV2iyZkxVyz",
+  "packageId": "0x74e34e2e4a2ba60d935db245c0ed93070bbbe23bf1558ae5c6a2a8590c8ad470",
+  "upgradeCapId": "0x1829ea7b90624dc019fd4df90e58bc092da03117f11ff585af958f0fb074d324",
+  "suiSpentMist": "78506620",
+  "suiSpent": "0.07850662"
+}
