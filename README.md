@@ -1,5 +1,8 @@
 # Sui Stack Messaging SDK
 
+> [!WARNING]
+> This repository contains the **alpha** version of the Sui Stack Messaging SDK and is **not actively maintained**. Development has moved to the [sui-stack-messaging](https://github.com/MystenLabs/sui-stack-messaging) repository. Please use that repository for the latest SDK, issues, and contributions.
+
 The Sui Stack Messaging SDK provides a complete, end-to-end encrypted messaging solution for Web3 applications. It combines three key components:
 
 - [Sui](https://sui.io/) smart contracts to manage channels, messages, membership, and encrypted message storage.
