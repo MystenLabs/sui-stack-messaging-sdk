@@ -61,6 +61,8 @@ import type { EncryptedSymmetricKey, SealConfig } from './encryption/types.js';
 import { EnvelopeEncryption } from './encryption/envelopeEncryption.js';
 
 import type { RawTransactionArgument } from './contracts/utils/index.js';
+import type { AddressResolver } from './utils/addressResolution.js';
+import type { ChannelNameResolver } from './utils/channelResolution.js';
 import {
 	CreatorCap,
 	transferToSender as transferCreatorCap,
@@ -79,6 +81,8 @@ export class SuiStackMessagingClient {
 	#storage: (client: MessagingCompatibleClient) => StorageAdapter;
 	#envelopeEncryption: EnvelopeEncryption;
 	#sealConfig: SealConfig;
+	#addressResolver?: AddressResolver;
+	#channelResolver?: ChannelNameResolver;
 	// TODO: Leave the responsibility of caching to the caller
 	// #encryptedChannelDEKCache: Map<string, EncryptedSymmetricKey> = new Map(); // channelId --> EncryptedSymmetricKey
 	// #channelMessagesTableIdCache: Map<string, string> = new Map<string, string>(); // channelId --> messagesTableId
@@ -125,6 +129,12 @@ export class SuiStackMessagingClient {
 			sessionKeyConfig: options.sessionKeyConfig,
 			sealConfig: this.#sealConfig,
 		});
+
+		// Initialize address resolver if provided
+		this.#addressResolver = options.addressResolver;
+
+		// Initialize channel resolver if provided
+		this.#channelResolver = options.channelResolver;
 	}
 
 	/** @deprecated use `messaging()` instead */
@@ -180,12 +190,40 @@ export class SuiStackMessagingClient {
 					sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
 					sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
 					sealConfig: options.sealConfig,
+					addressResolver: options.addressResolver,
+					channelResolver: options.channelResolver,
 				});
 			},
 		};
 	}
 
 	// ===== Private Helper Methods =====
+
+	/**
+	 * Resolve addresses using the address resolver if available.
+	 * If no resolver is configured, returns the input unchanged.
+	 * @param addresses - Array of addresses or SuiNS names to resolve
+	 * @returns Array of resolved addresses
+	 */
+	async #resolveAddresses(addresses: string[]): Promise<string[]> {
+		if (!this.#addressResolver || addresses.length === 0) {
+			return addresses;
+		}
+		return this.#addressResolver.resolveMany(addresses);
+	}
+
+	/**
+	 * Resolve a channel name or ID to a channel object ID.
+	 * If no resolver is configured, returns the input unchanged.
+	 * @param channelNameOrId - A channel name (e.g., "#general") or channel object ID
+	 * @returns The resolved channel object ID
+	 */
+	async #resolveChannelId(channelNameOrId: string): Promise<string> {
+		if (!this.#channelResolver) {
+			return channelNameOrId;
+		}
+		return this.#channelResolver.resolve(channelNameOrId);
+	}
 
 	/**
 	 * Get user's member cap ID for a specific channel.
@@ -504,12 +542,13 @@ export class SuiStackMessagingClient {
 
 	/**
 	 * Get all members of a channel
-	 * @param channelId - The channel ID
+	 * @param channelNameOrId - The channel ID or name (e.g., "#general" if channelResolver is configured)
 	 * @returns Channel members with addresses and member cap IDs
 	 */
-	async getChannelMembers(channelId: string): Promise<ChannelMembersResponse> {
+	async getChannelMembers(channelNameOrId: string): Promise<ChannelMembersResponse> {
+		const channelId = await this.#resolveChannelId(channelNameOrId);
 		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
-		logger.debug('Fetching channel members', { channelId });
+		logger.debug('Fetching channel members', { channelId, originalInput: channelNameOrId });
 
 		// 1. Get the channel object to access the auth structure
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
@@ -592,18 +631,19 @@ export class SuiStackMessagingClient {
 
 	/**
 	 * Get messages from a channel with pagination (returns decrypted messages)
-	 * @param request - Request parameters including channelId, userAddress, cursor, limit, and direction
+	 * @param request - Request parameters including channelId (or channel name), userAddress, cursor, limit, and direction
 	 * @returns Decrypted messages with pagination info
 	 */
 	async getChannelMessages({
-		channelId,
+		channelId: channelNameOrId,
 		userAddress,
 		cursor = null,
 		limit = 50,
 		direction = 'backward',
 	}: GetChannelMessagesRequest): Promise<DecryptedMessagesResponse> {
+		const channelId = await this.#resolveChannelId(channelNameOrId);
 		const logger = getLogger(LOG_CATEGORIES.CLIENT_READS);
-		logger.debug('Fetching channel messages', { channelId, userAddress, cursor, limit, direction });
+		logger.debug('Fetching channel messages', { channelId, originalInput: channelNameOrId, userAddress, cursor, limit, direction });
 
 		// 1. Get channel metadata (we need the raw channel object for metadata, not decrypted)
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
@@ -698,15 +738,16 @@ export class SuiStackMessagingClient {
 
 	/**
 	 * Get new messages since last polling state (returns decrypted messages)
-	 * @param request - Request with channelId, userAddress, pollingState, and limit
+	 * @param request - Request with channelId (or channel name), userAddress, pollingState, and limit
 	 * @returns New decrypted messages since last poll
 	 */
 	async getLatestMessages({
-		channelId,
+		channelId: channelNameOrId,
 		userAddress,
 		pollingState,
 		limit = 50,
 	}: GetLatestMessagesRequest): Promise<DecryptedMessagesResponse> {
+		const channelId = await this.#resolveChannelId(channelNameOrId);
 		// 1. Get current channel state to check for new messages
 		const channelObjectsRes = await this.#suiClient.core.getObjects({
 			objectIds: [channelId],
@@ -753,7 +794,7 @@ export class SuiStackMessagingClient {
 	 *
 	 * @usage
 	 * ```
-	 * const flow = client.createChannelFlow();
+	 * const flow = await client.createChannelFlow();
 	 *
 	 * // Step-by-step execution
 	 * // 1. build
@@ -766,13 +807,18 @@ export class SuiStackMessagingClient {
 	 * const { channelId, encryptedKeyBytes } = await flow.getGeneratedEncryptionKey({ creatorCap, encryptedKeyBytes });
 	 * ```
 	 *
-	 * @param opts - Options including creator address and initial members
+	 * @param opts - Options including creator address and initial members (can include SuiNS names if addressResolver is configured)
 	 * @returns Channel creation flow with step-by-step methods
 	 */
-	createChannelFlow({
+	async createChannelFlow({
 		creatorAddress,
 		initialMemberAddresses,
-	}: CreateChannelFlowOpts): CreateChannelFlow {
+	}: CreateChannelFlowOpts): Promise<CreateChannelFlow> {
+		// Resolve SuiNS names to addresses if resolver is configured
+		const resolvedInitialMemberAddresses = initialMemberAddresses
+			? await this.#resolveAddresses(initialMemberAddresses)
+			: undefined;
+
 		const build = () => {
 			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 			const tx = new Transaction();
@@ -782,14 +828,14 @@ export class SuiStackMessagingClient {
 			// Add initial members if provided
 			// Deduplicate addresses and filter out creator (who already gets a MemberCap automatically)
 			const uniqueAddresses =
-				initialMemberAddresses && initialMemberAddresses.length > 0
-					? this.#deduplicateAddresses(initialMemberAddresses, creatorAddress)
+				resolvedInitialMemberAddresses && resolvedInitialMemberAddresses.length > 0
+					? this.#deduplicateAddresses(resolvedInitialMemberAddresses, creatorAddress)
 					: [];
-			if (initialMemberAddresses && uniqueAddresses.length !== initialMemberAddresses.length) {
+			if (resolvedInitialMemberAddresses && uniqueAddresses.length !== resolvedInitialMemberAddresses.length) {
 				logger.warn(
 					'Duplicate addresses or creator address detected in initialMemberAddresses. Creator automatically receives a MemberCap. Using unique non-creator addresses only.',
 					{
-						originalCount: initialMemberAddresses?.length,
+						originalCount: resolvedInitialMemberAddresses?.length,
 						uniqueCount: uniqueAddresses.length,
 						creatorAddress,
 					},
@@ -1053,12 +1099,12 @@ export class SuiStackMessagingClient {
 
 	/**
 	 * Execute a send message transaction
-	 * @param params - Transaction parameters including signer, channelId, memberCapId, message, and encryptedKey
+	 * @param params - Transaction parameters including signer, channelId (or channel name), memberCapId, message, and encryptedKey
 	 * @returns Transaction digest and message ID
 	 */
 	async executeSendMessageTransaction({
 		signer,
-		channelId,
+		channelId: channelNameOrId,
 		memberCapId,
 		message,
 		attachments,
@@ -1070,10 +1116,12 @@ export class SuiStackMessagingClient {
 		encryptedKey: EncryptedSymmetricKey;
 		attachments?: File[];
 	} & { signer: Signer }): Promise<{ digest: string; messageId: string }> {
+		const channelId = await this.#resolveChannelId(channelNameOrId);
 		const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 		const senderAddress = signer.toSuiAddress();
 		logger.debug('Sending message', {
 			channelId,
+			originalInput: channelNameOrId,
 			memberCapId,
 			senderAddress,
 			messageLength: message.length,
@@ -1118,7 +1166,7 @@ export class SuiStackMessagingClient {
 	 * tx.add(client.addMembers({
 	 *   channelId,
 	 *   memberCapId,
-	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   newMemberAddresses: ['0xabc...', '0xdef...', 'alice.sui'],
 	 *   creatorCapId
 	 * }));
 	 *
@@ -1126,21 +1174,26 @@ export class SuiStackMessagingClient {
 	 * tx.add(client.addMembers({
 	 *   channelId,
 	 *   memberCapId,
-	 *   newMemberAddresses: ['0xabc...', '0xdef...'],
+	 *   newMemberAddresses: ['0xabc...', '0xdef...', 'bob.sui'],
 	 *   address: signer.toSuiAddress()
 	 * }));
 	 * ```
 	 */
 	addMembers(options: AddMembersOptions) {
 		return async (tx: Transaction) => {
-			const { channelId, memberCapId, newMemberAddresses } = options;
+			const { memberCapId, newMemberAddresses } = options;
+			// Resolve channel name to ID if resolver is configured
+			const channelId = await this.#resolveChannelId(options.channelId);
 			const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 
-			const uniqueAddresses = this.#deduplicateAddresses(newMemberAddresses);
-			if (uniqueAddresses.length !== newMemberAddresses.length) {
+			// Resolve SuiNS names to addresses if resolver is configured
+			const resolvedAddresses = await this.#resolveAddresses(newMemberAddresses);
+
+			const uniqueAddresses = this.#deduplicateAddresses(resolvedAddresses);
+			if (uniqueAddresses.length !== resolvedAddresses.length) {
 				logger.warn('Duplicate addresses removed from newMemberAddresses.', {
 					channelId,
-					originalCount: newMemberAddresses.length,
+					originalCount: resolvedAddresses.length,
 					uniqueCount: uniqueAddresses.length,
 				});
 			}
@@ -1259,14 +1312,17 @@ export class SuiStackMessagingClient {
 		digest: string;
 		addedMembers: AddedMemberCap[];
 	}> {
+		// Resolve channel name to ID if resolver is configured
+		const channelId = await this.#resolveChannelId(options.channelId);
 		const logger = getLogger(LOG_CATEGORIES.CLIENT_WRITES);
 		logger.debug('Adding members to channel', {
-			channelId: options.channelId,
+			channelId,
+			originalInput: options.channelId,
 			newMemberAddresses: options.newMemberAddresses,
 		});
 
 		// If creatorCapId is not provided, use signer's address to fetch it
-		const { channelId, memberCapId, newMemberAddresses, creatorCapId } = options;
+		const { memberCapId, newMemberAddresses, creatorCapId } = options;
 		const addMembersOptions: AddMembersOptions = creatorCapId
 			? { channelId, memberCapId, newMemberAddresses, creatorCapId }
 			: { channelId, memberCapId, newMemberAddresses, address: signer.toSuiAddress() };
@@ -1353,7 +1409,7 @@ export class SuiStackMessagingClient {
 			initialMemberCount: initialMembers?.length ?? 0,
 		});
 
-		const flow = this.createChannelFlow({
+		const flow = await this.createChannelFlow({
 			creatorAddress,
 			initialMemberAddresses: initialMembers,
 		});
@@ -1909,6 +1965,8 @@ export function messaging(options: MessagingClientExtensionOptions) {
 				sessionKey: 'sessionKey' in options ? options.sessionKey : undefined,
 				sessionKeyConfig: 'sessionKeyConfig' in options ? options.sessionKeyConfig : undefined,
 				sealConfig: options.sealConfig,
+				addressResolver: options.addressResolver,
+				channelResolver: options.channelResolver,
 			});
 		},
 	};

@@ -22,6 +22,8 @@ import type {
 import type { MemberCap } from './contracts/sui_stack_messaging/member_cap.js';
 import type { CreatorCap } from './contracts/sui_stack_messaging/creator_cap.js';
 import type { StorageAdapter, StorageConfig } from './storage/adapters/storage.js';
+import type { AddressResolver } from './utils/addressResolution.js';
+import type { ChannelNameResolver } from './utils/channelResolution.js';
 import type { Channel } from './contracts/sui_stack_messaging/channel.js';
 import type { Message } from './contracts/sui_stack_messaging/message.js';
 
@@ -34,6 +36,18 @@ interface BaseMessagingClientExtensionOptions {
 	 * Key servers are configured separately via SealClient.asClientExtension()
 	 */
 	sealConfig?: SealConfig;
+	/**
+	 * Optional address resolver for resolving SuiNS names to addresses.
+	 * When provided, methods like createChannelFlow() and addMembers() will automatically
+	 * resolve SuiNS names (e.g., "alice.sui") to their corresponding addresses.
+	 */
+	addressResolver?: AddressResolver;
+	/**
+	 * Optional channel name resolver for resolving human-readable channel names to IDs.
+	 * When provided, methods can accept channel names (e.g., "#general") instead of
+	 * raw channel object IDs.
+	 */
+	channelResolver?: ChannelNameResolver;
 }
 
 // Storage variants (mutually exclusive)
@@ -56,6 +70,8 @@ export interface MessagingClientOptions {
 	sessionKeyConfig?: SessionKeyConfig;
 	sessionKey?: SessionKey;
 	sealConfig?: SealConfig;
+	addressResolver?: AddressResolver;
+	channelResolver?: ChannelNameResolver;
 }
 
 // Create Channel Flow interfaces
