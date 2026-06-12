@@ -8,7 +8,7 @@
 
 # Developer Setup
 
-This guide shows you how to gte started with the Sui Stack Messaging SDK in your application.
+This guide shows you how to get started with the Sui Stack Messaging SDK in your application.
 
 ## Client extension system
 
