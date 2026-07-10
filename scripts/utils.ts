@@ -1,12 +1,7 @@
 /* --- Place your @mysten/sui imports here --- */
 import { execSync } from "child_process";
-import {
-  SuiClient,
-  SuiObjectChange,
-  SuiTransactionBlockResponse,
-} from "@mysten/sui/client";
+import type { ClientWithCoreApi } from "@mysten/sui/client";
 import { Transaction } from "@mysten/sui/transactions";
-
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { decodeSuiPrivateKey } from "@mysten/sui/cryptography";
 
@@ -26,25 +21,34 @@ export const createKeypairFromPrivateKey = (
 };
 
 /**
- * @param {SuiClient} client - The SuiClient instance
+ * @param {ClientWithCoreApi} client - The Sui client instance
  * @param {Transaction} transaction - The Transaction instance
  * @param {Ed25519Keypair} signer - The Keypair signer
- * @return {Promise<SuiTransactionBlockResponse>}
+ * @return {Promise<{ digest: string }>}
  */
 export async function executeTransaction(
-  client: SuiClient,
+  client: ClientWithCoreApi,
   transaction: Transaction,
   signer: Ed25519Keypair
-): Promise<SuiTransactionBlockResponse> {
-  const txResult = await client.signAndExecuteTransaction({
+): Promise<{ digest: string }> {
+  const result = await client.core.signAndExecuteTransaction({
     transaction,
     signer,
-    options: {
-      showEffects: true,
-      showObjectChanges: true,
+    include: {
+      effects: true,
     },
   });
 
-  await client.waitForTransaction({ digest: txResult.digest });
-  return txResult;
+  if (result.$kind === "FailedTransaction") {
+    throw new Error(
+      `Transaction failed: ${JSON.stringify(
+        result.FailedTransaction.status.error
+      )}`
+    );
+  }
+
+  await client.core.waitForTransaction({
+    digest: result.Transaction.digest,
+  });
+  return { digest: result.Transaction.digest };
 }
